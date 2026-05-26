@@ -20,26 +20,10 @@ export default function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard
-          title="Total Animals"
-          value={0}
-          icon={<Tag size={18} />}
-        />
-        <StatCard
-          title="Active Leases"
-          value={0}
-          icon={<MapPin size={18} />}
-        />
-        <StatCard
-          title="Health Flags"
-          value={0}
-          icon={<AlertTriangle size={18} />}
-        />
-        <StatCard
-          title="Open Invoices"
-          value={0}
-          icon={<FileText size={18} />}
-        />
+        <StatCard label="Total Animals" value={0} aside={<Tag size={16} style={{ color: 'var(--accent)' }} />} />
+        <StatCard label="Active Leases" value={0} aside={<MapPin size={16} style={{ color: 'var(--accent)' }} />} />
+        <StatCard label="Health Flags"  value={0} aside={<AlertTriangle size={16} style={{ color: 'var(--accent)' }} />} />
+        <StatCard label="Open Invoices" value={0} aside={<FileText size={16} style={{ color: 'var(--accent)' }} />} />
       </div>
 
       {/* Quick actions */}
@@ -61,6 +45,7 @@ export default function DashboardPage() {
           title="No activity yet"
           body="Add your first animal to get started."
           action={<Button intent="primary">+ ADD ANIMAL</Button>}
+          panel={false}
         />
       </Panel>
     </PageContainer>

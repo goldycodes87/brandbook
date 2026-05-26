@@ -1,64 +1,86 @@
-'use client'
+"use client";
 
-import { cn } from '@/lib/utils'
-import Link from 'next/link'
+import { ReactNode } from "react";
 
-interface Tab {
-  label: string
-  value?: string
-  href?: string
-  count?: number
+export interface TabItem<V extends string = string> {
+  value: V;
+  label: ReactNode;
+  /** Optional right-aligned counter chip (e.g. "12") */
+  count?: number | string;
+  disabled?: boolean;
 }
 
-interface TabsProps {
-  tabs: Tab[]
-  active?: string
-  onChange?: (value: string) => void
-  className?: string
+interface TabsProps<V extends string = string> {
+  value: V;
+  onChange: (next: V) => void;
+  items: TabItem<V>[];
+  /** Fill the container width, evenly splitting tabs */
+  stretch?: boolean;
+  className?: string;
 }
 
-export function Tabs({ tabs, active, onChange, className }: TabsProps) {
+/**
+ * Underline tabs — horizontal scroll on narrow screens.
+ *
+ *   <Tabs value={tab} onChange={setTab} items={[
+ *     { value: "orders", label: "ORDERS" },
+ *     { value: "shipping", label: "SHIPPING LEDGER", count: 4 },
+ *     { value: "settings", label: "SETTINGS" },
+ *   ]} />
+ */
+export function Tabs<V extends string = string>({
+  value,
+  onChange,
+  items,
+  stretch,
+  className = "",
+}: TabsProps<V>) {
   return (
     <div
-      style={{ borderColor: 'var(--border)' }}
-      className={cn('flex items-end gap-0 border-b overflow-x-auto', className)}
+      className={`overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 ${className}`}
+      style={{ borderBottom: "1px solid var(--border)" }}
     >
-      {tabs.map(tab => {
-        const isActive = active === (tab.value ?? tab.label)
-        const content = (
-          <>
-            <span>{tab.label}</span>
-            {tab.count !== undefined && (
-              <span
-                style={{ backgroundColor: 'var(--surface-3)', color: 'var(--text-muted)' }}
-                className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] leading-none"
-              >
-                {tab.count}
-              </span>
-            )}
-          </>
-        )
-        const sharedClass = cn(
-          'flex items-center px-4 py-2.5 -mb-px border-b-2 type-nav-item whitespace-nowrap transition-colors duration-150',
-          isActive
-            ? 'border-[var(--accent)] text-[var(--accent)]'
-            : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text)]',
-        )
-        if (tab.href) {
-          return <Link key={tab.label} href={tab.href} className={sharedClass}>{content}</Link>
-        }
-        return (
-          <button
-            key={tab.label}
-            onClick={() => onChange?.(tab.value ?? tab.label)}
-            className={sharedClass}
-          >
-            {content}
-          </button>
-        )
-      })}
+      <div className={`flex ${stretch ? "w-full" : ""}`} role="tablist">
+        {items.map((item) => {
+          const active = item.value === value;
+          return (
+            <button
+              key={item.value}
+              role="tab"
+              aria-selected={active}
+              disabled={item.disabled}
+              onClick={() => !item.disabled && onChange(item.value)}
+              className={[
+                "type-nav-item flex items-center gap-2 px-4 py-3 whitespace-nowrap",
+                "transition-colors duration-150",
+                stretch ? "flex-1 justify-center" : "",
+                "disabled:opacity-40 disabled:cursor-not-allowed",
+              ].join(" ")}
+              style={{
+                color: active ? "var(--text)" : "var(--text-muted)",
+                borderBottom: active
+                  ? "2px solid var(--accent)"
+                  : "2px solid transparent",
+                marginBottom: "-1px",
+              }}
+            >
+              <span>{item.label}</span>
+              {item.count !== undefined && (
+                <span
+                  className="type-chip inline-flex items-center rounded-[3px] px-1.5 h-[18px]"
+                  style={{
+                    background: active ? "var(--accent-soft)" : "var(--neutral-bg)",
+                    color: active ? "var(--accent)" : "var(--neutral-fg)",
+                    border: `1px solid ${active ? "var(--accent-border)" : "var(--neutral-border)"}`,
+                  }}
+                >
+                  {item.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
-  )
+  );
 }
-
-export default Tabs

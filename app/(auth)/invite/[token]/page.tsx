@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Field'
+import { Field, Input } from '@/components/ui/Field'
 
 export default function InvitePage() {
   const [name, setName]         = useState('')
@@ -17,18 +17,8 @@ export default function InvitePage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-end gap-0 leading-none mb-2">
-            <span
-              className="font-bold select-none"
-              style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--accent)' }}
-            >
-              BRAND
-            </span>
-            <span
-              className="font-normal select-none"
-              style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--text)' }}
-            >
-              BOOK
-            </span>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--accent)' }}>BRAND</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 400, color: 'var(--text)' }}>BOOK</span>
           </div>
         </div>
 
@@ -38,47 +28,43 @@ export default function InvitePage() {
         >
           <h2
             className="mb-1"
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '1.5rem',
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              color: 'var(--text)',
-            }}
+            style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text)' }}
           >
             You&apos;ve been invited
           </h2>
           <p className="type-page-subtitle mb-6">Set up your account to get started</p>
 
           <form onSubmit={e => e.preventDefault()} className="flex flex-col gap-4">
-            <Input
-              label="Full name"
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Jane Rancher"
-              autoComplete="name"
-              required
-            />
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              required
-            />
-            <Input
-              label="Confirm password"
-              type="password"
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              required
-            />
+            <Field label="Full name" required>
+              <Input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Jane Rancher"
+                autoComplete="name"
+                required
+              />
+            </Field>
+            <Field label="Password" required>
+              <Input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                required
+              />
+            </Field>
+            <Field label="Confirm password" required>
+              <Input
+                type="password"
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                required
+              />
+            </Field>
             <Button type="submit" intent="primary" size="lg" block className="mt-1">
               ACCEPT INVITE
             </Button>

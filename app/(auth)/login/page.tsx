@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Field'
+import { Field, Input } from '@/components/ui/Field'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -39,99 +39,61 @@ export default function LoginPage() {
         {/* Brand mark */}
         <div className="text-center mb-8">
           <div className="inline-flex items-end gap-0 leading-none mb-2">
-            <span
-              className="font-bold tracking-tight select-none"
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '3rem',
-                color: 'var(--accent)',
-                letterSpacing: '-0.01em',
-              }}
-            >
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '3rem', fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.01em' }}>
               BRAND
             </span>
-            <span
-              className="font-normal tracking-tight select-none"
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '3rem',
-                color: 'var(--text)',
-                letterSpacing: '-0.01em',
-              }}
-            >
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '3rem', fontWeight: 400, color: 'var(--text)', letterSpacing: '-0.01em' }}>
               BOOK
             </span>
           </div>
           <p className="type-page-subtitle mb-3">By ranchers, for ranchers</p>
-          <div
-            className="mx-auto rounded-full"
-            style={{ width: 40, height: 3, backgroundColor: 'var(--accent)' }}
-          />
+          <div className="mx-auto rounded-full" style={{ width: 40, height: 3, backgroundColor: 'var(--accent)' }} />
         </div>
 
         {/* Form card */}
         <div
           className="rounded-[var(--radius-xl)] p-8"
-          style={{
-            backgroundColor: 'var(--surface-1)',
-            border: '1px solid var(--border)',
-          }}
+          style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}
         >
           <h2
             className="mb-6"
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '1.5rem',
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              color: 'var(--text)',
-            }}
+            style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text)' }}
           >
             Welcome back
           </h2>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Input
-              label="Email"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@ranch.com"
-              autoComplete="email"
-              required
-            />
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              required
-            />
+            <Field label="Email" required>
+              <Input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@ranch.com"
+                autoComplete="email"
+                required
+              />
+            </Field>
+            <Field label="Password" required>
+              <Input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+              />
+            </Field>
 
             {error && (
               <p
                 className="text-sm px-3 py-2 rounded-[var(--radius-lg)]"
-                style={{
-                  color: 'var(--danger-fg)',
-                  backgroundColor: 'var(--danger-bg)',
-                  border: '1px solid var(--danger-border)',
-                }}
+                style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}
               >
                 {error}
               </p>
             )}
 
-            <Button
-              type="submit"
-              intent="primary"
-              size="lg"
-              block
-              loading={loading}
-              className="mt-1"
-            >
+            <Button type="submit" intent="primary" size="lg" block loading={loading} className="mt-1">
               SIGN IN
             </Button>
 

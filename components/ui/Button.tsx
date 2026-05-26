@@ -1,134 +1,222 @@
-'use client'
+"use client";
 
-import { forwardRef } from 'react'
-import Link, { type LinkProps } from 'next/link'
-import { cn } from '@/lib/utils'
+import { ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
+import Link from "next/link";
 
-export type Intent = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline'
-export type BtnSize = 'sm' | 'md' | 'lg'
+export type ButtonIntent =
+  | "primary"     /* themed accent (red on Berg, blue on Split Grip) */
+  | "secondary"   /* outline */
+  | "ghost"       /* transparent, subtle hover */
+  | "danger"      /* destructive */
+  | "gold"        /* premium utility (Berg-specific emphasis) */
+  | "success";    /* rare — confirm/already-turned */
 
-const intentStyles: Record<Intent, string> = {
-  primary:   'text-white border border-transparent',
-  secondary: 'border text-[var(--text)] hover:bg-[var(--surface-3)]',
-  ghost:     'border border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]',
-  danger:    'border border-transparent text-white',
-  outline:   'border text-[var(--accent)] hover:bg-[var(--accent-soft)]',
+export type ButtonSize = "sm" | "md" | "lg";
+
+interface BaseButtonProps {
+  intent?: ButtonIntent;
+  size?: ButtonSize;
+  /** Optional leading icon (svg or emoji); renders inline with gap */
+  leading?: ReactNode;
+  /** Optional trailing icon */
+  trailing?: ReactNode;
+  /** Makes the button fill its container width */
+  block?: boolean;
+  /** Disables pointer events, applies disabled styling */
+  loading?: boolean;
 }
 
-const intentVars = (intent: Intent): React.CSSProperties => {
-  if (intent === 'primary')   return { backgroundColor: 'var(--accent)' }
-  if (intent === 'secondary') return { backgroundColor: 'var(--surface-2)', borderColor: 'var(--border)' }
-  if (intent === 'danger')    return { backgroundColor: 'var(--danger-fg)' }
-  if (intent === 'outline')   return { borderColor: 'var(--accent-border)' }
-  return {}
+type ButtonProps = BaseButtonProps &
+  ButtonHTMLAttributes<HTMLButtonElement>;
+
+type LinkButtonProps = BaseButtonProps & {
+  href: string;
+  target?: string;
+  rel?: string;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  children: ReactNode;
+};
+
+const SIZE_CLASSES: Record<ButtonSize, string> = {
+  sm: "h-8 px-3 text-[11px]",
+  md: "h-10 px-4 text-xs",
+  lg: "h-12 px-5 text-sm",
+};
+
+function intentStyle(intent: ButtonIntent): React.CSSProperties {
+  switch (intent) {
+    case "primary":
+      return {
+        background: "var(--accent)",
+        color: "var(--accent-on)",
+        border: "1px solid var(--accent)",
+      };
+    case "secondary":
+      return {
+        background: "transparent",
+        color: "var(--text)",
+        border: "1px solid var(--border-strong)",
+      };
+    case "ghost":
+      return {
+        background: "transparent",
+        color: "var(--text-secondary)",
+        border: "1px solid transparent",
+      };
+    case "danger":
+      return {
+        background: "var(--danger-bg)",
+        color: "var(--danger-fg)",
+        border: "1px solid var(--danger-border)",
+      };
+    case "gold":
+      /* Solid premium-utility button (SYNC SHOPIFY). Black text for AA contrast on gold. */
+      return {
+        background: "var(--bergbat-gold)",
+        color: "#1a1a0a",
+        border: "1px solid var(--bergbat-gold)",
+      };
+    case "success":
+      return {
+        background: "var(--success-bg)",
+        color: "var(--success-fg)",
+        border: "1px solid var(--success-border)",
+      };
+  }
 }
 
-const sizeStyles: Record<BtnSize, string> = {
-  sm: 'h-8  px-3 gap-1.5 text-xs  rounded-[var(--radius-md)]',
-  md: 'h-9  px-4 gap-2   text-sm  rounded-[var(--radius-lg)]',
-  lg: 'h-11 px-5 gap-2.5 text-sm  rounded-[var(--radius-xl)]',
+function baseClass(size: ButtonSize, block: boolean | undefined, className?: string) {
+  /* Per BERGBAT_REDESIGN_PROMPT.md §"Buttons":
+   *   • radius        var(--radius-md) = 8px            → `rounded-md`
+   *   • hover         opacity 0.88 on primary           → `hover:opacity-[0.88]`
+   *     (Universal hover-dim works for primary/gold/danger/success solids
+   *      and is subtle enough not to misread on transparent secondary/ghost.
+   *      Per-intent hover behaviour, e.g. secondary → bg var(--bg-card),
+   *      can be layered in once page-by-page work surfaces it as needed.)
+   *   • cursor-pointer / 44px tap target enforced via SIZE_CLASSES + base
+   */
+  return [
+    "type-button",
+    "inline-flex items-center justify-center gap-2",
+    "rounded-md select-none cursor-pointer",
+    "transition-[background,color,border,opacity] duration-150",
+    "hover:opacity-[0.88]",
+    "active:scale-[0.98]",
+    "disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 disabled:hover:opacity-40",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+    SIZE_CLASSES[size],
+    block ? "w-full" : "",
+    className || "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
-const Spinner = () => (
-  <svg className="animate-spin w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-  </svg>
-)
-
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  intent?: Intent
-  size?: BtnSize
-  loading?: boolean
-  block?: boolean
-  leadingIcon?: React.ReactNode
-  trailingIcon?: React.ReactNode
-}
-
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ intent = 'secondary', size = 'md', loading, block, leadingIcon, trailingIcon, className, children, disabled, style, ...props }, ref) => (
+/** Primary button — themed via --accent, so Split Grip routes get blue automatically. */
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    intent = "primary",
+    size = "md",
+    leading,
+    trailing,
+    block,
+    loading,
+    className,
+    children,
+    disabled,
+    style,
+    ...rest
+  },
+  ref
+) {
+  // Merge caller-supplied style ON TOP of intent style instead of replacing it.
+  // Without this, a caller passing `style={{ minHeight: 80 }}` would wipe out
+  // background/color/border from the intent — leaving an unstyled button.
+  return (
     <button
       ref={ref}
       disabled={disabled || loading}
-      style={{ ...intentVars(intent), ...style }}
-      className={cn(
-        'inline-flex items-center justify-center font-medium transition-all duration-150 select-none',
-        'type-button',
-        'disabled:opacity-40 disabled:cursor-not-allowed',
-        intentStyles[intent],
-        sizeStyles[size],
-        block && 'w-full',
-        className,
-      )}
-      {...props}
+      className={baseClass(size, block, className)}
+      style={{ ...intentStyle(intent), ...style }}
+      {...rest}
     >
-      {loading ? <Spinner /> : leadingIcon ? <span className="flex-shrink-0">{leadingIcon}</span> : null}
-      {children}
-      {trailingIcon && !loading ? <span className="flex-shrink-0">{trailingIcon}</span> : null}
+      {leading}
+      <span>{children}</span>
+      {trailing}
     </button>
-  )
-)
-Button.displayName = 'Button'
+  );
+});
 
-type ButtonLinkProps = Omit<LinkProps, 'className'> & {
-  intent?: Intent
-  size?: BtnSize
-  block?: boolean
-  leadingIcon?: React.ReactNode
-  trailingIcon?: React.ReactNode
-  className?: string
-  children?: React.ReactNode
-  style?: React.CSSProperties
+/** Link styled as a button (Next.js Link). Use for nav CTAs that route. */
+export function ButtonLink({
+  intent = "primary",
+  size = "md",
+  leading,
+  trailing,
+  block,
+  href,
+  target,
+  rel,
+  onClick,
+  className,
+  style,
+  children,
+}: LinkButtonProps) {
+  return (
+    <Link
+      href={href}
+      target={target}
+      rel={rel}
+      onClick={onClick}
+      className={baseClass(size, block, className)}
+      style={{ ...intentStyle(intent), ...style }}
+    >
+      {leading}
+      <span>{children}</span>
+      {trailing}
+    </Link>
+  );
 }
 
-export const ButtonLink = ({ intent = 'secondary', size = 'md', block, leadingIcon, trailingIcon, className, children, style, ...props }: ButtonLinkProps) => (
-  <Link
-    style={{ ...intentVars(intent), ...style }}
-    className={cn(
-      'inline-flex items-center justify-center font-medium transition-all duration-150 select-none',
-      'type-button',
-      intentStyles[intent],
-      sizeStyles[size],
-      block && 'w-full',
-      className,
-    )}
-    {...props}
-  >
-    {leadingIcon ? <span className="flex-shrink-0">{leadingIcon}</span> : null}
-    {children}
-    {trailingIcon ? <span className="flex-shrink-0">{trailingIcon}</span> : null}
-  </Link>
-)
-
-interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  intent?: Intent
-  size?: BtnSize
-  label: string
-  loading?: boolean
+interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  size?: ButtonSize;
+  intent?: ButtonIntent;
+  "aria-label": string;
 }
 
+const ICON_SIZE: Record<ButtonSize, string> = {
+  sm: "h-8 w-8",
+  md: "h-10 w-10",
+  lg: "h-12 w-12",
+};
+
+/** Square icon-only button. Always requires aria-label. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
-  ({ intent = 'ghost', size = 'md', label, loading, className, children, disabled, style, ...props }, ref) => (
-    <button
-      ref={ref}
-      aria-label={label}
-      disabled={disabled || loading}
-      style={{ ...intentVars(intent), ...style }}
-      className={cn(
-        'inline-flex items-center justify-center transition-all duration-150 flex-shrink-0',
-        'disabled:opacity-40 disabled:cursor-not-allowed',
-        intentStyles[intent],
-        size === 'sm' ? 'w-8  h-8  rounded-[var(--radius-md)]' :
-        size === 'lg' ? 'w-11 h-11 rounded-[var(--radius-xl)]' :
-                        'w-9  h-9  rounded-[var(--radius-lg)]',
-        className,
-      )}
-      {...props}
-    >
-      {loading ? <Spinner /> : children}
-    </button>
-  )
-)
-IconButton.displayName = 'IconButton'
-
-export default Button
+  function IconButton(
+    { intent = "ghost", size = "md", className, children, style, ...rest },
+    ref
+  ) {
+    return (
+      <button
+        ref={ref}
+        className={[
+          "inline-flex items-center justify-center rounded-md cursor-pointer",
+          "transition-[background,color,border,opacity] duration-150",
+          "hover:opacity-[0.88]",
+          "active:scale-[0.96]",
+          "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40",
+          ICON_SIZE[size],
+          className || "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        style={{ ...intentStyle(intent), ...style }}
+        {...rest}
+      >
+        {children}
+      </button>
+    );
+  }
+);

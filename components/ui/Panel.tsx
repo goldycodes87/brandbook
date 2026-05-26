@@ -1,57 +1,113 @@
-import { cn } from '@/lib/utils'
+import { HTMLAttributes, ReactNode } from "react";
 
-interface PanelProps {
-  title?: string
-  subtitle?: string
-  actions?: React.ReactNode
-  className?: string
-  children: React.ReactNode
-  noPadding?: boolean
+type PanelSurface = "1" | "2";
+type PanelPadding = "none" | "sm" | "md" | "lg";
+
+interface PanelProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
+  /** Surface elevation. Default "1" (darker, for major sections). "2" for nested panels. */
+  surface?: PanelSurface;
+  /** Inner padding — use "none" when wrapping a Table. */
+  padding?: PanelPadding;
+  /** Render an optional title/actions bar at the top. */
+  title?: ReactNode;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+  /** Subtle top accent bar in brand color (for hero panels). */
+  emphasis?: boolean;
 }
 
-export function Panel({ title, subtitle, actions, className, children, noPadding }: PanelProps) {
+const PADDING: Record<PanelPadding, string> = {
+  none: "p-0",
+  sm:   "p-3 sm:p-4",
+  md:   "p-4 sm:p-5",
+  lg:   "p-5 sm:p-6 lg:p-7",
+};
+
+/**
+ * Base surface container. Everything that needs a boundary uses Panel.
+ * Dashboard blocks, review cards, form sections, table wrappers.
+ */
+export function Panel({
+  surface = "1",
+  padding = "md",
+  title,
+  subtitle,
+  actions,
+  emphasis,
+  className = "",
+  children,
+  ...rest
+}: PanelProps) {
+  const bg = surface === "2" ? "var(--surface-2)" : "var(--surface-1)";
+  const hasHeader = title || subtitle || actions;
+
   return (
     <div
-      style={{ backgroundColor: 'var(--surface-1)', borderColor: 'var(--border)' }}
-      className={cn('rounded-[var(--radius-xl)] border', className)}
+      className={`rounded-lg overflow-hidden ${className}`}
+      style={{
+        background: bg,
+        border: "1px solid var(--border)",
+        boxShadow: emphasis ? "var(--shadow-sm)" : undefined,
+      }}
+      {...rest}
     >
-      {(title || actions) && (
+      {emphasis && (
         <div
-          style={{ borderColor: 'var(--border)' }}
-          className="flex items-center justify-between px-4 py-3 border-b"
+          className="h-px w-full"
+          style={{ background: "var(--accent)" }}
+          aria-hidden="true"
+        />
+      )}
+      {hasHeader && (
+        // Mobile-first: stack title above actions on <sm so long action
+        // clusters (e.g. /splitgrip/stock VUK toolbar with 3 buttons) don't
+        // squeeze the panel title into a 3-line column. >=sm restores the
+        // original side-by-side layout. Same pattern as PageHeader.
+        <div
+          className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 px-4 sm:px-5 py-3 sm:py-3.5"
+          style={{ borderBottom: "1px solid var(--border-subtle)" }}
         >
-          <div>
-            {title && <h3 className="type-panel-title">{title}</h3>}
-            {subtitle && <p className="type-helper mt-0.5">{subtitle}</p>}
+          <div className="min-w-0">
+            {title && (
+              <div className="type-panel-title" style={{ color: "var(--text)" }}>
+                {title}
+              </div>
+            )}
+            {subtitle && (
+              <div className="type-helper mt-1">{subtitle}</div>
+            )}
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && (
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
+              {actions}
+            </div>
+          )}
         </div>
       )}
-      <div className={cn(!noPadding && 'p-4')}>{children}</div>
+      <div className={hasHeader && padding !== "none" ? PADDING[padding].replace("p-", "p-") : PADDING[padding]}>
+        {children}
+      </div>
     </div>
-  )
+  );
 }
 
-interface PanelSectionProps {
-  title?: string
-  className?: string
-  children: React.ReactNode
+interface PanelSectionProps extends HTMLAttributes<HTMLDivElement> {
+  label?: ReactNode;
 }
 
-export function PanelSection({ title, className, children }: PanelSectionProps) {
+/** Interior section divider inside a Panel — use for form field groups. */
+export function PanelSection({
+  label,
+  className = "",
+  children,
+  ...rest
+}: PanelSectionProps) {
   return (
-    <div className={cn('', className)}>
-      {title && (
-        <div
-          style={{ borderColor: 'var(--border)' }}
-          className="px-4 py-2 border-b"
-        >
-          <span className="type-section-label">{title}</span>
-        </div>
+    <section className={`space-y-3 ${className}`} {...rest}>
+      {label && (
+        <div className="type-section-label">{label}</div>
       )}
-      <div className="p-4">{children}</div>
-    </div>
-  )
+      {children}
+    </section>
+  );
 }
-
-export default Panel
