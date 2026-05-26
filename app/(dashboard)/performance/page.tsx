@@ -1,6 +1,12 @@
-import ComingSoon from '@/components/ui/ComingSoon'
-import { BarChart2 } from 'lucide-react'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default function PerformancePage() {
-  return <ComingSoon title="Performance" icon={BarChart2} description="Record weights, growth rates, and performance data." />
+  return (
+    <PageContainer>
+      <PageHeader title="Performance" />
+      <EmptyState variant="neutral" title="Performance" body="Coming soon" />
+    </PageContainer>
+  )
 }

@@ -1,6 +1,12 @@
-import ComingSoon from '@/components/ui/ComingSoon'
-import { Stethoscope } from 'lucide-react'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default function HealthPage() {
-  return <ComingSoon title="Health" icon={Stethoscope} description="Log treatments, vaccinations, vet visits, and health events." />
+  return (
+    <PageContainer>
+      <PageHeader title="Health" />
+      <EmptyState variant="neutral" title="Health" body="Coming soon" />
+    </PageContainer>
+  )
 }

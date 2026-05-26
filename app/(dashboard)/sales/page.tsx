@@ -1,6 +1,12 @@
-import ComingSoon from '@/components/ui/ComingSoon'
-import { ShoppingCart } from 'lucide-react'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default function SalesPage() {
-  return <ComingSoon title="Sales" icon={ShoppingCart} description="Log animal sales, track prices, and view revenue history." />
+  return (
+    <PageContainer>
+      <PageHeader title="Sales" />
+      <EmptyState variant="neutral" title="Sales" body="Coming soon" />
+    </PageContainer>
+  )
 }

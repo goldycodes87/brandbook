@@ -1,32 +1,57 @@
 'use client'
 
 import { useState } from 'react'
-import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Field'
 
 export default function InvitePage() {
-  const [name, setName] = useState('')
+  const [name, setName]         = useState('')
   const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
+  const [confirm, setConfirm]   = useState('')
 
   return (
-    <div className="min-h-dvh flex items-center justify-center p-6 bg-brand-black">
-      <div className="w-full max-w-sm animate-slide-up">
+    <div
+      className="min-h-dvh flex items-center justify-center p-4"
+      style={{ backgroundColor: 'var(--surface-0)' }}
+    >
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold font-display">
-            <span className="text-brand-orange">Brand</span>
-            <span className="text-brand-white">Book</span>
-          </h1>
-          <p className="mt-1 text-brand-white/40 text-xs tracking-wider uppercase">
-            By ranchers, for ranchers
-          </p>
+          <div className="inline-flex items-end gap-0 leading-none mb-2">
+            <span
+              className="font-bold select-none"
+              style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--accent)' }}
+            >
+              BRAND
+            </span>
+            <span
+              className="font-normal select-none"
+              style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--text)' }}
+            >
+              BOOK
+            </span>
+          </div>
         </div>
 
-        <div className="bg-brand-surface rounded-2xl p-8 border border-brand-gray/20">
-          <h2 className="text-2xl font-bold text-brand-white mb-1">You're invited</h2>
-          <p className="text-brand-white/40 text-sm mb-7">Set up your account to get started</p>
+        <div
+          className="rounded-[var(--radius-xl)] p-8"
+          style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}
+        >
+          <h2
+            className="mb-1"
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.5rem',
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--text)',
+            }}
+          >
+            You&apos;ve been invited
+          </h2>
+          <p className="type-page-subtitle mb-6">Set up your account to get started</p>
 
-          <form className="flex flex-col gap-4" onSubmit={e => e.preventDefault()}>
+          <form onSubmit={e => e.preventDefault()} className="flex flex-col gap-4">
             <Input
               label="Full name"
               type="text"
@@ -54,9 +79,8 @@ export default function InvitePage() {
               autoComplete="new-password"
               required
             />
-
-            <Button type="submit" variant="primary" size="lg" className="w-full mt-1">
-              Create account
+            <Button type="submit" intent="primary" size="lg" block className="mt-1">
+              ACCEPT INVITE
             </Button>
           </form>
         </div>

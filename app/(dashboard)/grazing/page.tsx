@@ -1,6 +1,12 @@
-import ComingSoon from '@/components/ui/ComingSoon'
-import { MapPin } from 'lucide-react'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default function GrazingPage() {
-  return <ComingSoon title="Grazing" icon={MapPin} description="Manage pastures, rotations, and forage records." />
+  return (
+    <PageContainer>
+      <PageHeader title="Grazing" />
+      <EmptyState variant="neutral" title="Grazing" body="Coming soon" />
+    </PageContainer>
+  )
 }

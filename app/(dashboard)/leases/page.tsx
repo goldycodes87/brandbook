@@ -1,6 +1,12 @@
-import ComingSoon from '@/components/ui/ComingSoon'
-import { FileText } from 'lucide-react'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default function LeasesPage() {
-  return <ComingSoon title="Leases" icon={FileText} description="Track land leases, agreements, and payment schedules." />
+  return (
+    <PageContainer>
+      <PageHeader title="Leases" />
+      <EmptyState variant="neutral" title="Leases" body="Coming soon" />
+    </PageContainer>
+  )
 }

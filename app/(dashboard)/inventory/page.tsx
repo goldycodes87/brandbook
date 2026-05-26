@@ -1,6 +1,12 @@
-import ComingSoon from '@/components/ui/ComingSoon'
-import { Package } from 'lucide-react'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default function InventoryPage() {
-  return <ComingSoon title="Inventory" icon={Package} description="Track feed, supplies, equipment, and medications." />
+  return (
+    <PageContainer>
+      <PageHeader title="Inventory" />
+      <EmptyState variant="neutral" title="Inventory" body="Coming soon" />
+    </PageContainer>
+  )
 }

@@ -1,6 +1,12 @@
-import ComingSoon from '@/components/ui/ComingSoon'
-import { Beef } from 'lucide-react'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default function AnimalsPage() {
-  return <ComingSoon title="Animals" icon={Beef} description="Track your herd — add animals, record ear tags, breed, and lineage." />
+  return (
+    <PageContainer>
+      <PageHeader title="Animals" />
+      <EmptyState variant="neutral" title="Animals" body="Coming soon" />
+    </PageContainer>
+  )
 }

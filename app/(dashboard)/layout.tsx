@@ -1,5 +1,5 @@
-import NavShell from '@/components/nav/NavShell'
+import AppShell from '@/components/nav/AppShell'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return <NavShell>{children}</NavShell>
+  return <AppShell>{children}</AppShell>
 }

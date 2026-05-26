@@ -1,57 +1,235 @@
 @import "tailwindcss";
 
-/* Class-based dark mode */
-@variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where([data-theme="dark"] *));
 
-/* Preserve Geist font variables */
-@theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --accent:          #ea580c;
+  --accent-on:       #ffffff;
+  --accent-soft:     rgba(234,88,12,0.12);
+  --accent-border:   rgba(234,88,12,0.20);
+  --accent-hover:    #c2410c;
+  --accent-active:   #9a3412;
+
+  --brand-gold:        #ca8a04;
+  --brand-gold-hover:  #a16207;
+  --gold-fg:           #ca8a04;
+  --gold-bg:           rgba(202,138,4,0.12);
+  --gold-border:       rgba(202,138,4,0.20);
+
+  --surface-0: #080808;
+  --surface-1: #111111;
+  --surface-2: #181818;
+  --surface-3: #1e1e1e;
+
+  --bg-input:       #141414;
+  --bg-input-focus: #1a1a1a;
+
+  --border-subtle: rgba(255,255,255,0.05);
+  --border:        rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.14);
+
+  --text:           #f5f5f5;
+  --text-secondary: #9ca3af;
+  --text-muted:     #6b7280;
+  --text-disabled:  #374151;
+  --text-on-accent: #ffffff;
+
+  --success-fg:     #10b981;
+  --success-bg:     rgba(16,185,129,0.12);
+  --success-border: rgba(16,185,129,0.20);
+
+  --warning-fg:     #f59e0b;
+  --warning-bg:     rgba(245,158,11,0.12);
+  --warning-border: rgba(245,158,11,0.20);
+
+  --danger-fg:      #ef4444;
+  --danger-bg:      rgba(239,68,68,0.12);
+  --danger-border:  rgba(239,68,68,0.20);
+
+  --info-fg:        #3b82f6;
+  --info-bg:        rgba(59,130,246,0.12);
+  --info-border:    rgba(59,130,246,0.20);
+
+  --neutral-fg:     #6b7280;
+  --neutral-bg:     rgba(107,114,128,0.12);
+  --neutral-border: rgba(107,114,128,0.20);
+
+  --purple-fg:      #8b5cf6;
+  --purple-bg:      rgba(139,92,246,0.12);
+  --purple-border:  rgba(139,92,246,0.20);
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.6);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.7);
+
+  --sidebar-w: 15rem;
+  --bottomnav-h: 64px;
+
+  --font-display: var(--font-barlow-condensed), 'Barlow Condensed', sans-serif;
+  --font-ui:      var(--font-inter), 'Inter', sans-serif;
+  --font-mono:    var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
 }
 
-/* Brand design tokens */
-@theme {
-  --color-brand-black: #0a0a0a;
-  --color-brand-orange: #ea580c;
-  --color-brand-gold: #ca8a04;
-  --color-brand-gray: #374151;
-  --color-brand-white: #f9fafb;
-  --color-brand-surface: #111111;
-  --color-brand-surface-2: #1a1a1a;
+*,*::before,*::after { box-sizing: border-box; }
 
-  --font-display: var(--font-playfair), 'Playfair Display', serif;
-
-  --animate-fade-in: fade-in 300ms ease-in-out;
-  --animate-slide-up: slide-up 300ms ease-in-out both;
-}
-
-@keyframes fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* Dark defaults — always dark */
-html, body {
-  background-color: #0a0a0a;
-  color: #f9fafb;
+html {
+  background: var(--surface-0);
+  color: var(--text);
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  min-height: 100dvh;
 }
 
-/* Thin scrollbar */
+body {
+  min-height: 100dvh;
+  background: var(--surface-0);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #374151; }
-::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #c2410c; }
+::-webkit-scrollbar-track { background: var(--surface-1); }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* Selection */
-::selection { background-color: rgb(234 88 12 / 0.3); }
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--border-strong) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
-/* Focus ring */
-*:focus-visible { outline: 2px solid #ea580c; outline-offset: 2px; }
+@utility type-page-title {
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+@utility type-page-subtitle {
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+@utility type-panel-title {
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+@utility type-section-label {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+@utility type-metric-label {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+@utility type-metric-value {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+@utility type-table-header {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+@utility type-table-cell {
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+@utility type-field-label {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+@utility type-helper {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+@utility type-chip {
+  font-family: var(--font-display);
+  font-size: 0.625rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@utility type-button {
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@utility type-nav-item {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+@utility type-empty-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+@utility type-empty-body {
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+@utility type-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

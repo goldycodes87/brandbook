@@ -1,6 +1,12 @@
-import ComingSoon from '@/components/ui/ComingSoon'
-import { Dna } from 'lucide-react'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 export default function GeneticsPage() {
-  return <ComingSoon title="Genetics" icon={Dna} description="Manage EPDs, sire records, and genomic data." />
+  return (
+    <PageContainer>
+      <PageHeader title="Genetics" />
+      <EmptyState variant="neutral" title="Genetics" body="Coming soon" />
+    </PageContainer>
+  )
 }
