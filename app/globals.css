@@ -1,26 +1,57 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Class-based dark mode */
+@variant dark (&:where(.dark, .dark *));
 
+/* Preserve Geist font variables */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Brand design tokens */
+@theme {
+  --color-brand-black: #0a0a0a;
+  --color-brand-orange: #ea580c;
+  --color-brand-gold: #ca8a04;
+  --color-brand-gray: #374151;
+  --color-brand-white: #f9fafb;
+  --color-brand-surface: #111111;
+  --color-brand-surface-2: #1a1a1a;
+
+  --font-display: var(--font-playfair), 'Playfair Display', serif;
+
+  --animate-fade-in: fade-in 300ms ease-in-out;
+  --animate-slide-up: slide-up 300ms ease-in-out both;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Dark defaults — always dark */
+html, body {
+  background-color: #0a0a0a;
+  color: #f9fafb;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+}
+
+/* Thin scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #374151; }
+::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #c2410c; }
+
+/* Selection */
+::selection { background-color: rgb(234 88 12 / 0.3); }
+
+/* Focus ring */
+*:focus-visible { outline: 2px solid #ea580c; outline-offset: 2px; }
