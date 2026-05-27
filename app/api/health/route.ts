@@ -40,15 +40,27 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
   const body = await req.json()
 
-  // withdrawal_clear_date is a generated column — never insert it
-  const { withdrawal_clear_date: _wcd, ...rest } = body
+  console.log('[health POST] body:', JSON.stringify(body))
 
   const { data, error } = await supabase
     .from('health_events')
-    .insert(rest)
+    .insert({
+      animal_id:       body.animal_id,
+      event_type:      body.event_type,
+      event_date:      body.event_date || new Date().toISOString().split('T')[0],
+      drug_name:       body.drug_name       || null,
+      dose_amount:     body.dose_amount     || null,
+      dose_unit:       body.dose_unit       || null,
+      withdrawal_days: body.withdrawal_days || null,
+      bcs_score:       body.bcs_score       || null,
+      administered_by: body.administered_by || null,
+      notes:           body.notes           || null,
+    })
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json(data, { status: 201 })
+  console.log('[health POST] result:', error?.message || 'success')
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ data }, { status: 201 })
 }

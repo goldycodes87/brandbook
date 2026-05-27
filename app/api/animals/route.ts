@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from('animals')
     .select(
-      `id, tag_number, name, dob, sex, status, breed, breed_percentage, photos,
+      `id, tag_number, name, dob, sex, status, breed, breed_percentage, photos, ear_tag_color,
        owner:owner_id ( id, name ),
        weights ( weight_lbs, weighed_at )`,
       { count: 'exact' }

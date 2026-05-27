@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { SearchField } from '@/components/ui/Field'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
@@ -8,6 +9,7 @@ import { HealthEventForm } from '@/components/health/HealthEventForm'
 interface AnimalResult { id: string; tag_number: string; name: string | null }
 
 export function HealthAddButton() {
+  const router = useRouter()
   const [open, setOpen]             = useState(false)
   const [query, setQuery]           = useState('')
   const [results, setResults]       = useState<AnimalResult[]>([])
@@ -28,6 +30,7 @@ export function HealthAddButton() {
   }
 
   const reset = () => {
+    router.refresh()
     setOpen(false)
     setAnimal(null)
     setQuery('')

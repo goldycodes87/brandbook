@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 import { Suspense } from 'react'
 import { Tag, MapPin, FileText } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -8,6 +11,7 @@ import { Panel } from '@/components/ui/Panel'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Toolbar } from '@/components/ui/Toolbar'
 import { ButtonLink } from '@/components/ui/Button'
+import { WeightLogSheet } from '@/components/weights/WeightLogSheet'
 
 async function DashboardStats() {
   const supabase = createAdminClient()
@@ -73,7 +77,7 @@ export default async function DashboardPage() {
           <>
             <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
             <ButtonLink href="/health" intent="secondary" size="sm">LOG HEALTH EVENT</ButtonLink>
-            <ButtonLink href="/animals" intent="secondary" size="sm">RECORD WEIGHT</ButtonLink>
+            <WeightLogSheet />
           </>
         }
       />

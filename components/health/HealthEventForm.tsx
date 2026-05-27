@@ -91,13 +91,14 @@ export function HealthEventForm({ animalId, onSuccess, onCancel }: HealthEventFo
         payload.drug_name = drug.brand_name
       }
 
+      console.log('[health form] submitting:', JSON.stringify(payload))
       const res = await fetch('/api/health', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Save failed'); return }
+      const json = await res.json()
+      if (!res.ok) { setError(json.error ?? 'Save failed'); return }
       onSuccess?.()
     } catch {
       setError('Connection error — please try again')
