@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+import { use, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -9,8 +9,10 @@ import { Panel, PanelSection } from '@/components/ui/Panel'
 import { Button } from '@/components/ui/Button'
 import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
+import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP } from '@/components/ui/tokens'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { HealthEventForm } from '@/components/health/HealthEventForm'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
@@ -235,56 +237,74 @@ function OverviewTab({ animal }: { animal: Animal }) {
   )
 }
 
-function HealthTab({ animal }: { animal: Animal }) {
+function HealthTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void }) {
   const events = [...(animal.health_events ?? [])].sort(
     (a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   )
   const today = new Date()
-
-  if (!events.length) {
-    return (
-      <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
-        No health events recorded.
-      </div>
-    )
-  }
+  const inWithdrawal = events.filter(ev => ev.withdrawal_clear_date && new Date(ev.withdrawal_clear_date) > today)
 
   return (
-    <div className="flex flex-col gap-3">
-      {events.map(ev => {
-        const withdrawalActive = ev.withdrawal_clear_date && new Date(ev.withdrawal_clear_date) > today
-        return (
-          <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <StatusChip map={HEALTH_EVENT_CHIP} value={ev.event_type} size="sm" />
-                {ev.withdrawal_clear_date && (
-                  <StatusChip map={WITHDRAWAL_CHIP} value={withdrawalActive ? 'active' : 'clear'} size="sm" />
-                )}
-              </div>
-              <span className="type-data-sm shrink-0" style={{ color: 'var(--text-muted)' }}>{fmtDate(ev.event_date)}</span>
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button intent="primary" size="sm" onClick={onLogEvent}>+ LOG EVENT</Button>
+      </div>
+
+      {inWithdrawal.length > 0 && (
+        <ContextBanner tone="danger" emphasis eyebrow={`${inWithdrawal.length} ACTIVE WITHDRAWAL${inWithdrawal.length !== 1 ? 'S' : ''}`}>
+          {inWithdrawal.map(ev => (
+            <div key={ev.id} className="flex items-center justify-between gap-2">
+              <span>{ev.drug_name ?? ev.event_type}</span>
+              <span className="type-helper" style={{ color: 'var(--danger-fg)' }}>
+                Clear: {fmtDate(ev.withdrawal_clear_date)}
+              </span>
             </div>
-            {(ev.drug_name || ev.dose_amount) && (
-              <p className="type-data-sm mb-1">
-                {ev.drug_name}{ev.dose_amount ? ` — ${ev.dose_amount}${ev.dose_unit ? ' ' + ev.dose_unit : ''}` : ''}
-                {ev.withdrawal_days ? ` (${ev.withdrawal_days}d withdrawal)` : ''}
-              </p>
-            )}
-            {ev.bcs_score != null && (
-              <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>BCS: {ev.bcs_score}</p>
-            )}
-            {ev.administered_by && (
-              <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>By: {ev.administered_by}</p>
-            )}
-            {ev.withdrawal_clear_date && (
-              <p className="type-data-sm" style={{ color: withdrawalActive ? 'var(--danger-fg)' : 'var(--success-fg)' }}>
-                Clear date: {fmtDate(ev.withdrawal_clear_date)}
-              </p>
-            )}
-            {ev.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{ev.notes}</p>}
-          </div>
-        )
-      })}
+          ))}
+        </ContextBanner>
+      )}
+
+      {!events.length ? (
+        <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
+          No health events recorded.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {events.map(ev => {
+            const withdrawalActive = ev.withdrawal_clear_date && new Date(ev.withdrawal_clear_date) > today
+            return (
+              <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusChip map={HEALTH_EVENT_CHIP} value={ev.event_type} size="sm" />
+                    {ev.withdrawal_clear_date && (
+                      <StatusChip map={WITHDRAWAL_CHIP} value={withdrawalActive ? 'active' : 'clear'} size="sm" />
+                    )}
+                  </div>
+                  <span className="type-data-sm shrink-0" style={{ color: 'var(--text-muted)' }}>{fmtDate(ev.event_date)}</span>
+                </div>
+                {(ev.drug_name || ev.dose_amount) && (
+                  <p className="type-data-sm mb-1">
+                    {ev.drug_name}{ev.dose_amount ? ` — ${ev.dose_amount}${ev.dose_unit ? ' ' + ev.dose_unit : ''}` : ''}
+                    {ev.withdrawal_days ? ` (${ev.withdrawal_days}d withdrawal)` : ''}
+                  </p>
+                )}
+                {ev.bcs_score != null && (
+                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>BCS: {ev.bcs_score}</p>
+                )}
+                {ev.administered_by && (
+                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>By: {ev.administered_by}</p>
+                )}
+                {ev.withdrawal_clear_date && (
+                  <p className="type-data-sm" style={{ color: withdrawalActive ? 'var(--danger-fg)' : 'var(--success-fg)' }}>
+                    Clear date: {fmtDate(ev.withdrawal_clear_date)}
+                  </p>
+                )}
+                {ev.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{ev.notes}</p>}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -399,16 +419,19 @@ function WeightsTab({ animal }: { animal: Animal }) {
 
 export default function AnimalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const [animal, setAnimal] = useState<Animal | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<Tab>('overview')
+  const [animal, setAnimal]         = useState<Animal | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [tab, setTab]               = useState<Tab>('overview')
+  const [logOpen, setLogOpen]       = useState(false)
 
-  useEffect(() => {
+  const fetchAnimal = useCallback(() => {
     fetch(`/api/animals/${id}`)
       .then(r => r.json())
       .then(data => { setAnimal(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [id])
+
+  useEffect(() => { fetchAnimal() }, [fetchAnimal])
 
   if (loading) {
     return (
@@ -453,12 +476,29 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
       <Tabs value={tab} onChange={setTab} items={TABS} className="mb-5" />
 
       {tab === 'overview'      && <OverviewTab  animal={animal} />}
-      {tab === 'health'        && <HealthTab    animal={animal} />}
+      {tab === 'health'        && <HealthTab    animal={animal} onLogEvent={() => setLogOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'reproduction'  && <ReproTab     animal={animal} />}
       {tab === 'weights'       && <WeightsTab   animal={animal} />}
       {tab === 'documents'     && (
         <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
           Document storage coming soon.
+        </div>
+      )}
+
+      {/* Health event slide-up sheet */}
+      {logOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div
+            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh', padding: '24px 16px' }}
+          >
+            <p className="type-panel-title mb-4">Log Health Event</p>
+            <HealthEventForm
+              animalId={id}
+              onSuccess={() => { setLogOpen(false); fetchAnimal() }}
+              onCancel={() => setLogOpen(false)}
+            />
+          </div>
         </div>
       )}
     </PageContainer>
