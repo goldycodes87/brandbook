@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -19,7 +19,7 @@ interface PageProps {
 }
 
 async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['searchParams']> }) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const page   = Math.max(1, parseInt(searchParams.page ?? '1', 10))
   const limit  = 50
   const offset = (page - 1) * limit
@@ -126,7 +126,7 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
 }
 
 async function AnimalStats() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data } = await supabase.from('animals').select('status', { count: 'exact', head: false })
 
   const total    = data?.length ?? 0

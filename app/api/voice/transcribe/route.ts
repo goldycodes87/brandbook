@@ -27,7 +27,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No audio provided' }, { status: 400 })
   }
 
-  const file = new File([audio], 'recording.webm', { type: audio.type || 'audio/webm' })
+  // Preserve the extension the client sent (webm on desktop, mp4 on iOS)
+  const clientFilename = (audio instanceof File) ? audio.name : 'recording.webm'
+  const ext = clientFilename.split('.').pop() ?? 'webm'
+  const mimeType = audio.type || (ext === 'mp4' ? 'audio/mp4' : 'audio/webm')
+  const filename = `recording.${ext}`
+
+  console.log('[transcribe] audio received', { filename, mimeType, size: audio.size })
+
+  const file = new File([audio], filename, { type: mimeType })
 
   const transcription = await openai.audio.transcriptions.create({
     file,
@@ -35,6 +43,7 @@ export async function POST(req: NextRequest) {
     language: 'en',
   })
   const transcript = transcription.text
+  console.log('[transcribe] whisper result', { transcript })
 
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -52,6 +61,7 @@ export async function POST(req: NextRequest) {
   } catch {
     // Return transcript without parsed fields if parsing fails
   }
+  console.log('[transcribe] parsed fields', fields)
 
   return NextResponse.json({ transcript, fields })
 }

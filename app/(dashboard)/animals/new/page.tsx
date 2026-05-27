@@ -70,33 +70,47 @@ export default function NewAnimalPage() {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+
+      // iOS Safari doesn't support audio/webm — detect and fall back to audio/mp4
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : ''
+      const ext = mimeType === 'audio/mp4' ? 'mp4' : 'webm'
+
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       chunksRef.current = []
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
         setRecording('processing')
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' })
         const fd = new FormData()
-        fd.append('audio', blob, 'recording.webm')
+        fd.append('audio', blob, `recording.${ext}`)
+        console.log('[voice] sending audio', { mimeType, ext, size: blob.size })
         try {
           const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd })
           const data = await res.json()
-          if (res.ok) {
-            setTranscript(data.transcript)
-            const f = data.fields as Record<string, unknown>
-            if (f.tag_number)       setValue('tag_number', String(f.tag_number))
-            if (f.name)             setValue('name', String(f.name))
-            if (f.sex)              setValue('sex', String(f.sex))
-            if (f.dob)              setValue('dob', String(f.dob))
-            if (f.breed)            setValue('breed', String(f.breed))
-            if (f.breed_percentage) setValue('breed_percentage', String(f.breed_percentage))
-            if (f.birth_weight_lbs) setValue('birth_weight_lbs', String(f.birth_weight_lbs))
-            if (f.purchase_price)   setValue('purchase_price', String(f.purchase_price))
-            if (f.purchase_date)    setValue('purchase_date', String(f.purchase_date))
-            if (f.vendor)           setValue('vendor', String(f.vendor))
-            if (f.notes)            setValue('notes', String(f.notes))
+          console.log('[voice] API response', data)
+          if (!res.ok) {
+            console.error('[voice] transcribe error', data)
+            return
           }
+          setTranscript(data.transcript)
+          const f = data.fields as Record<string, unknown>
+          console.log('[voice] applying fields', f)
+          if (f.tag_number)       setValue('tag_number', String(f.tag_number))
+          if (f.name)             setValue('name', String(f.name))
+          if (f.sex)              setValue('sex', String(f.sex))
+          if (f.dob)              setValue('dob', String(f.dob))
+          if (f.breed)            setValue('breed', String(f.breed))
+          if (f.breed_percentage) setValue('breed_percentage', String(f.breed_percentage))
+          if (f.birth_weight_lbs) setValue('birth_weight_lbs', String(f.birth_weight_lbs))
+          if (f.purchase_price)   setValue('purchase_price', String(f.purchase_price))
+          if (f.purchase_date)    setValue('purchase_date', String(f.purchase_date))
+          if (f.vendor)           setValue('vendor', String(f.vendor))
+          if (f.notes)            setValue('notes', String(f.notes))
         } finally {
           setRecording('idle')
         }
@@ -104,7 +118,8 @@ export default function NewAnimalPage() {
       mr.start()
       mediaRef.current = mr
       setRecording('recording')
-    } catch {
+    } catch (err) {
+      console.error('[voice] MediaRecorder error', err)
       setRecording('idle')
     }
   }, [setValue])
