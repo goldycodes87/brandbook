@@ -4,8 +4,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import OpenAI from 'openai'
 
-const openai = new OpenAI()
-
 const AI_PROMPT = `You are a veterinary drug database assistant. Given a barcode or NDC code, return a JSON object with these fields if you can identify the drug (omit unknown fields):
 - brand_name (string)
 - generic_name (string)
@@ -50,6 +48,7 @@ export async function GET(req: NextRequest) {
 
   // AI fallback
   try {
+    const openai = new OpenAI()
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [

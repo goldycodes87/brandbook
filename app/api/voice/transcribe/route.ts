@@ -3,8 +3,6 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
-const openai = new OpenAI()
-
 const PARSE_PROMPT = `You are a livestock record assistant. Given a voice transcript about an animal, extract structured data.
 Return a JSON object with any of these fields you can identify (omit fields not mentioned):
 - tag_number (string)
@@ -21,6 +19,7 @@ Return a JSON object with any of these fields you can identify (omit fields not 
 Only return valid JSON, no explanation.`
 
 export async function POST(req: NextRequest) {
+  const openai = new OpenAI()
   const formData = await req.formData()
   const audio = formData.get('audio')
   if (!audio || !(audio instanceof Blob)) {
