@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { uploadToR2, deleteFromR2 } from '@/lib/r2'
 import { randomUUID } from 'crypto'
 
@@ -9,7 +9,7 @@ type Params = { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const formData = await req.formData()
   const file = formData.get('file')
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { url } = await req.json() as { url: string }
 
   const publicBase = process.env.R2_PUBLIC_URL!
