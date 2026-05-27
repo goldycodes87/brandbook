@@ -9,14 +9,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  const { data: animal, error } = await supabase
+  const { data, error } = await supabase
     .from('animals')
     .select(`
       *,
       owner:owner_id ( id, name, email, phone ),
-      dam:dam_id ( id, tag_number, name, breed ),
-      sire:sire_id ( id, tag_number, name, breed ),
-      calves:animals!dam_id ( id, tag_number, name, sex, status, dob ),
+      dam:dam_id ( id, tag_number, name, sex, photos ),
+      sire:sire_id ( id, tag_number, name, sex, photos ),
       weights ( id, weight_lbs, weighed_at, source, notes ),
       health_events ( id, event_type, event_date, drug_name, dose_amount, dose_unit, withdrawal_days, withdrawal_clear_date, bcs_score, administered_by, notes ),
       reproduction_events ( id, event_type, event_date, breed_method, expected_calving_date, calving_ease_score, preg_check_result, weaning_date, weaning_weight_lbs, notes,
@@ -25,10 +24,26 @@ export async function GET(_req: NextRequest, { params }: Params) {
       )
     `)
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 })
-  return NextResponse.json(animal)
+  if (error) {
+    console.error('[animals/id GET]', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!data) {
+    console.log('[animals/id GET] not found:', id)
+    return NextResponse.json({ error: 'Animal not found' }, { status: 404 })
+  }
+
+  // Separate query to avoid self-join ambiguity (both dam_id and sire_id FK to animals)
+  const { data: calves } = await supabase
+    .from('animals')
+    .select('id, tag_number, name, sex, dob, photos, ear_tag_color')
+    .or(`dam_id.eq.${id},sire_id.eq.${id}`)
+    .eq('status', 'active')
+
+  return NextResponse.json({ ...data, calves: calves ?? [] })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {

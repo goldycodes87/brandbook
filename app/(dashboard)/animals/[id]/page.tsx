@@ -424,8 +424,12 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
 
   const fetchAnimal = useCallback(() => {
     fetch(`/api/animals/${id}`)
-      .then(r => r.json())
-      .then(data => { setAnimal(data); setLoading(false) })
+      .then(async r => {
+        if (!r.ok) { setLoading(false); return }
+        const data = await r.json()
+        setAnimal(data)
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [id])
 
