@@ -203,23 +203,26 @@ export default function NewAnimalPage() {
       chunksRef.current = []
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       mr.onstop = async () => {
+        console.log('[voice] stop triggered')
+        console.log('[voice] chunks:', chunksRef.current.length)
         stream.getTracks().forEach(t => t.stop())
         setRecording('processing')
         const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' })
+        console.log('[voice] blob size:', blob.size)
         const fd = new FormData()
         fd.append('audio', blob, `recording.${ext}`)
         try {
+          console.log('[voice] sending to API')
           const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd })
-          const data = await res.json()
-          console.log('[voice] Raw API response:', JSON.stringify(data, null, 2))
+          console.log('[voice] response status:', res.status)
+          const result = await res.json()
+          console.log('[voice] result:', JSON.stringify(result))
           if (!res.ok) {
-            console.error('[voice] API error:', data)
+            console.error('[voice] API error:', result)
             return
           }
-          console.log('[voice] Transcript:', data.transcript)
-          console.log('[voice] Fields:', data.fields)
           // Store result and show confirmation modal — don't apply blindly
-          setVoiceResult({ transcript: data.transcript, fields: data.fields ?? {} })
+          setVoiceResult({ transcript: result.transcript, fields: result.fields ?? {} })
           setShowVoiceModal(true)
         } finally {
           setRecording('idle')

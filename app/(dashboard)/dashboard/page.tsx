@@ -29,8 +29,26 @@ async function DashboardStats() {
 }
 
 export default async function DashboardPage() {
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const getGreeting = () => {
+    // Mountain Time offset
+    // MST = UTC-7, MDT = UTC-6
+    const now = new Date();
+    const mtHour = new Date(
+      now.toLocaleString('en-US', {
+        timeZone: 'America/Denver'
+      })
+    ).getHours();
+
+    if (mtHour >= 5 && mtHour < 12)
+      return 'Good morning';
+    if (mtHour >= 12 && mtHour < 17)
+      return 'Good afternoon';
+    if (mtHour >= 17 && mtHour < 21)
+      return 'Good evening';
+    return 'Good evening';
+  };
+
+  const greeting = getGreeting();
 
   return (
     <PageContainer variant="narrow">

@@ -193,4 +193,11 @@ create table if not exists portal_tokens (
   created_at timestamptz default now()
 );
 
+create table if not exists ranch_settings (
+  id uuid primary key default gen_random_uuid(),
+  timezone text not null default 'America/Denver',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 notify pgrst, 'reload schema';

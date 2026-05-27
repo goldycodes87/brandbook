@@ -19,6 +19,7 @@ Return a JSON object with any of these fields you can identify (omit fields not 
 Only return valid JSON, no explanation.`
 
 export async function POST(req: NextRequest) {
+  console.log('[transcribe] route hit')
   const openai = new OpenAI()
   const formData = await req.formData()
   const audio = formData.get('audio')
@@ -32,7 +33,9 @@ export async function POST(req: NextRequest) {
   const mimeType = audio.type || (ext === 'mp4' ? 'audio/mp4' : 'audio/webm')
   const filename = `recording.${ext}`
 
-  console.log('[transcribe] audio received', { filename, mimeType, size: audio.size })
+  console.log('[transcribe] has audio:', !!audio)
+  console.log('[transcribe] file size:', audio?.size)
+  console.log('[transcribe] file type:', audio?.type)
 
   const file = new File([audio], filename, { type: mimeType })
 
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
     language: 'en',
   })
   const transcript = transcription.text
-  console.log('[transcribe] whisper result', { transcript })
+  console.log('[transcribe] transcript:', transcript)
 
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -54,13 +57,15 @@ export async function POST(req: NextRequest) {
     temperature: 0,
   })
 
+  const rawText = completion.choices[0].message.content ?? '{}'
+  console.log('[transcribe] raw claude:', rawText)
   let fields: Record<string, unknown> = {}
   try {
-    fields = JSON.parse(completion.choices[0].message.content ?? '{}')
+    fields = JSON.parse(rawText)
   } catch {
     // Return transcript without parsed fields if parsing fails
   }
-  console.log('[transcribe] parsed fields', fields)
+  console.log('[transcribe] fields:', JSON.stringify(fields))
 
   return NextResponse.json({ transcript, fields })
 }
