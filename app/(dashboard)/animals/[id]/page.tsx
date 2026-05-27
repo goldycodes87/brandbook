@@ -6,13 +6,14 @@ import Image from 'next/image'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Panel, PanelSection } from '@/components/ui/Panel'
-import { Button } from '@/components/ui/Button'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP } from '@/components/ui/tokens'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
+import { WeightForm } from '@/components/animals/WeightForm'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
@@ -363,56 +364,52 @@ function ReproTab({ animal }: { animal: Animal }) {
   )
 }
 
-function WeightsTab({ animal }: { animal: Animal }) {
-  const weights = [...(animal.weights ?? [])].sort(
-    (a, b) => new Date(b.weighed_at).getTime() - new Date(a.weighed_at).getTime()
-  )
-
+function WeightsTab({ animal, onLogWeight }: { animal: Animal; onLogWeight: () => void }) {
+  const weights  = [...(animal.weights ?? [])].sort((a, b) => new Date(b.weighed_at).getTime() - new Date(a.weighed_at).getTime())
   const ascending = [...weights].reverse()
 
-  if (!weights.length) {
-    return (
-      <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
-        No weight records.
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col gap-5">
-      {weights.length >= 2 && (
-        <Panel title="TREND">
-          <PanelSection>
-            <WeightSparkline weights={ascending} />
-            <p className="type-data-sm mt-2" style={{ color: 'var(--text-muted)' }}>
-              {weights[weights.length - 1].weight_lbs} → {weights[0].weight_lbs} lb
-              {weights.length >= 2 && (() => {
-                const gain = weights[0].weight_lbs - weights[weights.length - 1].weight_lbs
-                const days = Math.abs(
-                  (new Date(weights[0].weighed_at).getTime() - new Date(weights[weights.length - 1].weighed_at).getTime()) / 86400000
-                )
-                const adg = days > 0 ? (gain / days).toFixed(2) : null
-                return adg ? ` · ADG ${adg} lb/day` : ''
-              })()}
-            </p>
-          </PanelSection>
-        </Panel>
-      )}
-
-      <div className="flex flex-col gap-2">
-        {weights.map(w => (
-          <div key={w.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] px-4 py-3" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-            <div>
-              <p className="type-data-sm font-semibold">{w.weight_lbs} lb</p>
-              {w.notes && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{w.notes}</p>}
-            </div>
-            <div className="text-right">
-              <p className="type-data-sm" style={{ color: 'var(--text-muted)' }}>{fmtDate(w.weighed_at)}</p>
-              <Chip tone="neutral" size="sm">{w.source}</Chip>
-            </div>
-          </div>
-        ))}
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button intent="primary" size="sm" onClick={onLogWeight}>+ LOG WEIGHT</Button>
       </div>
+
+      {!weights.length ? (
+        <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>No weight records.</div>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {weights.length >= 2 && (
+            <Panel title="TREND">
+              <PanelSection>
+                <WeightSparkline weights={ascending} />
+                <p className="type-data-sm mt-2" style={{ color: 'var(--text-muted)' }}>
+                  {weights[weights.length - 1].weight_lbs} → {weights[0].weight_lbs} lb
+                  {(() => {
+                    const gain = weights[0].weight_lbs - weights[weights.length - 1].weight_lbs
+                    const days = Math.abs((new Date(weights[0].weighed_at).getTime() - new Date(weights[weights.length - 1].weighed_at).getTime()) / 86400000)
+                    const adg  = days > 0 ? (gain / days).toFixed(2) : null
+                    return adg ? ` · ADG ${adg} lb/day` : ''
+                  })()}
+                </p>
+              </PanelSection>
+            </Panel>
+          )}
+          <div className="flex flex-col gap-2">
+            {weights.map(w => (
+              <div key={w.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] px-4 py-3" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                <div>
+                  <p className="type-data-sm font-semibold">{w.weight_lbs} lb</p>
+                  {w.notes && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{w.notes}</p>}
+                </div>
+                <div className="text-right">
+                  <p className="type-data-sm" style={{ color: 'var(--text-muted)' }}>{fmtDate(w.weighed_at)}</p>
+                  <Chip tone="neutral" size="sm">{w.source}</Chip>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -422,7 +419,8 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   const [animal, setAnimal]         = useState<Animal | null>(null)
   const [loading, setLoading]       = useState(true)
   const [tab, setTab]               = useState<Tab>('overview')
-  const [logOpen, setLogOpen]       = useState(false)
+  const [logOpen, setLogOpen]         = useState(false)
+  const [weightOpen, setWeightOpen]   = useState(false)
 
   const fetchAnimal = useCallback(() => {
     fetch(`/api/animals/${id}`)
@@ -451,7 +449,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
     return (
       <PageContainer>
         <PageHeader title="Animal not found" />
-        <Link href="/animals"><Button intent="secondary">← Back to Animals</Button></Link>
+        <ButtonLink href="/animals" intent="secondary">← Back to Animals</ButtonLink>
       </PageContainer>
     )
   }
@@ -466,9 +464,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
           <>
             <StatusChip map={ANIMAL_STATUS_CHIP} value={animal.status} />
             {animal.sex && <StatusChip map={SEX_CHIP} value={animal.sex} />}
-            <Link href={`/animals/${id}/edit`}>
-              <Button intent="secondary" size="sm">EDIT</Button>
-            </Link>
+            <ButtonLink href={`/animals/${id}/edit`} intent="secondary" size="sm">EDIT</ButtonLink>
           </>
         }
       />
@@ -478,10 +474,27 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
       {tab === 'overview'      && <OverviewTab  animal={animal} />}
       {tab === 'health'        && <HealthTab    animal={animal} onLogEvent={() => setLogOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'reproduction'  && <ReproTab     animal={animal} />}
-      {tab === 'weights'       && <WeightsTab   animal={animal} />}
+      {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} />}
       {tab === 'documents'     && (
         <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
           Document storage coming soon.
+        </div>
+      )}
+
+      {/* Weight slide-up sheet */}
+      {weightOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div
+            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh', padding: '24px 16px' }}
+          >
+            <p className="type-panel-title mb-4">Log Weight</p>
+            <WeightForm
+              animalId={id}
+              onSuccess={() => { setWeightOpen(false); fetchAnimal() }}
+              onCancel={() => setWeightOpen(false)}
+            />
+          </div>
         </div>
       )}
 

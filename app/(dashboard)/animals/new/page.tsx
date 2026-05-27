@@ -68,9 +68,8 @@ function EarTagColorPicker({ value, onChange, invalid }: { value: string; onChan
 // ── Schema ────────────────────────────────────────────────────────────────────
 
 const schema = z.object({
-  tag_number:          z.string().min(1, 'Tag number is required'),
+  tag_number:          z.string().min(1, 'Ear tag number is required'),
   ear_tag_color:       z.string().min(1, 'Ear tag color is required'),
-  ear_tag_number:      z.string().min(1, 'Ear tag number is required'),
   sex:                 z.string().min(1, 'Sex is required'),
   name:                z.string().optional(),
   dob:                 z.string().optional(),
@@ -153,6 +152,10 @@ export default function NewAnimalPage() {
           const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd })
           const data = await res.json()
           if (!res.ok) return
+          console.log('[voice] API response:', data)
+          console.log('[voice] Transcript:', data.transcript)
+          console.log('[voice] Fields:', data.fields)
+          console.log('[voice] Applying to form...')
           setTranscript(data.transcript)
           const f = data.fields as Record<string, unknown>
           if (f.tag_number)       setValue('tag_number', String(f.tag_number))
@@ -189,7 +192,7 @@ export default function NewAnimalPage() {
         const res = await fetch('/api/animals', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_number: watch('tag_number') || `DRAFT-${Date.now()}`, sex: watch('sex') || 'calf', ear_tag_color: watch('ear_tag_color') || 'Yellow', ear_tag_number: watch('ear_tag_number') || 'DRAFT', status: 'active' }),
+          body: JSON.stringify({ tag_number: watch('tag_number') || `DRAFT-${Date.now()}`, sex: watch('sex') || 'calf', ear_tag_color: watch('ear_tag_color') || 'Yellow', status: 'active' }),
         })
         if (!res.ok) return
         const data = await res.json()
@@ -303,8 +306,8 @@ export default function NewAnimalPage() {
         <Panel title="IDENTIFICATION">
           <PanelSection>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Tag number" required error={errors.tag_number?.message}>
-                <Input {...register('tag_number')} placeholder="e.g. 1045" invalid={!!errors.tag_number} />
+              <Field label="Ear Tag Number" required error={errors.tag_number?.message}>
+                <Input {...register('tag_number')} placeholder="e.g. 202" invalid={!!errors.tag_number} />
               </Field>
               <Field label="Name">
                 <Input {...register('name')} placeholder="Optional nickname" />
@@ -335,17 +338,14 @@ export default function NewAnimalPage() {
               </Field>
             </div>
 
-            {/* Ear tag row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+            {/* Ear tag color */}
+            <div className="mt-4">
               <Field label="Ear tag color" required error={errors.ear_tag_color?.message}>
                 <EarTagColorPicker
                   value={earTagColor}
                   onChange={v => setValue('ear_tag_color', v, { shouldValidate: true })}
                   invalid={!!errors.ear_tag_color}
                 />
-              </Field>
-              <Field label="Ear tag number" required error={errors.ear_tag_number?.message}>
-                <Input {...register('ear_tag_number')} placeholder="e.g. 202" invalid={!!errors.ear_tag_number} />
               </Field>
             </div>
           </PanelSection>

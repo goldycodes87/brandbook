@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Button } from '@/components/ui/Button'
+import { ButtonLink } from '@/components/ui/Button'
 import { Toolbar } from '@/components/ui/Toolbar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { StatCard } from '@/components/ui/StatCard'
@@ -62,7 +62,7 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
         body={searchParams.search || searchParams.status || searchParams.sex ? 'Try clearing your filters.' : 'Add your first animal to get started.'}
         action={
           !searchParams.search && !searchParams.status && !searchParams.sex
-            ? <Link href="/animals/new"><Button intent="primary">+ ADD ANIMAL</Button></Link>
+            ? <ButtonLink href="/animals/new" intent="primary">+ ADD ANIMAL</ButtonLink>
             : undefined
         }
       />
@@ -152,9 +152,7 @@ export default async function AnimalsPage({ searchParams }: PageProps) {
         title="Animals"
         subtitle="Herd registry"
         actions={
-          <Link href="/animals/new">
-            <Button intent="primary" size="sm">+ ADD ANIMAL</Button>
-          </Link>
+          <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
         }
       />
 

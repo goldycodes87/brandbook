@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { Tag, MapPin, AlertTriangle, FileText } from 'lucide-react'
+import { Tag, MapPin, FileText } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -8,25 +8,22 @@ import { Panel } from '@/components/ui/Panel'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Toolbar } from '@/components/ui/Toolbar'
 import { ButtonLink } from '@/components/ui/Button'
-import { WithdrawalWidget } from '@/components/health/WithdrawalWidget'
 
 async function DashboardStats() {
   const supabase = createAdminClient()
-  const today = new Date().toISOString().slice(0, 10)
 
-  const [{ count: animalCount }, { count: withdrawalCount }] = await Promise.all([
-    supabase.from('animals').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-    supabase.from('health_events').select('id', { count: 'exact', head: true })
-      .not('withdrawal_clear_date', 'is', null)
-      .gte('withdrawal_clear_date', today),
+  const [{ count: total }, bullsRes, cowsRes] = await Promise.all([
+    supabase.from('animals').select('id', { count: 'exact', head: true }),
+    supabase.from('animals').select('id', { count: 'exact', head: true }).eq('sex', 'bull'),
+    supabase.from('animals').select('id', { count: 'exact', head: true }).in('sex', ['cow', 'heifer']),
   ])
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-      <StatCard label="Total Animals" value={animalCount ?? 0} aside={<Tag size={16} style={{ color: 'var(--accent)' }} />} />
-      <StatCard label="Active Leases" value={0} aside={<MapPin size={16} style={{ color: 'var(--accent)' }} />} />
-      <StatCard label="Health Flags"  value={withdrawalCount ?? 0} aside={<AlertTriangle size={16} style={{ color: withdrawalCount ? 'var(--danger-fg)' : 'var(--accent)' }} />} />
-      <StatCard label="Open Invoices" value={0} aside={<FileText size={16} style={{ color: 'var(--accent)' }} />} />
+      <StatCard label="Total Animals"  value={total ?? 0}             aside={<Tag size={16} style={{ color: 'var(--accent)' }} />} />
+      <StatCard label="Bulls"          value={bullsRes.count ?? 0}    aside={<span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem' }}>♂</span>} />
+      <StatCard label="Cows / Heifers" value={cowsRes.count ?? 0}     aside={<span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem' }}>♀</span>} />
+      <StatCard label="Open Invoices"  value={0}                      aside={<FileText size={16} style={{ color: 'var(--accent)' }} />} />
     </div>
   )
 }
@@ -58,18 +55,11 @@ export default async function DashboardPage() {
         leading={
           <>
             <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
-            <ButtonLink href="/health?add=true" intent="secondary" size="sm">LOG HEALTH EVENT</ButtonLink>
-            <ButtonLink href="/animals?action=weight" intent="secondary" size="sm">RECORD WEIGHT</ButtonLink>
+            <ButtonLink href="/health" intent="secondary" size="sm">LOG HEALTH EVENT</ButtonLink>
+            <ButtonLink href="/animals" intent="secondary" size="sm">RECORD WEIGHT</ButtonLink>
           </>
         }
       />
-
-      {/* Withdrawal tracker */}
-      <div className="mb-5">
-        <Suspense fallback={null}>
-          <WithdrawalWidget />
-        </Suspense>
-      </div>
 
       {/* Recent activity */}
       <Panel title="RECENT ACTIVITY">

@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Button } from '@/components/ui/Button'
 import { Toolbar } from '@/components/ui/Toolbar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
@@ -11,6 +10,7 @@ import { StatusChip } from '@/components/ui/Chip'
 import { HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP } from '@/components/ui/tokens'
 import { WithdrawalWidget } from '@/components/health/WithdrawalWidget'
 import { HealthFilters } from '@/components/health/HealthFilters'
+import { HealthAddButton } from '@/components/health/HealthAddButton'
 
 interface PageProps {
   searchParams: Promise<{ search?: string; event_type?: string; in_withdrawal?: string; page?: string }>
@@ -130,11 +130,7 @@ export default async function HealthPage({ searchParams }: PageProps) {
       <PageHeader
         title="Health"
         subtitle="Treatments, vaccinations &amp; withdrawal tracking"
-        actions={
-          <Link href="/animals">
-            <Button intent="primary" size="sm">+ LOG EVENT</Button>
-          </Link>
-        }
+        actions={<HealthAddButton />}
       />
 
       <div className="mb-5">
