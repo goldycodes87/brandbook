@@ -12,7 +12,7 @@ export function proxy(req: NextRequest) {
   const isPublic = PUBLIC.some(p => pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
   const session = req.cookies.get("brandbook_session")?.value;
-  if (session !== "authenticated") {
+  if (!session) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
   return NextResponse.next();

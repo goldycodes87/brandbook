@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   }
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("brandbook_session", "authenticated", {
+  res.cookies.set("brandbook_session", data.session.user.id, {
     httpOnly: true,
     secure: true,
     sameSite: "lax",

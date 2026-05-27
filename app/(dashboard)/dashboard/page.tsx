@@ -29,32 +29,31 @@ async function DashboardStats() {
 }
 
 export default async function DashboardPage() {
-  const getGreeting = () => {
-    // Mountain Time offset
-    // MST = UTC-7, MDT = UTC-6
-    const now = new Date();
-    const mtHour = new Date(
-      now.toLocaleString('en-US', {
-        timeZone: 'America/Denver'
-      })
-    ).getHours();
+  const supabase = createAdminClient()
+  const { data: ranchSettings } = await supabase
+    .from('ranch_settings')
+    .select('owner_name, timezone')
+    .maybeSingle()
 
-    if (mtHour >= 5 && mtHour < 12)
-      return 'Good morning';
-    if (mtHour >= 12 && mtHour < 17)
-      return 'Good afternoon';
-    if (mtHour >= 17 && mtHour < 21)
-      return 'Good evening';
-    return 'Good evening';
-  };
+  const timezone = ranchSettings?.timezone ?? 'America/Denver'
+  const ownerName = ranchSettings?.owner_name ?? ''
 
-  const greeting = getGreeting();
+  const now = new Date()
+  const hour = new Date(now.toLocaleString('en-US', { timeZone: timezone })).getHours()
+  const greeting =
+    hour >= 5 && hour < 12 ? 'Good morning' :
+    hour >= 12 && hour < 17 ? 'Good afternoon' :
+    'Good evening'
+
+  const subtitle = ownerName
+    ? `${greeting}, ${ownerName}`
+    : `${greeting} — Welcome to Brand Book`
 
   return (
     <PageContainer variant="narrow">
       <PageHeader
         title="Dashboard"
-        subtitle={`${greeting} — Welcome to Brand Book`}
+        subtitle={subtitle}
       />
 
       <Suspense fallback={

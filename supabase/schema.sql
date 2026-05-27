@@ -195,7 +195,30 @@ create table if not exists portal_tokens (
 
 create table if not exists ranch_settings (
   id uuid primary key default gen_random_uuid(),
+  ranch_name text,
+  owner_name text,
+  address text,
+  city text,
+  state text,
+  zip text,
+  phone text,
+  email text,
   timezone text not null default 'America/Denver',
+  logo_url text,
+  brand_photo_url text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists notification_preferences (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid references profiles(id) on delete cascade,
+  withdrawal_alerts boolean default true,
+  lease_renewal_alerts boolean default true,
+  calving_reminders boolean default true,
+  weight_reminders boolean default false,
+  email_notifications boolean default true,
+  alert_lead_days int default 7,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
