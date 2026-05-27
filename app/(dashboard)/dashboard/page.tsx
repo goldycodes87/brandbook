@@ -1,5 +1,4 @@
 import { Suspense } from 'react'
-import Link from 'next/link'
 import { Tag, MapPin, AlertTriangle, FileText } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -8,7 +7,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Panel } from '@/components/ui/Panel'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Toolbar } from '@/components/ui/Toolbar'
-import { Button } from '@/components/ui/Button'
+import { ButtonLink } from '@/components/ui/Button'
 import { WithdrawalWidget } from '@/components/health/WithdrawalWidget'
 
 async function DashboardStats() {
@@ -24,10 +23,10 @@ async function DashboardStats() {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-      <StatCard label="Total Animals"  value={animalCount ?? 0} aside={<Tag size={16} style={{ color: 'var(--accent)' }} />} />
-      <StatCard label="Active Leases"  value={0}               aside={<MapPin size={16} style={{ color: 'var(--accent)' }} />} />
-      <StatCard label="Health Flags"   value={withdrawalCount ?? 0} aside={<AlertTriangle size={16} style={{ color: withdrawalCount ? 'var(--danger-fg)' : 'var(--accent)' }} />} />
-      <StatCard label="Open Invoices"  value={0}               aside={<FileText size={16} style={{ color: 'var(--accent)' }} />} />
+      <StatCard label="Total Animals" value={animalCount ?? 0} aside={<Tag size={16} style={{ color: 'var(--accent)' }} />} />
+      <StatCard label="Active Leases" value={0} aside={<MapPin size={16} style={{ color: 'var(--accent)' }} />} />
+      <StatCard label="Health Flags"  value={withdrawalCount ?? 0} aside={<AlertTriangle size={16} style={{ color: withdrawalCount ? 'var(--danger-fg)' : 'var(--accent)' }} />} />
+      <StatCard label="Open Invoices" value={0} aside={<FileText size={16} style={{ color: 'var(--accent)' }} />} />
     </div>
   )
 }
@@ -43,7 +42,13 @@ export default async function DashboardPage() {
         subtitle={`${greeting} — Welcome to Brand Book`}
       />
 
-      <Suspense fallback={<div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">{[...Array(4)].map((_, i) => <div key={i} className="h-20 rounded-[var(--radius-lg)] animate-pulse" style={{ backgroundColor: 'var(--surface-2)' }} />)}</div>}>
+      <Suspense fallback={
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-20 rounded-[var(--radius-lg)] animate-pulse" style={{ backgroundColor: 'var(--surface-2)' }} />
+          ))}
+        </div>
+      }>
         <DashboardStats />
       </Suspense>
 
@@ -52,9 +57,9 @@ export default async function DashboardPage() {
         className="mb-6"
         leading={
           <>
-            <Link href="/animals/new"><Button intent="primary" size="sm">+ ADD ANIMAL</Button></Link>
-            <Link href="/health"><Button intent="secondary" size="sm">LOG HEALTH EVENT</Button></Link>
-            <Link href="/animals"><Button intent="secondary" size="sm">RECORD WEIGHT</Button></Link>
+            <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
+            <ButtonLink href="/health?add=true" intent="secondary" size="sm">LOG HEALTH EVENT</ButtonLink>
+            <ButtonLink href="/animals?action=weight" intent="secondary" size="sm">RECORD WEIGHT</ButtonLink>
           </>
         }
       />
@@ -72,7 +77,7 @@ export default async function DashboardPage() {
           variant="action"
           title="No activity yet"
           body="Add your first animal to get started."
-          action={<Link href="/animals/new"><Button intent="primary">+ ADD ANIMAL</Button></Link>}
+          action={<ButtonLink href="/animals/new" intent="primary">+ ADD ANIMAL</ButtonLink>}
           panel={false}
         />
       </Panel>

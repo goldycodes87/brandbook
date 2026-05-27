@@ -44,13 +44,25 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: animals, count, page, limit })
 }
 
+function toUuid(val: unknown): string | null {
+  if (!val || val === '') return null
+  return val as string
+}
+
 export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
   const body = await req.json()
 
+  const sanitized = {
+    ...body,
+    owner_id: toUuid(body.owner_id),
+    dam_id:   toUuid(body.dam_id),
+    sire_id:  toUuid(body.sire_id),
+  }
+
   const { data, error } = await supabase
     .from('animals')
-    .insert(body)
+    .insert(sanitized)
     .select()
     .single()
 

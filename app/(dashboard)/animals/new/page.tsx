@@ -5,30 +5,84 @@ import { useRouter } from 'next/navigation'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Mic, MicOff, Plus, Trash2, Upload } from 'lucide-react'
+import { Mic, MicOff, Plus, Trash2, Upload, Check } from 'lucide-react'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Panel, PanelSection } from '@/components/ui/Panel'
 import { Field, Input, Textarea, Select } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ActionFooter } from '@/components/ui/ActionFooter'
+import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
+
+// ── Ear tag color picker ──────────────────────────────────────────────────────
+
+const EAR_TAG_COLORS = [
+  { name: 'Yellow',  hex: '#F5C518' },
+  { name: 'Orange',  hex: '#F97316' },
+  { name: 'White',   hex: '#F3F4F6' },
+  { name: 'Green',   hex: '#22C55E' },
+  { name: 'Blue',    hex: '#3B82F6' },
+  { name: 'Red',     hex: '#EF4444' },
+  { name: 'Pink',    hex: '#EC4899' },
+  { name: 'Purple',  hex: '#A855F7' },
+  { name: 'Silver',  hex: '#9CA3AF' },
+  { name: 'Black',   hex: '#1F2937' },
+]
+
+function EarTagColorPicker({ value, onChange, invalid }: { value: string; onChange: (c: string) => void; invalid?: boolean }) {
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mt-0.5">
+        {EAR_TAG_COLORS.map(c => (
+          <button
+            key={c.name}
+            type="button"
+            title={c.name}
+            onClick={() => onChange(c.name)}
+            className="relative w-8 h-8 rounded-full transition-transform duration-100 active:scale-90"
+            style={{
+              backgroundColor: c.hex,
+              border: value === c.name
+                ? '3px solid var(--accent)'
+                : '2px solid var(--border)',
+              boxShadow: value === c.name ? '0 0 0 1px var(--accent)' : undefined,
+            }}
+          >
+            {value === c.name && (
+              <Check
+                size={14}
+                className="absolute inset-0 m-auto"
+                style={{ color: c.name === 'White' || c.name === 'Yellow' || c.name === 'Silver' ? '#000' : '#fff' }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+      {invalid && !value && (
+        <p className="type-helper mt-1" style={{ color: 'var(--danger-fg)' }}>Ear tag color is required</p>
+      )}
+    </div>
+  )
+}
+
+// ── Schema ────────────────────────────────────────────────────────────────────
 
 const schema = z.object({
-  tag_number:        z.string().min(1, 'Tag number is required'),
-  name:              z.string().optional(),
-  sex:               z.string().optional(),
-  dob:               z.string().optional(),
-  status:            z.string().optional(),
-  breed:             z.string().optional(),
-  breed_percentage:  z.string().optional(),
-  birth_weight_lbs:  z.string().optional(),
-  purchase_price:    z.string().optional(),
-  purchase_date:     z.string().optional(),
-  vendor:            z.string().optional(),
-  dam_id:            z.string().optional(),
-  sire_id:           z.string().optional(),
-  owner_id:          z.string().optional(),
-  notes:             z.string().optional(),
+  tag_number:          z.string().min(1, 'Tag number is required'),
+  ear_tag_color:       z.string().min(1, 'Ear tag color is required'),
+  ear_tag_number:      z.string().min(1, 'Ear tag number is required'),
+  sex:                 z.string().min(1, 'Sex is required'),
+  name:                z.string().optional(),
+  dob:                 z.string().optional(),
+  status:              z.string().optional(),
+  birth_weight_lbs:    z.string().optional(),
+  purchase_price:      z.string().optional(),
+  purchase_date:       z.string().optional(),
+  vendor:              z.string().optional(),
+  dam_id:              z.string().optional(),
+  sire_id:             z.string().optional(),
+  owner_id:            z.string().optional(),
+  notes:               z.string().optional(),
   registration_numbers: z.array(z.object({
     registry: z.string().min(1),
     number:   z.string().min(1),
@@ -43,6 +97,10 @@ function toNum(v: string | undefined): number | null {
   return isNaN(n) ? null : n
 }
 
+function toUuid(v: string | undefined): string | null {
+  return v && v.trim() !== '' ? v : null
+}
+
 type RecordingState = 'idle' | 'recording' | 'processing'
 
 export default function NewAnimalPage() {
@@ -53,6 +111,8 @@ export default function NewAnimalPage() {
   const [transcript, setTranscript]   = useState('')
   const [photoUrls, setPhotoUrls]     = useState<string[]>([])
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [breeds, setBreeds]           = useState<BreedEntry[]>([])
+  const [breedError, setBreedError]   = useState('')
   const mediaRef    = useRef<MediaRecorder | null>(null)
   const chunksRef   = useRef<Blob[]>([])
   const pendingIdRef = useRef<string | null>(null)
@@ -61,6 +121,8 @@ export default function NewAnimalPage() {
     resolver: zodResolver(schema),
     defaultValues: { status: 'active', registration_numbers: [] },
   })
+
+  const earTagColor = watch('ear_tag_color') ?? ''
 
   const { fields: regFields, append: addReg, remove: removeReg } = useFieldArray({
     control,
@@ -71,7 +133,6 @@ export default function NewAnimalPage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
 
-      // iOS Safari doesn't support audio/webm — detect and fall back to audio/mp4
       const mimeType = MediaRecorder.isTypeSupported('audio/webm')
         ? 'audio/webm'
         : MediaRecorder.isTypeSupported('audio/mp4')
@@ -88,24 +149,16 @@ export default function NewAnimalPage() {
         const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' })
         const fd = new FormData()
         fd.append('audio', blob, `recording.${ext}`)
-        console.log('[voice] sending audio', { mimeType, ext, size: blob.size })
         try {
           const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd })
           const data = await res.json()
-          console.log('[voice] API response', data)
-          if (!res.ok) {
-            console.error('[voice] transcribe error', data)
-            return
-          }
+          if (!res.ok) return
           setTranscript(data.transcript)
           const f = data.fields as Record<string, unknown>
-          console.log('[voice] applying fields', f)
           if (f.tag_number)       setValue('tag_number', String(f.tag_number))
           if (f.name)             setValue('name', String(f.name))
           if (f.sex)              setValue('sex', String(f.sex))
           if (f.dob)              setValue('dob', String(f.dob))
-          if (f.breed)            setValue('breed', String(f.breed))
-          if (f.breed_percentage) setValue('breed_percentage', String(f.breed_percentage))
           if (f.birth_weight_lbs) setValue('birth_weight_lbs', String(f.birth_weight_lbs))
           if (f.purchase_price)   setValue('purchase_price', String(f.purchase_price))
           if (f.purchase_date)    setValue('purchase_date', String(f.purchase_date))
@@ -118,8 +171,7 @@ export default function NewAnimalPage() {
       mr.start()
       mediaRef.current = mr
       setRecording('recording')
-    } catch (err) {
-      console.error('[voice] MediaRecorder error', err)
+    } catch {
       setRecording('idle')
     }
   }, [setValue])
@@ -137,7 +189,7 @@ export default function NewAnimalPage() {
         const res = await fetch('/api/animals', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_number: watch('tag_number') || `DRAFT-${Date.now()}`, status: 'active' }),
+          body: JSON.stringify({ tag_number: watch('tag_number') || `DRAFT-${Date.now()}`, sex: watch('sex') || 'calf', ear_tag_color: watch('ear_tag_color') || 'Yellow', ear_tag_number: watch('ear_tag_number') || 'DRAFT', status: 'active' }),
         })
         if (!res.ok) return
         const data = await res.json()
@@ -156,15 +208,29 @@ export default function NewAnimalPage() {
   }
 
   const onSubmit = async (values: FormValues) => {
+    // Validate breed totals
+    if (breeds.length > 0) {
+      const total = breeds.reduce((s, b) => s + (b.pct || 0), 0)
+      if (total !== 100) {
+        setBreedError('Breed percentages must total 100%')
+        return
+      }
+    }
+    setBreedError('')
+
     setSaving(true)
     setError('')
     try {
       const payload = {
         ...values,
-        breed_percentage: toNum(values.breed_percentage),
+        sex:              values.sex || null,
         birth_weight_lbs: toNum(values.birth_weight_lbs),
         purchase_price:   toNum(values.purchase_price),
-        photos: photoUrls,
+        owner_id:         toUuid(values.owner_id),
+        dam_id:           toUuid(values.dam_id),
+        sire_id:          toUuid(values.sire_id),
+        breeds:           breeds.length > 0 ? breeds : null,
+        photos:           photoUrls,
       }
 
       let res: Response
@@ -217,9 +283,9 @@ export default function NewAnimalPage() {
         </button>
         <div className="flex-1 min-w-0">
           <p className="type-field-label mb-0.5">
-            {recording === 'idle'       ? 'Voice input'       : ''}
-            {recording === 'recording'  ? 'Recording…'        : ''}
-            {recording === 'processing' ? 'Transcribing…'     : ''}
+            {recording === 'idle'       ? 'Voice input'   : ''}
+            {recording === 'recording'  ? 'Recording…'    : ''}
+            {recording === 'processing' ? 'Transcribing…' : ''}
           </p>
           {transcript ? (
             <p className="type-data-sm" style={{ color: 'var(--text-secondary)' }}>{transcript}</p>
@@ -232,6 +298,7 @@ export default function NewAnimalPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+
         {/* Panel 1 — Identification */}
         <Panel title="IDENTIFICATION">
           <PanelSection>
@@ -242,8 +309,8 @@ export default function NewAnimalPage() {
               <Field label="Name">
                 <Input {...register('name')} placeholder="Optional nickname" />
               </Field>
-              <Field label="Sex">
-                <Select {...register('sex')}>
+              <Field label="Sex" required error={errors.sex?.message}>
+                <Select {...register('sex')} invalid={!!errors.sex}>
                   <option value="">Select…</option>
                   <option value="bull">Bull</option>
                   <option value="cow">Cow</option>
@@ -267,20 +334,27 @@ export default function NewAnimalPage() {
                 <Input {...register('birth_weight_lbs')} type="number" step="0.1" placeholder="0.0" />
               </Field>
             </div>
+
+            {/* Ear tag row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+              <Field label="Ear tag color" required error={errors.ear_tag_color?.message}>
+                <EarTagColorPicker
+                  value={earTagColor}
+                  onChange={v => setValue('ear_tag_color', v, { shouldValidate: true })}
+                  invalid={!!errors.ear_tag_color}
+                />
+              </Field>
+              <Field label="Ear tag number" required error={errors.ear_tag_number?.message}>
+                <Input {...register('ear_tag_number')} placeholder="e.g. 202" invalid={!!errors.ear_tag_number} />
+              </Field>
+            </div>
           </PanelSection>
         </Panel>
 
         {/* Panel 2 — Breed */}
         <Panel title="BREED">
           <PanelSection>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Breed">
-                <Input {...register('breed')} placeholder="e.g. Angus" />
-              </Field>
-              <Field label="Breed %" helper="Leave blank for purebred">
-                <Input {...register('breed_percentage')} type="number" min="0" max="100" placeholder="100" />
-              </Field>
-            </div>
+            <BreedSelector value={breeds} onChange={setBreeds} error={breedError || undefined} />
           </PanelSection>
         </Panel>
 
@@ -316,7 +390,7 @@ export default function NewAnimalPage() {
                   <button
                     type="button"
                     onClick={() => removeReg(i)}
-                    className="h-10 w-10 flex items-center justify-center rounded-[var(--radius-md)] mb-0 shrink-0 transition-colors duration-150"
+                    className="h-10 w-10 flex items-center justify-center rounded-[var(--radius-md)] shrink-0 transition-colors duration-150"
                     style={{ color: 'var(--danger-fg)', border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
                   >
                     <Trash2 size={15} />
