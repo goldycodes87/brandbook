@@ -1,5 +1,4 @@
 import { Suspense } from 'react'
-import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -7,11 +6,10 @@ import { ButtonLink } from '@/components/ui/Button'
 import { Toolbar } from '@/components/ui/Toolbar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { StatCard } from '@/components/ui/StatCard'
-import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
-import { StatusChip } from '@/components/ui/Chip'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP } from '@/components/ui/tokens'
+import { Table, THead, TBody, TR, TH } from '@/components/ui/Table'
 import { AnimalCard } from '@/components/animals/AnimalCard'
 import { AnimalFilters } from '@/components/animals/AnimalFilters'
+import { AnimalTableRow } from '@/components/animals/AnimalTableRow'
 import type { AnimalListItem } from '@/components/animals/AnimalCard'
 
 interface PageProps {
@@ -93,31 +91,7 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
             </TR>
           </THead>
           <TBody>
-            {animals.map(a => (
-              <TR key={a.id}>
-                <TD>
-                  <Link
-                    href={`/animals/${a.id}`}
-                    className="type-data-sm font-semibold hover:underline"
-                    style={{ color: 'var(--accent)', fontFamily: 'var(--font-display)' }}
-                  >
-                    {a.tag_number}
-                  </Link>
-                </TD>
-                <TD>{a.name ?? '—'}</TD>
-                <TD>{a.sex ? <StatusChip map={SEX_CHIP} value={a.sex} size="sm" /> : '—'}</TD>
-                <TD>
-                  {a.breed
-                    ? a.breed_percentage && a.breed_percentage < 100
-                      ? `${a.breed_percentage}% ${a.breed}`
-                      : a.breed
-                    : '—'}
-                </TD>
-                <TD><StatusChip map={ANIMAL_STATUS_CHIP} value={a.status} size="sm" /></TD>
-                <TD>{a.latest_weight ? `${a.latest_weight.weight_lbs} lb` : '—'}</TD>
-                <TD>{a.owner?.name ?? '—'}</TD>
-              </TR>
-            ))}
+            {animals.map(a => <AnimalTableRow key={a.id} a={a} />)}
           </TBody>
         </Table>
       </div>

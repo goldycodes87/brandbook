@@ -115,9 +115,34 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const supabase = createAdminClient()
   const body = await req.json()
 
+  const firstBreed = Array.isArray(body.breeds) ? body.breeds[0] : null
+
+  const updateData = {
+    tag_number:           body.tag_number,
+    name:                 body.name ?? null,
+    sex:                  body.sex,
+    status:               body.status ?? 'active',
+    dob:                  body.dob || null,
+    breed:                firstBreed?.breed || body.breed || null,
+    breed_percentage:     firstBreed?.pct   || body.breed_percentage || null,
+    breeds:               body.breeds ?? [],
+    ear_tag_color:        body.ear_tag_color,
+    ear_tag_number:       body.ear_tag_number || null,
+    birth_weight_lbs:     body.birth_weight_lbs || null,
+    purchase_price:       body.purchase_price || null,
+    purchase_date:        body.purchase_date || null,
+    vendor:               body.vendor || null,
+    owner_id:             body.owner_id || null,
+    dam_id:               body.dam_id || null,
+    sire_id:              body.sire_id || null,
+    registration_numbers: body.registration_numbers ?? [],
+    notes:                body.notes || null,
+    photos:               body.photos ?? [],
+  }
+
   const { data, error } = await supabase
     .from('animals')
-    .update(body)
+    .update(updateData)
     .eq('id', id)
     .select()
     .single()

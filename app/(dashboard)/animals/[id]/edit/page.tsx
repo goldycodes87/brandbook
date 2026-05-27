@@ -183,7 +183,9 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
           notes:                animal.notes ?? '',
           registration_numbers: animal.registration_numbers ?? [],
         })
-        if (animal.breed) {
+        if (Array.isArray(animal.breeds) && animal.breeds.length > 0) {
+          setBreeds(animal.breeds)
+        } else if (animal.breed) {
           setBreeds([{ breed: animal.breed, pct: animal.breed_percentage ?? 100 }])
         }
         setPhotoUrls(animal.photos ?? [])

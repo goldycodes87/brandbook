@@ -54,7 +54,7 @@ interface UserRow {
   name: string
   email: string
   role: string
-  invite_accepted: boolean
+  invite_accepted_at: string | null
   created_at: string
 }
 
@@ -73,7 +73,14 @@ function RanchTab() {
   useEffect(() => {
     fetch('/api/settings/ranch')
       .then(r => r.json())
-      .then(d => { setForm(f => ({ ...f, ...d })); setLoading(false) })
+      .then(d => {
+        const s = d.data ?? d
+        setForm(f => ({
+          ...f,
+          ...Object.fromEntries(Object.entries(s as Record<string, unknown>).map(([k, v]) => [k, v ?? ''])),
+        }))
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [])
 
@@ -198,9 +205,10 @@ function AccountTab() {
     fetch('/api/settings/profile')
       .then(r => r.json())
       .then(d => {
-        setProfile(d)
-        setName(d.name ?? '')
-        setPhone(d.phone ?? '')
+        const p = d.profile ?? {}
+        setProfile({ ...p, email: d.user?.email ?? '' })
+        setName(p.name ?? '')
+        setPhone(p.phone ?? '')
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -287,7 +295,7 @@ function NotificationsTab() {
   useEffect(() => {
     fetch('/api/settings/notifications')
       .then(r => r.json())
-      .then(d => { setPrefs(p => ({ ...p, ...d })); setLoading(false) })
+      .then(d => { setPrefs(p => ({ ...p, ...(d.data ?? d) })); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
 
@@ -372,7 +380,7 @@ function UsersTab() {
   const fetchUsers = useCallback(() => {
     fetch('/api/settings/users')
       .then(r => r.json())
-      .then(d => { setUsers(Array.isArray(d) ? d : []); setLoading(false) })
+      .then(d => { setUsers(Array.isArray(d.data) ? d.data : []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
 
@@ -479,8 +487,8 @@ function UsersTab() {
                   <TD style={{ color: 'var(--text-muted)' }}>{u.email}</TD>
                   <TD><Chip tone="neutral" size="sm">{roleLabel(u.role)}</Chip></TD>
                   <TD>
-                    <Chip tone={u.invite_accepted ? 'success' : 'warning'} size="sm">
-                      {u.invite_accepted ? 'Active' : 'Pending'}
+                    <Chip tone={u.invite_accepted_at ? 'success' : 'warning'} size="sm">
+                      {u.invite_accepted_at ? 'Active' : 'Pending'}
                     </Chip>
                   </TD>
                   <TD>
