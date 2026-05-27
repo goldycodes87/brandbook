@@ -14,6 +14,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
+import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,15 @@ function RanchTab() {
   const set = (k: keyof RanchSettings) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
+  const handleBrandSave = async (url: string) => {
+    setForm(f => ({ ...f, brand_photo_url: url }))
+    await fetch('/api/settings/ranch', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand_photo_url: url }),
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true); setError(''); setSaved(false)
@@ -159,14 +169,16 @@ function RanchTab() {
 
       <Panel title="BRANDING">
         <PanelSection>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Logo URL" helper="Direct link to your logo image">
-              <Input value={form.logo_url} onChange={set('logo_url')} placeholder="https://…" />
-            </Field>
-            <Field label="Brand photo URL" helper="Direct link to your brand image">
-              <Input value={form.brand_photo_url} onChange={set('brand_photo_url')} placeholder="https://…" />
-            </Field>
-          </div>
+          <Field label="Logo URL" helper="Direct link to your logo image">
+            <Input value={form.logo_url} onChange={set('logo_url')} placeholder="https://…" />
+          </Field>
+        </PanelSection>
+        <PanelSection>
+          <p className="type-field-label mb-3" style={{ color: 'var(--text)' }}>Brand image</p>
+          <BrandDrawingPad
+            existingUrl={form.brand_photo_url || undefined}
+            onSave={handleBrandSave}
+          />
         </PanelSection>
       </Panel>
 
