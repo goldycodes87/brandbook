@@ -42,9 +42,7 @@ function EarTagColorPicker({ value, onChange, invalid }: { value: string; onChan
             className="relative w-8 h-8 rounded-full transition-transform duration-100 active:scale-90"
             style={{
               backgroundColor: c.hex,
-              border: value === c.name
-                ? '3px solid var(--accent)'
-                : '2px solid var(--border)',
+              border: value === c.name ? '3px solid var(--accent)' : '2px solid var(--border)',
               boxShadow: value === c.name ? '0 0 0 1px var(--accent)' : undefined,
             }}
           >
@@ -90,6 +88,8 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function toNum(v: string | undefined): number | null {
   if (!v || v.trim() === '') return null
   const n = Number(v)
@@ -100,18 +100,46 @@ function toUuid(v: string | undefined): string | null {
   return v && v.trim() !== '' ? v : null
 }
 
+// Convert every "" / undefined value to null before sending to Postgres
+function sanitizePayload(obj: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [k, v === '' || v === undefined ? null : v])
+  )
+}
+
 type RecordingState = 'idle' | 'recording' | 'processing'
+
+interface VoiceResult {
+  transcript: string
+  fields: Record<string, unknown>
+}
+
+// Field labels for the confirmation modal
+const FIELD_LABELS: Record<string, string> = {
+  tag_number:       'Ear Tag #',
+  name:             'Name',
+  sex:              'Sex',
+  dob:              'Date of birth',
+  birth_weight_lbs: 'Birth weight',
+  purchase_price:   'Purchase price',
+  purchase_date:    'Purchase date',
+  vendor:           'Vendor',
+  notes:            'Notes',
+  breed:            'Breed',
+  breed_percentage: 'Breed %',
+}
 
 export default function NewAnimalPage() {
   const router = useRouter()
-  const [saving, setSaving]           = useState(false)
-  const [error, setError]             = useState('')
-  const [recording, setRecording]     = useState<RecordingState>('idle')
-  const [transcript, setTranscript]   = useState('')
-  const [photoUrls, setPhotoUrls]     = useState<string[]>([])
+  const [saving, setSaving]                 = useState(false)
+  const [error, setError]                   = useState('')
+  const [recording, setRecording]           = useState<RecordingState>('idle')
+  const [voiceResult, setVoiceResult]       = useState<VoiceResult | null>(null)
+  const [showVoiceModal, setShowVoiceModal] = useState(false)
+  const [photoUrls, setPhotoUrls]           = useState<string[]>([])
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [breeds, setBreeds]           = useState<BreedEntry[]>([])
-  const [breedError, setBreedError]   = useState('')
+  const [breeds, setBreeds]                 = useState<BreedEntry[]>([])
+  const [breedError, setBreedError]         = useState('')
   const mediaRef    = useRef<MediaRecorder | null>(null)
   const chunksRef   = useRef<Blob[]>([])
   const pendingIdRef = useRef<string | null>(null)
@@ -127,6 +155,38 @@ export default function NewAnimalPage() {
     control,
     name: 'registration_numbers',
   })
+
+  // Apply voice-extracted fields to the form with dirty/validate flags so RHF re-renders inputs
+  const applyVoiceFields = useCallback((fields: Record<string, unknown>) => {
+    const opts = { shouldValidate: true, shouldDirty: true } as const
+
+    const fieldMap: Record<string, keyof FormValues> = {
+      tag_number:       'tag_number',
+      name:             'name',
+      sex:              'sex',
+      dob:              'dob',
+      birth_weight_lbs: 'birth_weight_lbs',
+      purchase_price:   'purchase_price',
+      purchase_date:    'purchase_date',
+      vendor:           'vendor',
+      notes:            'notes',
+    }
+
+    Object.entries(fieldMap).forEach(([apiKey, formKey]) => {
+      if (fields[apiKey] != null && fields[apiKey] !== '') {
+        setValue(formKey, String(fields[apiKey]), opts)
+      }
+    })
+
+    // Convert breed + breed_percentage from voice into BreedSelector entries
+    if (fields.breed) {
+      const pct = fields.breed_percentage ? Number(fields.breed_percentage) : 100
+      setBreeds([{ breed: String(fields.breed), pct: isNaN(pct) ? 100 : pct }])
+    }
+
+    setShowVoiceModal(false)
+    setVoiceResult(null)
+  }, [setValue])
 
   const startRecording = useCallback(async () => {
     try {
@@ -151,22 +211,16 @@ export default function NewAnimalPage() {
         try {
           const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd })
           const data = await res.json()
-          if (!res.ok) return
-          console.log('[voice] API response:', data)
+          console.log('[voice] Raw API response:', JSON.stringify(data, null, 2))
+          if (!res.ok) {
+            console.error('[voice] API error:', data)
+            return
+          }
           console.log('[voice] Transcript:', data.transcript)
           console.log('[voice] Fields:', data.fields)
-          console.log('[voice] Applying to form...')
-          setTranscript(data.transcript)
-          const f = data.fields as Record<string, unknown>
-          if (f.tag_number)       setValue('tag_number', String(f.tag_number))
-          if (f.name)             setValue('name', String(f.name))
-          if (f.sex)              setValue('sex', String(f.sex))
-          if (f.dob)              setValue('dob', String(f.dob))
-          if (f.birth_weight_lbs) setValue('birth_weight_lbs', String(f.birth_weight_lbs))
-          if (f.purchase_price)   setValue('purchase_price', String(f.purchase_price))
-          if (f.purchase_date)    setValue('purchase_date', String(f.purchase_date))
-          if (f.vendor)           setValue('vendor', String(f.vendor))
-          if (f.notes)            setValue('notes', String(f.notes))
+          // Store result and show confirmation modal — don't apply blindly
+          setVoiceResult({ transcript: data.transcript, fields: data.fields ?? {} })
+          setShowVoiceModal(true)
         } finally {
           setRecording('idle')
         }
@@ -177,7 +231,7 @@ export default function NewAnimalPage() {
     } catch {
       setRecording('idle')
     }
-  }, [setValue])
+  }, [])
 
   const stopRecording = useCallback(() => {
     mediaRef.current?.stop()
@@ -211,22 +265,17 @@ export default function NewAnimalPage() {
   }
 
   const onSubmit = async (values: FormValues) => {
-    // Validate breed totals
     if (breeds.length > 0) {
       const total = breeds.reduce((s, b) => s + (b.pct || 0), 0)
-      if (total !== 100) {
-        setBreedError('Breed percentages must total 100%')
-        return
-      }
+      if (total !== 100) { setBreedError('Breed percentages must total 100%'); return }
     }
     setBreedError('')
-
     setSaving(true)
     setError('')
     try {
-      const payload = {
+      // sanitizePayload converts all "" → null so Postgres date/uuid fields don't reject empty strings
+      const raw = sanitizePayload({
         ...values,
-        sex:              values.sex || null,
         birth_weight_lbs: toNum(values.birth_weight_lbs),
         purchase_price:   toNum(values.purchase_price),
         owner_id:         toUuid(values.owner_id),
@@ -234,20 +283,20 @@ export default function NewAnimalPage() {
         sire_id:          toUuid(values.sire_id),
         breeds:           breeds.length > 0 ? breeds : null,
         photos:           photoUrls,
-      }
+      })
 
       let res: Response
       if (pendingIdRef.current) {
         res = await fetch(`/api/animals/${pendingIdRef.current}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(raw),
         })
       } else {
         res = await fetch('/api/animals', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(raw),
         })
       }
 
@@ -290,15 +339,73 @@ export default function NewAnimalPage() {
             {recording === 'recording'  ? 'Recording…'    : ''}
             {recording === 'processing' ? 'Transcribing…' : ''}
           </p>
-          {transcript ? (
-            <p className="type-data-sm" style={{ color: 'var(--text-secondary)' }}>{transcript}</p>
-          ) : (
-            <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
-              Tap the mic and describe the animal — fields will be filled automatically.
-            </p>
-          )}
+          <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+            Tap the mic and describe the animal — review and apply fields automatically.
+          </p>
         </div>
       </div>
+
+      {/* Voice confirmation modal */}
+      {showVoiceModal && voiceResult && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowVoiceModal(false) }}
+        >
+          <div
+            className="w-full max-w-lg rounded-t-[var(--radius-xl)] sm:rounded-[var(--radius-xl)] overflow-y-auto"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '85dvh', padding: '24px 20px' }}
+          >
+            <p className="type-panel-title mb-1">Voice Input Review</p>
+            <p className="type-helper mb-4" style={{ color: 'var(--text-muted)' }}>
+              Review what was captured. Tap Apply to fill the form.
+            </p>
+
+            {/* Transcript */}
+            <div
+              className="rounded-[var(--radius-md)] p-3 mb-4"
+              style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
+            >
+              <p className="type-field-label mb-1" style={{ color: 'var(--text-muted)' }}>Transcript</p>
+              <p className="type-data-sm">{voiceResult.transcript}</p>
+            </div>
+
+            {/* Extracted fields */}
+            {Object.keys(voiceResult.fields).length > 0 ? (
+              <div className="flex flex-col gap-1 mb-5">
+                <p className="type-field-label mb-2" style={{ color: 'var(--text-muted)' }}>Fields extracted</p>
+                {Object.entries(voiceResult.fields).map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between gap-3 py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{FIELD_LABELS[k] ?? k}</span>
+                    <span className="type-data-sm font-medium">{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="type-helper mb-5" style={{ color: 'var(--text-muted)' }}>
+                No structured fields found — transcript saved above.
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                intent="primary"
+                onClick={() => applyVoiceFields(voiceResult.fields)}
+              >
+                APPLY TO FORM
+              </Button>
+              <Button
+                type="button"
+                intent="ghost"
+                onClick={() => { setShowVoiceModal(false); setVoiceResult(null) }}
+              >
+                DISCARD
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
 
@@ -397,13 +504,7 @@ export default function NewAnimalPage() {
                   </button>
                 </div>
               ))}
-              <Button
-                type="button"
-                intent="ghost"
-                size="sm"
-                leading={<Plus size={14} />}
-                onClick={() => addReg({ registry: '', number: '' })}
-              >
+              <Button type="button" intent="ghost" size="sm" leading={<Plus size={14} />} onClick={() => addReg({ registry: '', number: '' })}>
                 ADD REGISTRY
               </Button>
             </div>

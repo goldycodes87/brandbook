@@ -53,11 +53,15 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
   const body = await req.json()
 
+  const clean = Object.fromEntries(
+    Object.entries(body).map(([k, v]) => [k, v === '' ? null : v])
+  )
+
   const sanitized = {
-    ...body,
-    owner_id: toUuid(body.owner_id),
-    dam_id:   toUuid(body.dam_id),
-    sire_id:  toUuid(body.sire_id),
+    ...clean,
+    owner_id: toUuid(clean.owner_id),
+    dam_id:   toUuid(clean.dam_id),
+    sire_id:  toUuid(clean.sire_id),
   }
 
   const { data, error } = await supabase
