@@ -33,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         administered_by,
         notes
       ),
-      reproduction_events (
+      reproduction_events!reproduction_events_animal_id_fkey (
         id,
         event_type,
         event_date,
