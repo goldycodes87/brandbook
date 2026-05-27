@@ -426,7 +426,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
     fetch(`/api/animals/${id}`)
       .then(async r => {
         if (!r.ok) { setLoading(false); return }
-        const data = await r.json()
+        const { data } = await r.json()
         setAnimal(data)
         setLoading(false)
       })
