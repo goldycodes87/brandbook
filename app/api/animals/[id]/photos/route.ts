@@ -9,18 +9,26 @@ type Params = { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
+  console.log('[photos] route hit, animal id:', id)
+  console.log('[photos] R2 bucket:', !!process.env.CLOUDFLARE_R2_BUCKET_NAME)
+  console.log('[photos] R2 account:', !!process.env.CLOUDFLARE_R2_ACCOUNT_ID)
+  console.log('[photos] R2 key:', !!process.env.CLOUDFLARE_R2_ACCESS_KEY_ID)
+
   const supabase = createAdminClient()
 
   const formData = await req.formData()
+  console.log('[photos] files received:', formData.getAll('file').length)
+
   const file = formData.get('file')
   if (!file || !(file instanceof Blob)) {
+    console.log('[photos] no file in formData, keys:', [...formData.keys()])
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
   }
 
-  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
-  const key = `animals/${id}/${randomUUID()}.${ext}`
+  const ext    = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+  const key    = `animals/${id}/${randomUUID()}.${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
-  const url = await uploadToR2(key, buffer, file.type)
+  const url    = await uploadToR2(key, buffer, file.type)
 
   const { data: animal, error: fetchErr } = await supabase
     .from('animals')
@@ -34,6 +42,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { error } = await supabase.from('animals').update({ photos }).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  console.log('[photos] success, total photos:', photos.length)
   return NextResponse.json({ url, photos })
 }
 
@@ -42,7 +51,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const supabase = createAdminClient()
   const { url } = await req.json() as { url: string }
 
-  const publicBase = process.env.R2_PUBLIC_URL!
+  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!
   const key = url.replace(`${publicBase}/`, '')
   await deleteFromR2(key)
 
