@@ -9,8 +9,8 @@ export async function GET() {
 
   const [bredRes, confirmedRes, openRes, calvedRes, lostRes] = await Promise.all([
     supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'bred'),
-    supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'bred').eq('preg_check_result', 'confirmed'),
-    supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'bred').eq('preg_check_result', 'open'),
+    supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'preg_check').eq('preg_check_result', 'confirmed'),
+    supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'preg_check').eq('preg_check_result', 'open'),
     supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'calved').gte('event_date', yearStart),
     supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'lost'),
   ])

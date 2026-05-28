@@ -957,6 +957,7 @@ export type Database = {
           expected_calving_date: string | null
           id: string
           notes: string | null
+          preg_check_method: string | null
           preg_check_result: string | null
           sire_id: string | null
           sire_name_text: string | null
@@ -978,6 +979,7 @@ export type Database = {
           expected_calving_date?: string | null
           id?: string
           notes?: string | null
+          preg_check_method?: string | null
           preg_check_result?: string | null
           sire_id?: string | null
           sire_name_text?: string | null
@@ -999,6 +1001,7 @@ export type Database = {
           expected_calving_date?: string | null
           id?: string
           notes?: string | null
+          preg_check_method?: string | null
           preg_check_result?: string | null
           sire_id?: string | null
           sire_name_text?: string | null
