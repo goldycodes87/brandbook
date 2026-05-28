@@ -256,15 +256,8 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
         <ActionFooter
           primary={<Button type="submit" intent="primary" loading={saving}>{isEdit ? 'UPDATE EVENT' : 'SAVE EVENT'}</Button>}
           secondary={onCancel ? <Button type="button" intent="ghost" onClick={onCancel}>CANCEL</Button> : undefined}
+          destructive={isEdit ? <Button type="button" intent="danger" size="sm" onClick={() => setConfirmDelete(true)}>DELETE EVENT</Button> : undefined}
         />
-
-        {isEdit && (
-          <div className="pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-            <Button type="button" intent="danger" size="sm" onClick={() => setConfirmDelete(true)}>
-              DELETE EVENT
-            </Button>
-          </div>
-        )}
       </form>
 
       <ConfirmDialog

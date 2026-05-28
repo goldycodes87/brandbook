@@ -371,6 +371,7 @@ function HealthTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEve
               mode="edit"
               onSuccess={() => { setEditing(null); onRefresh() }}
               onCancel={() => setEditing(null)}
+              onDelete={() => { setEditing(null); onRefresh() }}
             />
           </div>
         </div>
