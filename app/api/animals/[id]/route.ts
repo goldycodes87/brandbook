@@ -53,11 +53,7 @@ export async function GET(
           created_at
         ),
         grazing_assignments (
-          id, start_date, end_date,
-          leases (
-            id, property_name,
-            acreage
-          )
+          id, start_date, end_date
         )
       `)
       .eq('id', id)
