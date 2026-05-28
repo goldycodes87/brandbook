@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -10,6 +11,7 @@ import { Button, ButtonLink } from '@/components/ui/Button'
 import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP } from '@/components/ui/tokens'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
@@ -112,7 +114,21 @@ function WeightSparkline({ weights }: { weights: WeightRow[] }) {
   )
 }
 
-function OverviewTab({ animal }: { animal: Animal }) {
+function OverviewTab({ animal, onDelete }: { animal: Animal; onDelete: () => void }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting]           = useState(false)
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/animals/${animal.id}`, { method: 'DELETE' })
+      if (res.ok) onDelete()
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
   const breed = animal.breed
     ? animal.breed_percentage && animal.breed_percentage < 100
       ? `${animal.breed_percentage}% ${animal.breed}`
@@ -235,11 +251,35 @@ function OverviewTab({ animal }: { animal: Animal }) {
           </PanelSection>
         </Panel>
       )}
+
+      {/* Danger Zone */}
+      <Panel title="DANGER ZONE">
+        <PanelSection>
+          <p className="type-body mb-3" style={{ color: 'var(--text-muted)' }}>
+            Permanently delete this animal and all associated records. This cannot be undone.
+          </p>
+          <Button intent="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+            DELETE ANIMAL
+          </Button>
+        </PanelSection>
+      </Panel>
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete animal?"
+        message={`This will permanently delete #${animal.tag_number}${animal.name ? ` — ${animal.name}` : ''} and all associated health, weight, and reproduction records. This cannot be undone.`}
+        confirmLabel="DELETE ANIMAL"
+        loading={deleting}
+      />
     </div>
   )
 }
 
 function HealthTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void }) {
+  const [editing, setEditing] = useState<HealthEvent | null>(null)
+
   const events = [...(animal.health_events ?? [])].sort(
     (a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   )
@@ -274,7 +314,12 @@ function HealthTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEve
           {events.map(ev => {
             const withdrawalActive = ev.withdrawal_clear_date && new Date(ev.withdrawal_clear_date) > today
             return (
-              <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+              <div
+                key={ev.id}
+                className="rounded-[var(--radius-lg)] p-4"
+                style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                onClick={() => setEditing(ev)}
+              >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <StatusChip map={HEALTH_EVENT_CHIP} value={ev.event_type} size="sm" />
@@ -307,11 +352,49 @@ function HealthTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEve
           })}
         </div>
       )}
+
+      {editing && (
+        <div
+          className="fixed inset-0 z-40 flex flex-col justify-end"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={e => { if (e.target === e.currentTarget) setEditing(null) }}
+        >
+          <div
+            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '92dvh', padding: '24px 16px' }}
+          >
+            <p className="type-panel-title mb-4">Edit Health Event</p>
+            <HealthEventForm
+              animalId={animal.id}
+              eventId={editing.id}
+              initialData={editing}
+              mode="edit"
+              onSuccess={() => { setEditing(null); onRefresh() }}
+              onCancel={() => setEditing(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function ReproTab({ animal, onLogEvent }: { animal: Animal; onLogEvent: () => void }) {
+function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void }) {
+  const [confirmReproId, setConfirmReproId] = useState<string | null>(null)
+  const [deletingReproId, setDeletingReproId] = useState<string | null>(null)
+
+  const handleDeleteRepro = async () => {
+    if (!confirmReproId) return
+    setDeletingReproId(confirmReproId)
+    try {
+      await fetch(`/api/reproduction/${confirmReproId}`, { method: 'DELETE' })
+      onRefresh()
+    } finally {
+      setDeletingReproId(null)
+      setConfirmReproId(null)
+    }
+  }
+
   const events = [...(animal.reproduction_events ?? [])].sort(
     (a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   )
@@ -422,7 +505,18 @@ function ReproTab({ animal, onLogEvent }: { animal: Animal; onLogEvent: () => vo
             <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
               <div className="flex items-start justify-between gap-2 mb-2">
                 <StatusChip map={REPRO_CHIP} value={ev.event_type} size="sm" />
-                <span className="type-data-sm shrink-0" style={{ color: 'var(--text-muted)' }}>{fmtDate(ev.event_date)}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="type-data-sm" style={{ color: 'var(--text-muted)' }}>{fmtDate(ev.event_date)}</span>
+                  <Button
+                    type="button"
+                    intent="ghost"
+                    size="sm"
+                    onClick={() => setConfirmReproId(ev.id)}
+                    style={{ color: 'var(--danger-fg)', padding: '2px 6px' }}
+                  >
+                    ✕
+                  </Button>
+                </div>
               </div>
               {(ev.breed_method || ev.conception_method) && (
                 <p className="type-data-sm mb-1 capitalize" style={{ color: 'var(--text-secondary)' }}>
@@ -469,13 +563,38 @@ function ReproTab({ animal, onLogEvent }: { animal: Animal; onLogEvent: () => vo
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!confirmReproId}
+        onClose={() => setConfirmReproId(null)}
+        onConfirm={handleDeleteRepro}
+        title="Delete reproduction event?"
+        message="This reproduction event will be permanently deleted. This cannot be undone."
+        confirmLabel="DELETE EVENT"
+        loading={!!deletingReproId}
+      />
     </div>
   )
 }
 
-function WeightsTab({ animal, onLogWeight }: { animal: Animal; onLogWeight: () => void }) {
+function WeightsTab({ animal, onLogWeight, onRefresh }: { animal: Animal; onLogWeight: () => void; onRefresh: () => void }) {
+  const [deletingId, setDeletingId]     = useState<string | null>(null)
+  const [confirmId, setConfirmId]       = useState<string | null>(null)
+
   const weights  = [...(animal.weights ?? [])].sort((a, b) => new Date(b.weighed_at).getTime() - new Date(a.weighed_at).getTime())
   const ascending = [...weights].reverse()
+
+  const handleDeleteWeight = async () => {
+    if (!confirmId) return
+    setDeletingId(confirmId)
+    try {
+      await fetch(`/api/animals/${animal.id}/weights/${confirmId}`, { method: 'DELETE' })
+      onRefresh()
+    } finally {
+      setDeletingId(null)
+      setConfirmId(null)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -510,21 +629,43 @@ function WeightsTab({ animal, onLogWeight }: { animal: Animal; onLogWeight: () =
                   <p className="type-data-sm font-semibold">{w.weight_lbs} lb</p>
                   {w.notes && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{w.notes}</p>}
                 </div>
-                <div className="text-right">
-                  <p className="type-data-sm" style={{ color: 'var(--text-muted)' }}>{fmtDate(w.weighed_at)}</p>
-                  <Chip tone="neutral" size="sm">{w.source}</Chip>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="type-data-sm" style={{ color: 'var(--text-muted)' }}>{fmtDate(w.weighed_at)}</p>
+                    <Chip tone="neutral" size="sm">{w.source}</Chip>
+                  </div>
+                  <Button
+                    type="button"
+                    intent="ghost"
+                    size="sm"
+                    onClick={() => setConfirmId(w.id)}
+                    style={{ color: 'var(--danger-fg)', padding: '4px 8px' }}
+                  >
+                    ✕
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!confirmId}
+        onClose={() => setConfirmId(null)}
+        onConfirm={handleDeleteWeight}
+        title="Delete weight record?"
+        message="This weight record will be permanently deleted."
+        confirmLabel="DELETE"
+        loading={!!deletingId}
+      />
     </div>
   )
 }
 
 export default function AnimalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const [animal, setAnimal]         = useState<Animal | null>(null)
   const [loading, setLoading]       = useState(true)
   const [tab, setTab]               = useState<Tab>('overview')
@@ -583,12 +724,22 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
         }
       />
 
+      {/* Quick action bar */}
+      <div className="flex gap-2 overflow-x-auto pb-1 mb-4" style={{ scrollbarWidth: 'none' }}>
+        <Button intent="secondary" size="sm" onClick={() => setWeightOpen(true)}>LOG WEIGHT</Button>
+        <Button intent="secondary" size="sm" onClick={() => setLogOpen(true)}>HEALTH EVENT</Button>
+        {animal.sex !== 'steer' && (
+          <Button intent="secondary" size="sm" onClick={() => setReproOpen(true)}>REPRO EVENT</Button>
+        )}
+        <ButtonLink href={`/animals/${id}/edit`} intent="ghost" size="sm">EDIT ANIMAL</ButtonLink>
+      </div>
+
       <Tabs value={tab} onChange={setTab} items={TABS} className="mb-5" />
 
-      {tab === 'overview'      && <OverviewTab  animal={animal} />}
+      {tab === 'overview'      && <OverviewTab  animal={animal} onDelete={() => router.push('/animals')} />}
       {tab === 'health'        && <HealthTab    animal={animal} onLogEvent={() => setLogOpen(true)} onRefresh={fetchAnimal} />}
-      {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} />}
-      {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} />}
+      {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} onRefresh={fetchAnimal} />}
+      {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'documents'     && (
         <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
           Document storage coming soon.

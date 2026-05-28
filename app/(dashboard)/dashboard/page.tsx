@@ -2,17 +2,18 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 import { Suspense } from 'react'
-import { Tag, MapPin, FileText } from 'lucide-react'
+import Link from 'next/link'
+import { Tag, FileText } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
 import { Panel } from '@/components/ui/Panel'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { Toolbar } from '@/components/ui/Toolbar'
 import { ButtonLink } from '@/components/ui/Button'
 import { WeightLogSheet } from '@/components/weights/WeightLogSheet'
 import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
+import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 
 async function DashboardStats() {
   const supabase = createAdminClient()
@@ -25,10 +26,18 @@ async function DashboardStats() {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-      <StatCard label="Total Animals"  value={total ?? 0}             aside={<Tag size={16} style={{ color: 'var(--accent)' }} />} />
-      <StatCard label="Bulls"          value={bullsRes.count ?? 0}    aside={<span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem' }}>♂</span>} />
-      <StatCard label="Cows / Heifers" value={cowsRes.count ?? 0}     aside={<span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem' }}>♀</span>} />
-      <StatCard label="Open Invoices"  value={0}                      aside={<FileText size={16} style={{ color: 'var(--accent)' }} />} />
+      <Link href="/animals" className="block">
+        <StatCard label="Total Animals" value={total ?? 0} aside={<Tag size={16} style={{ color: 'var(--accent)' }} />} />
+      </Link>
+      <Link href="/animals?sex=bull" className="block">
+        <StatCard label="Bulls" value={bullsRes.count ?? 0} aside={<span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem' }}>♂</span>} />
+      </Link>
+      <Link href="/animals?sex=cow,heifer" className="block">
+        <StatCard label="Cows / Heifers" value={cowsRes.count ?? 0} aside={<span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem' }}>♀</span>} />
+      </Link>
+      <Link href="/health" className="block">
+        <StatCard label="Health Events" value={0} aside={<FileText size={16} style={{ color: 'var(--accent)' }} />} />
+      </Link>
     </div>
   )
 }
@@ -86,13 +95,7 @@ export default async function DashboardPage() {
 
       {/* Recent activity */}
       <Panel title="RECENT ACTIVITY">
-        <EmptyState
-          variant="action"
-          title="No activity yet"
-          body="Add your first animal to get started."
-          action={<ButtonLink href="/animals/new" intent="primary">+ ADD ANIMAL</ButtonLink>}
-          panel={false}
-        />
+        <ActivityFeed />
       </Panel>
     </PageContainer>
   )

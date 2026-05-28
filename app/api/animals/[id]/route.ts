@@ -223,11 +223,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  const { error } = await supabase
-    .from('animals')
-    .update({ status: 'deceased' })
-    .eq('id', id)
-
+  const { error } = await supabase.from('animals').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })
 }
