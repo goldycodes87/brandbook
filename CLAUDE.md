@@ -62,16 +62,12 @@ See comment block at top of:
 
 ### reproduction_events (from lib/database.types.ts)
 id, animal_id, event_type, event_date,
-sire_id, breed_method, ai_technician,
-expected_calving_date, calving_ease_score,
-preg_check_result, calf_id,
-weaning_date, weaning_weight_lbs,
+sire_id, breed_method, conception_method,
+ai_technician, expected_calving_date,
+calving_ease_score, preg_check_result,
+calf_id, weaning_date, weaning_weight_lbs,
+sire_name_text, days_bred, donor_dam_id,
 notes, created_at
-NOTE: conception_method, sire_name_text,
-preg_check_method, days_bred, donor_dam_id
-are in schema.sql ALTER TABLE statements
-but were NEVER applied to live DB.
-Do NOT select these columns.
 
 ### health_events
 id, animal_id, event_type, event_date,

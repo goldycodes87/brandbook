@@ -948,7 +948,10 @@ export type Database = {
           breed_method: Database["public"]["Enums"]["breed_method"] | null
           calf_id: string | null
           calving_ease_score: number | null
+          conception_method: string | null
           created_at: string | null
+          days_bred: number | null
+          donor_dam_id: string | null
           event_date: string
           event_type: Database["public"]["Enums"]["repro_event_type"]
           expected_calving_date: string | null
@@ -956,6 +959,7 @@ export type Database = {
           notes: string | null
           preg_check_result: string | null
           sire_id: string | null
+          sire_name_text: string | null
           weaning_date: string | null
           weaning_weight_lbs: number | null
         }
@@ -965,7 +969,10 @@ export type Database = {
           breed_method?: Database["public"]["Enums"]["breed_method"] | null
           calf_id?: string | null
           calving_ease_score?: number | null
+          conception_method?: string | null
           created_at?: string | null
+          days_bred?: number | null
+          donor_dam_id?: string | null
           event_date: string
           event_type: Database["public"]["Enums"]["repro_event_type"]
           expected_calving_date?: string | null
@@ -973,6 +980,7 @@ export type Database = {
           notes?: string | null
           preg_check_result?: string | null
           sire_id?: string | null
+          sire_name_text?: string | null
           weaning_date?: string | null
           weaning_weight_lbs?: number | null
         }
@@ -982,7 +990,10 @@ export type Database = {
           breed_method?: Database["public"]["Enums"]["breed_method"] | null
           calf_id?: string | null
           calving_ease_score?: number | null
+          conception_method?: string | null
           created_at?: string | null
+          days_bred?: number | null
+          donor_dam_id?: string | null
           event_date?: string
           event_type?: Database["public"]["Enums"]["repro_event_type"]
           expected_calving_date?: string | null
@@ -990,6 +1001,7 @@ export type Database = {
           notes?: string | null
           preg_check_result?: string | null
           sire_id?: string | null
+          sire_name_text?: string | null
           weaning_date?: string | null
           weaning_weight_lbs?: number | null
         }
@@ -1004,6 +1016,13 @@ export type Database = {
           {
             foreignKeyName: "reproduction_events_calf_id_fkey"
             columns: ["calf_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reproduction_events_donor_dam_id_fkey"
+            columns: ["donor_dam_id"]
             isOneToOne: false
             referencedRelation: "animals"
             referencedColumns: ["id"]
