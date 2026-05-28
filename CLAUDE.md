@@ -9,7 +9,7 @@ Supabase, Vercel, next-pwa.
 - export const dynamic = 'force-dynamic'
   must be LINE 1 of every route.ts
 - Supabase init INSIDE functions only
-  via getSupabaseAdmin()
+  via createAdminClient()
 - Always work on main branch
 - npm run build must pass before done
 - Never remove working features
@@ -26,51 +26,52 @@ Supabase, Vercel, next-pwa.
 - App: /projects/brandbook
 - Deploy: Vercel via GitHub push
 
-## DATABASE — CRITICAL RULES
+## DATABASE RULES — READ FIRST
 
-Supabase MCP is configured (.mcp.json).
-Before writing ANY query or selecting
-ANY columns:
-1. Use MCP list_tables and execute_sql
-   to verify exact column names
-2. NEVER guess column names
-3. TypeScript types in lib/database.types.ts
-   — import and use them always
+Supabase MCP is configured in .mcp.json
+with PAT auth. TypeScript types are in
+lib/database.types.ts (generated from
+live DB, authoritative source of truth).
 
-## ANIMALS SELF-JOIN RULE — READ THIS
+BEFORE writing ANY Supabase query:
+1. Check lib/database.types.ts for
+   exact column names and types
+2. Use MCP execute_sql to verify if
+   unsure — never guess
+3. Never invent column names
 
-The animals table references itself via
-dam_id, sire_id, donor_dam_id.
-PostgREST CANNOT handle nested animals
-joins inside the animals query.
-PGRST201 error EVERY TIME.
+## ANIMALS SELF-JOIN — CRITICAL
+animals table has dam_id, sire_id,
+donor_dam_id pointing to itself.
+PostgREST CANNOT handle nested
+animals joins inside animals query.
+PGRST201 every time. Broken 4x.
 
-ALWAYS fetch dam, sire, calves, and
-donor_dam as SEPARATE queries AFTER
-the main animals query.
+ALWAYS fetch these as SEPARATE queries
+AFTER the main animals query:
+- dam (via dam_id)
+- sire (via sire_id)
+- donor_dam (via donor_dam_id)
+- calves (.or dam_id.eq/sire_id.eq)
 
-This has broken 4 times. It cannot
-break again.
+See comment block at top of:
+  app/api/animals/[id]/route.ts
+  app/api/animals/route.ts
 
-The comment block at the top of
-app/api/animals/[id]/route.ts and
-app/api/animals/route.ts enforces this.
-Do not remove those comments.
+## VERIFIED LIVE DB COLUMNS
 
-## VERIFIED COLUMN LISTS (from schema.sql)
-
-### reproduction_events
+### reproduction_events (from lib/database.types.ts)
 id, animal_id, event_type, event_date,
 sire_id, breed_method, ai_technician,
 expected_calving_date, calving_ease_score,
 preg_check_result, calf_id,
 weaning_date, weaning_weight_lbs,
 notes, created_at
-(+ ALTER TABLE additions: sire_name_text,
-conception_method, preg_check_method,
-days_bred, donor_dam_id — only use
-these if MCP confirms they exist in
-the live database)
+NOTE: conception_method, sire_name_text,
+preg_check_method, days_bred, donor_dam_id
+are in schema.sql ALTER TABLE statements
+but were NEVER applied to live DB.
+Do NOT select these columns.
 
 ### health_events
 id, animal_id, event_type, event_date,
@@ -81,3 +82,7 @@ bcs_score, administered_by, notes, created_at
 ### weights
 id, animal_id, weighed_at, weight_lbs,
 source, notes
+
+### grazing_assignments
+id, animal_id, lease_id,
+start_date, end_date, created_at
