@@ -43,7 +43,7 @@ export async function GET(
           id, event_type, event_date,
           expected_calving_date,
           calving_ease_score,
-          preg_check_result, preg_check_method,
+          preg_check_result,
           breed_method, conception_method,
           sire_name_text, ai_technician,
           weaning_date, weaning_weight_lbs,
