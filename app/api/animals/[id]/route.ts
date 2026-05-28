@@ -40,14 +40,16 @@ export async function GET(
           notes, created_at
         ),
         reproduction_events!reproduction_events_animal_id_fkey (
-          id, event_type, event_date,
+          id,
+          event_type,
+          event_date,
           expected_calving_date,
           calving_ease_score,
           preg_check_result,
-          breed_method, conception_method,
-          sire_name_text, ai_technician,
-          weaning_date, weaning_weight_lbs,
-          calf_id, notes,
+          breed_method,
+          ai_technician,
+          calf_id,
+          notes,
           created_at
         ),
         grazing_assignments (
