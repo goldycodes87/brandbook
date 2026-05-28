@@ -38,12 +38,16 @@ export const WITHDRAWAL_CHIP: Record<string, ChipPreset> = {
 };
 
 export const REPRO_CHIP: Record<string, ChipPreset> = {
-  bred:      { label: "BRED",      tone: "info" },
-  confirmed: { label: "CONFIRMED", tone: "gold" },
-  open:      { label: "OPEN",      tone: "warning" },
-  calved:    { label: "CALVED",    tone: "success" },
-  lost:      { label: "LOST",      tone: "danger" },
-  weaned:    { label: "WEANED",    tone: "neutral" },
+  bred:              { label: "BRED",         tone: "info" },
+  confirmed:         { label: "CONFIRMED",    tone: "gold" },
+  open:              { label: "OPEN",         tone: "warning" },
+  calved:            { label: "CALVED",       tone: "success" },
+  lost:              { label: "LOST",         tone: "danger" },
+  weaned:            { label: "WEANED",       tone: "neutral" },
+  preg_check:        { label: "PREG CHECK",   tone: "purple" },
+  flushed:           { label: "FLUSHED",      tone: "accent" },
+  bse:               { label: "BSE",          tone: "neutral" },
+  semen_collection:  { label: "SEMEN COLL.",  tone: "neutral" },
 };
 
 export const LEASE_STATUS_CHIP: Record<string, ChipPreset> = {

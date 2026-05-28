@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -15,6 +15,7 @@ import {
   CreditCard,
   Package,
   Settings,
+  MessageSquare,
   MoreHorizontal,
   X,
   LogOut,
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { href: '/leases',       label: 'Leases',       icon: FileText },
   { href: '/billing',      label: 'Billing',      icon: CreditCard },
   { href: '/inventory',    label: 'Inventory',    icon: Package },
+  { href: '/messages',     label: 'Messages',     icon: MessageSquare },
   { href: '/settings',     label: 'Settings',     icon: Settings },
 ]
 
@@ -43,12 +45,13 @@ async function handleLogout() {
   window.location.href = '/login'
 }
 
-function NavItem({ href, label, icon: Icon, active, onClick }: {
+function NavItem({ href, label, icon: Icon, active, onClick, badge }: {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
   active: boolean
   onClick?: () => void
+  badge?: number
 }) {
   return (
     <Link
@@ -62,7 +65,12 @@ function NavItem({ href, label, icon: Icon, active, onClick }: {
       )}
     >
       <Icon className="w-4.5 h-4.5 flex-shrink-0" />
-      <span>{label}</span>
+      <span className="flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-bold bg-brand-orange text-white">
+          {badge}
+        </span>
+      )}
     </Link>
   )
 }
@@ -89,7 +97,22 @@ function BottomTab({ href, label, icon: Icon, active }: {
 
 export default function NavShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [moreOpen, setMoreOpen]     = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/messages/unread-count')
+      .then(r => r.json())
+      .then(d => setUnreadCount(d.count ?? 0))
+      .catch(() => {})
+    const interval = setInterval(() => {
+      fetch('/api/messages/unread-count')
+        .then(r => r.json())
+        .then(d => setUnreadCount(d.count ?? 0))
+        .catch(() => {})
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [])
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
 
@@ -113,6 +136,7 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
               key={item.href}
               {...item}
               active={isActive(item.href)}
+              badge={item.href === '/messages' ? (unreadCount || undefined) : undefined}
             />
           ))}
         </nav>
@@ -158,11 +182,16 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
         <button
           onClick={() => setMoreOpen(true)}
           className={cn(
-            'flex flex-col items-center gap-1 flex-1 py-2 text-[10px] font-medium transition-colors',
+            'flex flex-col items-center gap-1 flex-1 py-2 text-[10px] font-medium transition-colors relative',
             moreOpen ? 'text-brand-orange' : 'text-brand-white/40',
           )}
         >
           <MoreHorizontal className="w-5 h-5" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 right-[calc(50%-14px)] inline-flex items-center justify-center h-3.5 min-w-3.5 px-0.5 rounded-full text-[9px] font-bold bg-brand-orange text-white">
+              {unreadCount}
+            </span>
+          )}
           <span>More</span>
         </button>
       </nav>
@@ -188,6 +217,7 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
                   {...item}
                   active={isActive(item.href)}
                   onClick={() => setMoreOpen(false)}
+                  badge={item.href === '/messages' ? (unreadCount || undefined) : undefined}
                 />
               ))}
             </nav>

@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
   const sex      = searchParams.get('sex') ?? ''
   const owner_id = searchParams.get('owner_id') ?? ''
   const page     = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
-  const limit    = 50
+  const limitParam = searchParams.get('limit')
+  const limit    = limitParam ? Math.min(Number(limitParam), 200) : 50
   const offset   = (page - 1) * limit
 
   let query = supabase
@@ -28,7 +29,14 @@ export async function GET(req: NextRequest) {
 
   if (search)   query = query.or(`tag_number.ilike.%${search}%,name.ilike.%${search}%`)
   if (status)   query = query.eq('status', status)
-  if (sex)      query = query.eq('sex', sex)
+  if (sex) {
+    const sexValues = sex.split(',').map(s => s.trim()).filter(Boolean)
+    if (sexValues.length === 1) {
+      query = query.eq('sex', sexValues[0])
+    } else if (sexValues.length > 1) {
+      query = query.in('sex', sexValues)
+    }
+  }
   if (owner_id) query = query.eq('owner_id', owner_id)
 
   const { data, error, count } = await query

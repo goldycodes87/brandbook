@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Toolbar } from '@/components/ui/Toolbar'
 import { ButtonLink } from '@/components/ui/Button'
 import { WeightLogSheet } from '@/components/weights/WeightLogSheet'
+import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
 
 async function DashboardStats() {
   const supabase = createAdminClient()
@@ -77,6 +78,7 @@ export default async function DashboardPage() {
           <>
             <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
             <ButtonLink href="/health" intent="secondary" size="sm">LOG HEALTH EVENT</ButtonLink>
+            <BulkHealthEventSheet />
             <WeightLogSheet />
           </>
         }

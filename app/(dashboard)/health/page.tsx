@@ -11,6 +11,8 @@ import { HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP } from '@/components/ui/tokens'
 import { WithdrawalWidget } from '@/components/health/WithdrawalWidget'
 import { HealthFilters } from '@/components/health/HealthFilters'
 import { HealthAddButton } from '@/components/health/HealthAddButton'
+import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
+import { BatchHistoryPanel } from '@/components/health/BatchHistoryPanel'
 
 interface PageProps {
   searchParams: Promise<{ search?: string; event_type?: string; in_withdrawal?: string; page?: string }>
@@ -130,7 +132,12 @@ export default async function HealthPage({ searchParams }: PageProps) {
       <PageHeader
         title="Health"
         subtitle="Treatments, vaccinations &amp; withdrawal tracking"
-        actions={<HealthAddButton />}
+        actions={
+          <div className="flex items-center gap-2">
+            <BulkHealthEventSheet />
+            <HealthAddButton />
+          </div>
+        }
       />
 
       <div className="mb-5">
@@ -140,6 +147,12 @@ export default async function HealthPage({ searchParams }: PageProps) {
       </div>
 
       <Toolbar className="mb-4" leading={<HealthFilters />} />
+
+      <div className="mt-6 mb-2">
+        <Suspense fallback={null}>
+          <BatchHistoryPanel />
+        </Suspense>
+      </div>
 
       <Suspense
         key={JSON.stringify(sp)}

@@ -223,4 +223,102 @@ create table if not exists notification_preferences (
   updated_at timestamptz default now()
 );
 
+-- Bulk health treatment batches
+create table if not exists health_event_batches (
+  id uuid primary key default gen_random_uuid(),
+  batch_date date not null default current_date,
+  group_type text not null, -- whole_herd | cows_only | bulls_only | heifers_only | steers_only | calves_only | by_ear_tag_color | by_lease | by_owner | custom
+  group_label text,         -- human-readable description of the group
+  animal_count int,
+  drug_name text,
+  dose_amount numeric,
+  dose_unit text,
+  withdrawal_days int,
+  administered_by text,
+  notes text,
+  created_at timestamptz default now()
+);
+
+-- Vet portal invites
+create table if not exists vet_invites (
+  id uuid primary key default gen_random_uuid(),
+  token text unique not null,
+  email text,
+  name text,
+  practice_name text,
+  license_number text,
+  accepted_at timestamptz,
+  expires_at timestamptz,
+  created_at timestamptz default now()
+);
+
+-- Vet cases (vet consultation records)
+create table if not exists vet_cases (
+  id uuid primary key default gen_random_uuid(),
+  animal_id uuid references animals(id) on delete cascade,
+  vet_invite_id uuid references vet_invites(id),
+  title text not null,
+  status text default 'open', -- open | in_progress | resolved | closed
+  description text,
+  resolved_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Case notes (messages/notes on vet cases)
+create table if not exists case_notes (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references vet_cases(id) on delete cascade,
+  author_role text not null, -- rancher | vet
+  body text not null,
+  attachments text[] default '{}',
+  created_at timestamptz default now()
+);
+
+-- Treatment plans (formal vet-issued plans)
+create table if not exists treatment_plans (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid references vet_cases(id) on delete cascade,
+  animal_id uuid references animals(id) on delete cascade,
+  drug_name text,
+  dose_amount numeric,
+  dose_unit text,
+  frequency text,
+  duration_days int,
+  withdrawal_days int,
+  instructions text,
+  created_at timestamptz default now()
+);
+
+-- Rancher <-> vet direct messages (not tied to a specific case)
+create table if not exists vet_messages (
+  id uuid primary key default gen_random_uuid(),
+  vet_invite_id uuid references vet_invites(id),
+  animal_id uuid references animals(id) on delete set null,
+  direction text not null, -- rancher_to_vet | vet_to_rancher
+  body text not null,
+  read_at timestamptz,
+  created_at timestamptz default now()
+);
+
+-- Reproduction module additions
+-- Animals: calf birth & identity columns
+alter table animals add column if not exists ear_tag_color text;
+alter table animals add column if not exists ear_tag_number text;
+alter table animals add column if not exists breeds jsonb default '[]';
+alter table animals add column if not exists donor_dam_id uuid references animals(id);
+alter table animals add column if not exists birth_type text;        -- single | twin_a | twin_b
+alter table animals add column if not exists vigor_score int;        -- 1-3
+alter table animals add column if not exists conception_method text; -- natural | ai | embryo
+alter table animals add column if not exists weaning_date date;
+alter table animals add column if not exists weaning_weight_lbs numeric;
+alter table animals add column if not exists birth_weight_estimated boolean default false;
+
+-- Reproduction events: additional fields
+alter table reproduction_events add column if not exists sire_name_text text;      -- external sire name
+alter table reproduction_events add column if not exists conception_method text;   -- natural | ai | embryo
+alter table reproduction_events add column if not exists preg_check_method text;   -- ultrasound | manual | blood_test
+alter table reproduction_events add column if not exists days_bred int;
+alter table reproduction_events add column if not exists donor_dam_id uuid references animals(id);
+
 notify pgrst, 'reload schema';

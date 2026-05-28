@@ -14,10 +14,11 @@ import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO
 import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
+import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
-type ReproEvent    = { id: string; event_type: string; event_date: string; breed_method?: string; expected_calving_date?: string; calving_ease_score?: number; preg_check_result?: string; weaning_date?: string; weaning_weight_lbs?: number; notes?: string; sire?: { id: string; tag_number: string; name?: string }; calf?: { id: string; tag_number: string; name?: string } }
+type ReproEvent    = { id: string; event_type: string; event_date: string; breed_method?: string; conception_method?: string; sire_name_text?: string; expected_calving_date?: string; calving_ease_score?: number; preg_check_result?: string; preg_check_method?: string; weaning_date?: string; weaning_weight_lbs?: number; ai_technician?: string; notes?: string; sire?: { id: string; tag_number: string; name?: string }; calf?: { id: string; tag_number: string; name?: string; sex?: string; dob?: string } }
 type AnimalRef     = { id: string; tag_number: string; name?: string | null; breed?: string | null; sex?: string | null; status?: string | null; dob?: string | null }
 type OwnerRef      = { id: string; name: string; email?: string; phone?: string }
 
@@ -310,56 +311,164 @@ function HealthTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEve
   )
 }
 
-function ReproTab({ animal }: { animal: Animal }) {
+function ReproTab({ animal, onLogEvent }: { animal: Animal; onLogEvent: () => void }) {
   const events = [...(animal.reproduction_events ?? [])].sort(
     (a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   )
 
-  if (!events.length) {
-    return (
-      <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
-        No reproduction events recorded.
-      </div>
-    )
+  const isFemale = animal.sex === 'cow' || animal.sex === 'heifer'
+  const isCalf   = animal.sex === 'calf' || animal.sex === 'bull' || animal.sex === 'steer'
+
+  // Determine current pregnancy status for cows/heifers
+  let pregnancyBanner: React.ReactNode = null
+  if (isFemale && events.length > 0) {
+    const lastBred    = events.find(e => e.event_type === 'bred')
+    const lastCalved  = events.find(e => e.event_type === 'calved')
+    const lastPreg    = events.find(e => e.event_type === 'preg_check')
+
+    const bredAfterCalved = lastBred && (!lastCalved || new Date(lastBred.event_date) > new Date(lastCalved.event_date))
+
+    if (bredAfterCalved && lastBred) {
+      const daysBred = Math.floor((Date.now() - new Date(lastBred.event_date).getTime()) / 86400000)
+      const estCalving = lastBred.expected_calving_date
+
+      if (lastPreg?.preg_check_result === 'confirmed') {
+        pregnancyBanner = (
+          <ContextBanner tone="success" eyebrow="CONFIRMED PREGNANT">
+            Bred {daysBred} days ago{estCalving ? ` · Expected calving: ${fmtDate(estCalving)}` : ''}
+          </ContextBanner>
+        )
+      } else if (lastPreg?.preg_check_result === 'open') {
+        pregnancyBanner = (
+          <ContextBanner tone="warning" eyebrow="OPEN">
+            Preg check negative — consider re-breeding
+          </ContextBanner>
+        )
+      } else {
+        pregnancyBanner = (
+          <ContextBanner tone="info" eyebrow="BRED">
+            Bred {daysBred} days ago{estCalving ? ` · Est. calving: ${fmtDate(estCalving)}` : ''}
+          </ContextBanner>
+        )
+      }
+    }
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {events.map(ev => (
-        <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <StatusChip map={REPRO_CHIP} value={ev.event_type} size="sm" />
-            <span className="type-data-sm shrink-0" style={{ color: 'var(--text-muted)' }}>{fmtDate(ev.event_date)}</span>
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button intent="primary" size="sm" onClick={onLogEvent}>+ LOG EVENT</Button>
+      </div>
+
+      {pregnancyBanner}
+
+      {/* Calves grid for cows/heifers */}
+      {isFemale && animal.calves && animal.calves.length > 0 && (
+        <Panel title="CALVES">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {animal.calves.map(c => (
+              <Link key={c.id} href={`/animals/${c.id}`}>
+                <div
+                  className="rounded-[var(--radius-lg)] p-3 hover:opacity-80 transition-opacity"
+                  style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
+                >
+                  <p className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>#{c.tag_number}</p>
+                  {c.name && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{c.name}</p>}
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {c.sex && <StatusChip map={SEX_CHIP} value={c.sex} size="sm" />}
+                  </div>
+                  {c.dob && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>DOB: {fmtDate(c.dob)}</p>}
+                </div>
+              </Link>
+            ))}
           </div>
-          {ev.breed_method && (
-            <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Method: {ev.breed_method}</p>
-          )}
-          {ev.expected_calving_date && (
-            <p className="type-data-sm mb-1">Expected calving: {fmtDate(ev.expected_calving_date)}</p>
-          )}
-          {ev.preg_check_result && (
-            <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Preg check: {ev.preg_check_result}</p>
-          )}
-          {ev.sire && (
-            <p className="type-data-sm mb-1">
-              Sire: <Link href={`/animals/${ev.sire.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
-                {ev.sire.tag_number}{ev.sire.name ? ` — ${ev.sire.name}` : ''}
-              </Link>
-            </p>
-          )}
-          {ev.calf && (
-            <p className="type-data-sm mb-1">
-              Calf: <Link href={`/animals/${ev.calf.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
-                {ev.calf.tag_number}{ev.calf.name ? ` — ${ev.calf.name}` : ''}
-              </Link>
-            </p>
-          )}
-          {ev.weaning_date && (
-            <p className="type-data-sm mb-1">Weaned: {fmtDate(ev.weaning_date)}{ev.weaning_weight_lbs ? ` @ ${ev.weaning_weight_lbs} lb` : ''}</p>
-          )}
-          {ev.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{ev.notes}</p>}
+        </Panel>
+      )}
+
+      {/* Dam/sire/donor for calves */}
+      {animal.sex === 'calf' && (animal.dam || animal.sire) && (
+        <Panel title="PARENTAGE">
+          <PanelSection>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {animal.dam && (
+                <div>
+                  <p className="type-section-label mb-1" style={{ color: 'var(--text-muted)' }}>DAM</p>
+                  <Link href={`/animals/${animal.dam.id}`} className="type-data-sm hover:underline" style={{ color: 'var(--accent)' }}>
+                    #{animal.dam.tag_number}{animal.dam.name ? ` — ${animal.dam.name}` : ''}
+                  </Link>
+                </div>
+              )}
+              {animal.sire && (
+                <div>
+                  <p className="type-section-label mb-1" style={{ color: 'var(--text-muted)' }}>SIRE</p>
+                  <Link href={`/animals/${animal.sire.id}`} className="type-data-sm hover:underline" style={{ color: 'var(--accent)' }}>
+                    #{animal.sire.tag_number}{animal.sire.name ? ` — ${animal.sire.name}` : ''}
+                  </Link>
+                </div>
+              )}
+            </div>
+          </PanelSection>
+        </Panel>
+      )}
+
+      {/* Event history */}
+      {!events.length ? (
+        <div className="py-8 text-center type-body" style={{ color: 'var(--text-muted)' }}>
+          No reproduction events recorded.
         </div>
-      ))}
+      ) : (
+        <div className="flex flex-col gap-3">
+          {events.map(ev => (
+            <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <StatusChip map={REPRO_CHIP} value={ev.event_type} size="sm" />
+                <span className="type-data-sm shrink-0" style={{ color: 'var(--text-muted)' }}>{fmtDate(ev.event_date)}</span>
+              </div>
+              {(ev.breed_method || ev.conception_method) && (
+                <p className="type-data-sm mb-1 capitalize" style={{ color: 'var(--text-secondary)' }}>
+                  Method: {ev.conception_method ?? ev.breed_method}
+                </p>
+              )}
+              {ev.expected_calving_date && (
+                <p className="type-data-sm mb-1">Expected calving: {fmtDate(ev.expected_calving_date)}</p>
+              )}
+              {ev.preg_check_result && (
+                <p className="type-data-sm mb-1 capitalize" style={{ color: 'var(--text-secondary)' }}>
+                  Preg check: {ev.preg_check_result}
+                  {ev.preg_check_method ? ` (${ev.preg_check_method.replace('_', ' ')})` : ''}
+                </p>
+              )}
+              {ev.sire ? (
+                <p className="type-data-sm mb-1">
+                  Sire: <Link href={`/animals/${ev.sire.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
+                    #{ev.sire.tag_number}{ev.sire.name ? ` — ${ev.sire.name}` : ''}
+                  </Link>
+                </p>
+              ) : ev.sire_name_text ? (
+                <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Sire: {ev.sire_name_text}</p>
+              ) : null}
+              {ev.calf && (
+                <p className="type-data-sm mb-1">
+                  Calf: <Link href={`/animals/${ev.calf.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
+                    #{ev.calf.tag_number}{ev.calf.name ? ` — ${ev.calf.name}` : ''}
+                  </Link>
+                  {ev.calf.sex ? <span className="type-helper ml-1 capitalize" style={{ color: 'var(--text-muted)' }}>({ev.calf.sex})</span> : null}
+                </p>
+              )}
+              {ev.calving_ease_score != null && (
+                <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Ease score: {ev.calving_ease_score}</p>
+              )}
+              {ev.weaning_date && (
+                <p className="type-data-sm mb-1">Weaned: {fmtDate(ev.weaning_date)}{ev.weaning_weight_lbs ? ` @ ${ev.weaning_weight_lbs} lb` : ''}</p>
+              )}
+              {ev.ai_technician && (
+                <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Technician: {ev.ai_technician}</p>
+              )}
+              {ev.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{ev.notes}</p>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -421,6 +530,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   const [tab, setTab]               = useState<Tab>('overview')
   const [logOpen, setLogOpen]         = useState(false)
   const [weightOpen, setWeightOpen]   = useState(false)
+  const [reproOpen, setReproOpen]     = useState(false)
 
   const fetchAnimal = useCallback(() => {
     fetch(`/api/animals/${id}`)
@@ -477,7 +587,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
 
       {tab === 'overview'      && <OverviewTab  animal={animal} />}
       {tab === 'health'        && <HealthTab    animal={animal} onLogEvent={() => setLogOpen(true)} onRefresh={fetchAnimal} />}
-      {tab === 'reproduction'  && <ReproTab     animal={animal} />}
+      {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} />}
       {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} />}
       {tab === 'documents'     && (
         <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
@@ -514,6 +624,28 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
               animalId={id}
               onSuccess={() => { setLogOpen(false); fetchAnimal() }}
               onCancel={() => setLogOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Reproduction event slide-up sheet */}
+      {reproOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div
+            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '92dvh', padding: '24px 16px' }}
+          >
+            <p className="type-panel-title mb-1">Log Reproduction Event</p>
+            <p className="type-helper mb-4" style={{ color: 'var(--text-muted)' }}>
+              Animal: <strong style={{ color: 'var(--text)' }}>#{animal.tag_number}{animal.name ? ` — ${animal.name}` : ''}</strong>
+            </p>
+            <ReproEventForm
+              animalId={id}
+              animalSex={animal.sex ?? 'cow'}
+              animalRef={{ id, tag_number: animal.tag_number, name: animal.name }}
+              onSuccess={() => { setReproOpen(false); fetchAnimal() }}
+              onCancel={() => setReproOpen(false)}
             />
           </div>
         </div>
