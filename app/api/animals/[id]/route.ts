@@ -1,3 +1,11 @@
+// IMPORTANT: Never nest animals
+// table joins inside animals query.
+// PostgREST PGRST201 error.
+// Always fetch dam/sire/calves/
+// donor_dam as separate queries.
+// See: github.com/supabase/postgrest
+// This rule cannot be changed.
+
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -5,115 +13,160 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  const { data: animal, error } = await supabase
-    .from('animals')
-    .select(`
-      *,
-      weights (
-        id,
-        weight_lbs,
-        weighed_at,
-        source,
-        notes
-      ),
-      health_events (
-        id,
-        event_type,
-        event_date,
-        drug_name,
-        dose_amount,
-        dose_unit,
-        withdrawal_days,
-        withdrawal_clear_date,
-        bcs_score,
-        administered_by,
-        notes
-      ),
-      reproduction_events!reproduction_events_animal_id_fkey (
-        id,
-        event_type,
-        event_date,
-        breed_method,
-        conception_method,
-        sire_name_text,
-        expected_calving_date,
-        calving_ease_score,
-        preg_check_result,
-        preg_check_method,
-        days_bred,
-        weaning_date,
-        weaning_weight_lbs,
-        ai_technician,
-        notes,
-        sire:sire_id ( id, tag_number, name ),
-        calf:calf_id ( id, tag_number, name, sex, dob )
-      )
-    `)
-    .eq('id', id)
-    .maybeSingle()
+  // Main animal query
+  // NO nested animals joins ever
+  const { data: animal, error } =
+    await supabase
+      .from('animals')
+      .select(`
+        *,
+        weights (
+          id, weight_lbs,
+          weighed_at, source, notes
+        ),
+        health_events (
+          id, event_type, event_date,
+          drug_name, dose_amount,
+          dose_unit, withdrawal_days,
+          withdrawal_clear_date,
+          bcs_score, administered_by,
+          notes, created_at
+        ),
+        reproduction_events!reproduction_events_animal_id_fkey (
+          id, event_type, event_date,
+          expected_calving_date,
+          calving_ease_score,
+          preg_check_result, preg_check_method,
+          breed_method, conception_method,
+          sire_name_text, ai_technician,
+          weaning_date, weaning_weight_lbs,
+          calf_id, notes,
+          created_at
+        ),
+        grazing_assignments (
+          id, start_date, end_date,
+          leases (
+            id, property_name,
+            acreage
+          )
+        )
+      `)
+      .eq('id', id)
+      .maybeSingle()
 
   if (error) {
-    console.error('[animals/id GET]', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error(
+      '[animals/id GET] error:',
+      error.code, error.message)
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 })
   }
 
   if (!animal) {
-    console.log('[animals/id GET] not found:', id)
-    return NextResponse.json({ error: 'Animal not found' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'Animal not found' },
+      { status: 404 })
   }
 
-  // Dam
+  // Separate query for dam
+  // NEVER inside main query
   let dam = null
   if (animal.dam_id) {
     const { data } = await supabase
       .from('animals')
-      .select('id, tag_number, name, sex, breed, photos, ear_tag_color')
+      .select(`
+        id, tag_number, name,
+        sex, breed, breeds,
+        ear_tag_color, photos,
+        status
+      `)
       .eq('id', animal.dam_id)
       .maybeSingle()
     dam = data
   }
 
-  // Sire
+  // Separate query for sire
   let sire = null
   if (animal.sire_id) {
     const { data } = await supabase
       .from('animals')
-      .select('id, tag_number, name, sex, breed, photos, ear_tag_color')
+      .select(`
+        id, tag_number, name,
+        sex, breed, breeds,
+        ear_tag_color, photos,
+        status
+      `)
       .eq('id', animal.sire_id)
       .maybeSingle()
     sire = data
   }
 
-  // Calves
-  const { data: calves } = await supabase
-    .from('animals')
-    .select('id, tag_number, name, sex, dob, photos, ear_tag_color, status')
-    .or(`dam_id.eq.${id},sire_id.eq.${id}`)
-    .eq('status', 'active')
-    .order('dob', { ascending: false })
+  // Separate query for donor dam
+  let donor_dam = null
+  if (animal.donor_dam_id) {
+    const { data } = await supabase
+      .from('animals')
+      .select(`
+        id, tag_number, name,
+        sex, breed, breeds,
+        ear_tag_color, photos
+      `)
+      .eq('id', animal.donor_dam_id)
+      .maybeSingle()
+    donor_dam = data
+  }
 
-  // Owner
+  // Separate query for calves
+  const { data: calves } =
+    await supabase
+      .from('animals')
+      .select(`
+        id, tag_number, name,
+        sex, dob, photos,
+        ear_tag_color, status,
+        conception_method,
+        birth_weight_lbs,
+        weaning_date,
+        weaning_weight_lbs
+      `)
+      .or(
+        `dam_id.eq.${id},` +
+        `sire_id.eq.${id}`
+      )
+      .eq('status', 'active')
+      .order('dob', {
+        ascending: false
+      })
+
+  // Separate query for owner
   let owner = null
   if (animal.owner_id) {
     const { data } = await supabase
       .from('grazing_owners')
-      .select('id, name, email, phone, billing_type, billing_rate')
+      .select(`
+        id, name, email,
+        phone, billing_type,
+        billing_rate
+      `)
       .eq('id', animal.owner_id)
       .maybeSingle()
     owner = data
   }
-
-  console.log('[animals/id] animal found:', !!animal, 'dam:', !!dam, 'sire:', !!sire, 'calves:', calves?.length)
 
   return NextResponse.json({
     data: {
       ...animal,
       dam,
       sire,
+      donor_dam,
       calves: calves || [],
       owner,
     }

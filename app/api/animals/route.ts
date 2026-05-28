@@ -1,3 +1,9 @@
+// IMPORTANT: Never nest animals
+// table joins inside animals query.
+// PostgREST PGRST201 - self-join
+// ambiguity. Always use separate
+// queries for related animals.
+
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -18,13 +24,17 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from('animals')
     .select(
-      `id, tag_number, name, dob, sex, status, breed, breed_percentage, photos, ear_tag_color,
-       owner:owner_id ( id, name ),
-       weights ( weight_lbs, weighed_at )`,
+      `id, tag_number, name, sex,
+       status, breed, breeds,
+       ear_tag_color, ear_tag_number,
+       photos, dob, created_at,
+       owner_id, dam_id, sire_id,
+       conception_method,
+       birth_weight_lbs,
+       purchase_date, notes`,
       { count: 'exact' }
     )
     .order('tag_number', { ascending: true })
-    .order('weighed_at', { referencedTable: 'weights', ascending: false })
     .range(offset, offset + limit - 1)
 
   if (search)   query = query.or(`tag_number.ilike.%${search}%,name.ilike.%${search}%`)
@@ -42,14 +52,7 @@ export async function GET(req: NextRequest) {
   const { data, error, count } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const animals = (data ?? []).map(a => {
-    const sorted = [...(a.weights ?? [])].sort(
-      (x, y) => new Date(y.weighed_at).getTime() - new Date(x.weighed_at).getTime()
-    )
-    return { ...a, weights: undefined, latest_weight: sorted[0] ?? null }
-  })
-
-  return NextResponse.json({ data: animals, count, page, limit })
+  return NextResponse.json({ data: data ?? [], count, page, limit })
 }
 
 function toUuid(val: unknown): string | null {
