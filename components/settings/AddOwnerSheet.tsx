@@ -7,6 +7,7 @@ import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
 const EAR_TAG_COLORS = [
   { name: 'Yellow',  hex: '#F5C518' },
@@ -108,12 +109,9 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
     setError('')
     try {
       const url = mode === 'edit' ? `/api/grazing-owners/${initialData!.id}` : '/api/grazing-owners'
-      const method = mode === 'edit' ? 'PATCH' : 'POST'
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, billing_rate: form.billing_rate ? Number(form.billing_rate) : null }),
-      })
+      const res = await (mode === 'edit'
+        ? apiPatch(url, { ...form, billing_rate: form.billing_rate ? Number(form.billing_rate) : null })
+        : apiPost(url, { ...form, billing_rate: form.billing_rate ? Number(form.billing_rate) : null }))
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
       onSuccess()
@@ -125,7 +123,7 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      const res = await fetch(`/api/grazing-owners/${initialData!.id}`, { method: 'DELETE' })
+      const res = await apiDelete(`/api/grazing-owners/${initialData!.id}`)
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Delete failed'); setConfirmDelete(false); return }
       onSuccess()

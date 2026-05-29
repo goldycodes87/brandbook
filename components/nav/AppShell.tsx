@@ -10,6 +10,7 @@ import {
   MoreHorizontal, X, LogOut, Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { apiFetch } from '@/lib/fetch'
 
 const NAV_ITEMS = [
   { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
@@ -37,7 +38,7 @@ const ROUTE_TITLES: Record<string, string> = Object.fromEntries(
 )
 
 async function handleLogout() {
-  await fetch('/api/auth/logout', { method: 'POST' })
+  await apiFetch('/api/auth/logout', { method: 'POST' })
   window.location.href = '/login'
 }
 

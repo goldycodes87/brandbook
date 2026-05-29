@@ -6,6 +6,7 @@ import { Field, Input, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ActionFooter } from '@/components/ui/ActionFooter'
 import { ContextBanner } from '@/components/ui/ContextBanner'
+import { apiPost } from '@/lib/fetch'
 
 interface SellAnimalSheetProps {
   isOpen: boolean
@@ -65,18 +66,14 @@ export function SellAnimalSheet({ isOpen, onClose, animal, onSuccess }: SellAnim
     setSaving(true)
     setError('')
     try {
-      const res = await fetch(`/api/animals/${animal.id}/sell`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sale_date:       saleDate,
-          buyer:           buyer || null,
-          destination:     destination,
-          sale_weight_lbs: toNum(weightLbs),
-          price_per_lb:    toNum(pricePerLb),
-          gross_proceeds:  toNum(grossProceeds),
-          notes:           notes || null,
-        }),
+      const res = await apiPost(`/api/animals/${animal.id}/sell`, {
+        sale_date:       saleDate,
+        buyer:           buyer || null,
+        destination:     destination,
+        sale_weight_lbs: toNum(weightLbs),
+        price_per_lb:    toNum(pricePerLb),
+        gross_proceeds:  toNum(grossProceeds),
+        notes:           notes || null,
       })
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }

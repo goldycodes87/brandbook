@@ -5,6 +5,7 @@ import { ScanLine, ChevronDown } from 'lucide-react'
 import { SearchField } from '@/components/ui/Field'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { BarcodeScanner } from '@/components/health/BarcodeScanner'
+import { apiGet } from '@/lib/fetch'
 
 export interface DrugRecord {
   id?: string
@@ -35,7 +36,7 @@ export function DrugSelector({ value, onChange }: DrugSelectorProps) {
     if (!q.trim()) { setResults([]); setOpen(false); return }
     setLoading(true)
     try {
-      const res = await fetch(`/api/drugs?search=${encodeURIComponent(q)}&limit=10`)
+      const res = await apiGet(`/api/drugs?search=${encodeURIComponent(q)}&limit=10`)
       const data = await res.json()
       setResults(Array.isArray(data) ? data : [])
       setOpen(true)
@@ -54,7 +55,7 @@ export function DrugSelector({ value, onChange }: DrugSelectorProps) {
     setScanning(false)
     setLoading(true)
     try {
-      const res = await fetch(`/api/drugs/barcode?code=${encodeURIComponent(code)}`)
+      const res = await apiGet(`/api/drugs/barcode?code=${encodeURIComponent(code)}`)
       if (res.ok) {
         const drug = await res.json()
         onChange(drug)

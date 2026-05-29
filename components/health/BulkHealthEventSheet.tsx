@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { ContextBanner } from '@/components/ui/ContextBanner'
+import { apiPost } from '@/lib/fetch'
 
 type GroupType =
   | 'whole_herd'
@@ -93,7 +94,7 @@ export function BulkHealthEventSheet() {
       const body: Record<string, unknown> = { group_type: group }
       if (group === 'by_ear_tag_color') body.group_value = earTagColor
       if (group === 'custom') body.custom_animal_ids = [] // we'll resolve from tags in save
-      const res  = await fetch('/api/health/bulk/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res  = await apiPost('/api/health/bulk/preview', body)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Preview failed'); return }
       setPreview({ count: data.count, label: data.label })
@@ -139,7 +140,7 @@ export function BulkHealthEventSheet() {
         body.custom_tag_numbers = tags
       }
 
-      const res  = await fetch('/api/health/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res  = await apiPost('/api/health/bulk', body)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Save failed'); return }
       setSuccess(true)

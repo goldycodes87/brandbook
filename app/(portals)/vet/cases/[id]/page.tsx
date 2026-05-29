@@ -9,6 +9,7 @@ import { Panel } from '@/components/ui/Panel'
 import { Button } from '@/components/ui/Button'
 import { Field, Textarea, Select } from '@/components/ui/Field'
 import Link from 'next/link'
+import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
 
 interface CaseNote {
   id: string
@@ -43,7 +44,7 @@ export default function VetCaseDetailPage() {
 
   const loadCase = async () => {
     try {
-      const res = await fetch(`/api/vet/cases/${id}`)
+      const res = await apiGet(`/api/vet/cases/${id}`)
       const json = await res.json()
       if (res.ok) setData(json.data)
     } finally {
@@ -59,11 +60,7 @@ export default function VetCaseDetailPage() {
     setAddingNote(true)
     setError('')
     try {
-      const res = await fetch(`/api/vet/cases/${id}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: noteBody }),
-      })
+      const res = await apiPost(`/api/vet/cases/${id}/notes`, { body: noteBody })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Failed'); return }
       setNoteBody('')
       loadCase()
@@ -77,11 +74,7 @@ export default function VetCaseDetailPage() {
   const handleStatusChange = async (newStatus: string) => {
     setUpdatingStatus(true)
     try {
-      await fetch(`/api/vet/cases/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      })
+      await apiPatch(`/api/vet/cases/${id}`, { status: newStatus })
       loadCase()
     } finally {
       setUpdatingStatus(false)

@@ -11,6 +11,7 @@ import { REPRO_CHIP, SEX_CHIP } from '@/components/ui/tokens'
 import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
 import { SearchField } from '@/components/ui/Field'
 import type { TabItem } from '@/components/ui/Tabs'
+import { apiGet } from '@/lib/fetch'
 
 interface AnimalResult { id: string; tag_number: string; name: string | null; sex: string | null }
 
@@ -95,7 +96,7 @@ export function ReproListClient({ defaultTab }: { defaultTab: string }) {
     try {
       const et     = tab !== 'all' ? `&event_type=${tab}` : ''
       const offset = page * 50
-      const res    = await fetch(`/api/reproduction?limit=50&offset=${offset}${et}`)
+      const res    = await apiGet(`/api/reproduction?limit=50&offset=${offset}${et}`)
       const data   = await res.json()
       setEvents(data.data ?? [])
       setCount(data.count ?? 0)
@@ -116,7 +117,7 @@ export function ReproListClient({ defaultTab }: { defaultTab: string }) {
     if (!q.trim()) { setLogResults([]); return }
     setLogSearching(true)
     try {
-      const res  = await fetch(`/api/animals?search=${encodeURIComponent(q)}&limit=8`)
+      const res  = await apiGet(`/api/animals?search=${encodeURIComponent(q)}&limit=8`)
       const data = await res.json()
       setLogResults(data.data ?? [])
     } finally {

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ContextBanner } from '@/components/ui/ContextBanner'
+import { apiPost } from '@/lib/fetch'
 
 const schema = z.object({
   brand_name:           z.string().min(1, 'Brand name is required'),
@@ -46,14 +47,10 @@ export function DrugSubmissionForm({ onSuccess, onCancel }: DrugSubmissionFormPr
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/drugs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...values,
-          withdrawal_days_meat: toNum(values.withdrawal_days_meat),
-          withdrawal_days_milk: toNum(values.withdrawal_days_milk),
-        }),
+      const res = await apiPost('/api/drugs', {
+        ...values,
+        withdrawal_days_meat: toNum(values.withdrawal_days_meat),
+        withdrawal_days_milk: toNum(values.withdrawal_days_milk),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Submission failed'); return }

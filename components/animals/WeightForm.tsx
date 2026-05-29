@@ -6,6 +6,7 @@ import { Field, Input, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { BluetoothScale } from '@/components/hardware/BluetoothScale'
 import { ContextBanner } from '@/components/ui/ContextBanner'
+import { apiPost } from '@/lib/fetch'
 
 interface WeightFormProps {
   animalId: string
@@ -70,11 +71,7 @@ export function WeightForm({ animalId, onSuccess, onCancel }: WeightFormProps) {
     setImporting(true)
     setError('')
     try {
-      const res = await fetch(`/api/animals/${animalId}/weights/bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(csvRows),
-      })
+      const res = await apiPost(`/api/animals/${animalId}/weights/bulk`, csvRows)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Import failed'); return }
       setCsvRows([])
@@ -93,11 +90,7 @@ export function WeightForm({ animalId, onSuccess, onCancel }: WeightFormProps) {
     setSaving(true)
     setError('')
     try {
-      const res = await fetch(`/api/animals/${animalId}/weights`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weight_lbs: lbs, weighed_at: date, notes: notes || null, source: 'manual' }),
-      })
+      const res = await apiPost(`/api/animals/${animalId}/weights`, { weight_lbs: lbs, weighed_at: date, notes: notes || null, source: 'manual' })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Save failed'); return }
       onSuccess?.()

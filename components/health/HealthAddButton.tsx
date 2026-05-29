@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { SearchField } from '@/components/ui/Field'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
+import { apiGet } from '@/lib/fetch'
 
 interface AnimalResult { id: string; tag_number: string; name: string | null }
 
@@ -21,7 +22,7 @@ export function HealthAddButton() {
     if (!q.trim()) { setResults([]); return }
     setSearching(true)
     try {
-      const res  = await fetch(`/api/animals?search=${encodeURIComponent(q)}&limit=8`)
+      const res  = await apiGet(`/api/animals?search=${encodeURIComponent(q)}&limit=8`)
       const data = await res.json()
       setResults((data.data ?? []) as AnimalResult[])
     } finally {

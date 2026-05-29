@@ -15,6 +15,7 @@ import { SireSelector } from '@/components/reproduction/SireSelector'
 import { SEX_CHIP } from '@/components/ui/tokens'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
 import Link from 'next/link'
+import { apiGet, apiPost } from '@/lib/fetch'
 
 type CalfSex = 'bull' | 'heifer' | 'calf'
 type BirthType = 'single' | 'twin_a' | 'twin_b'
@@ -122,7 +123,7 @@ export default function CalvingEntryPage() {
 
   // Load recent cows/heifers on mount
   useEffect(() => {
-    fetch('/api/animals?sex=cow,heifer&limit=10&status=active')
+    apiGet('/api/animals?sex=cow,heifer&limit=10&status=active')
       .then(r => r.json())
       .then(d => setRecentDams(d.data ?? []))
       .catch(() => {})
@@ -133,7 +134,7 @@ export default function CalvingEntryPage() {
     if (!q.trim()) { setDams([]); return }
     setSearching(true)
     try {
-      const res  = await fetch(`/api/animals?search=${encodeURIComponent(q)}&sex=cow,heifer&limit=10`)
+      const res  = await apiGet(`/api/animals?search=${encodeURIComponent(q)}&sex=cow,heifer&limit=10`)
       const data = await res.json()
       setDams(data.data ?? [])
     } finally {
@@ -161,10 +162,7 @@ export default function CalvingEntryPage() {
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/reproduction', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await apiPost('/api/reproduction', {
           animal_id:          dam.id,
           event_type:         'calved',
           event_date:         calf.calfDob,
@@ -185,7 +183,6 @@ export default function CalvingEntryPage() {
             donor_dam_id:           null,
             notes:                  calf.calfNotes || null,
           },
-        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Save failed'); return }

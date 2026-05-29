@@ -10,6 +10,7 @@ import { Panel } from '@/components/ui/Panel'
 import { SireSelector } from '@/components/reproduction/SireSelector'
 import { EarTagColorPicker } from '@/components/reproduction/EarTagColorPicker'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
+import { apiGet, apiPost } from '@/lib/fetch'
 
 type EventType = 'bred' | 'preg_check' | 'calved' | 'weaned' | 'flushed' | 'bse' | 'semen_collection'
 type ConceptionMethod = 'natural' | 'ai' | 'embryo'
@@ -157,7 +158,7 @@ export function ReproEventForm({
     if (!q.trim()) { setWeanCalfResults([]); return }
     setWeanCalfSearching(true)
     try {
-      const res  = await fetch(`/api/animals?search=${encodeURIComponent(q)}&limit=8`)
+      const res  = await apiGet(`/api/animals?search=${encodeURIComponent(q)}&limit=8`)
       const data = await res.json()
       setWeanCalfResults(data.data ?? [])
     } finally {
@@ -254,11 +255,7 @@ export function ReproEventForm({
         }
       }
 
-      const res  = await fetch('/api/reproduction', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      })
+      const res  = await apiPost('/api/reproduction', payload)
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
       onSuccess(json)

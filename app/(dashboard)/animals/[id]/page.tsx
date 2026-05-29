@@ -18,6 +18,7 @@ import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
 import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
 import { SellAnimalSheet } from '@/components/animals/SellAnimalSheet'
+import { apiGet, apiDelete } from '@/lib/fetch'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
@@ -122,7 +123,7 @@ function OverviewTab({ animal, onDelete }: { animal: Animal; onDelete: () => voi
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      const res = await fetch(`/api/animals/${animal.id}`, { method: 'DELETE' })
+      const res = await apiDelete(`/api/animals/${animal.id}`)
       if (res.ok) onDelete()
     } finally {
       setDeleting(false)
@@ -389,7 +390,7 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
     if (!confirmReproId) return
     setDeletingReproId(confirmReproId)
     try {
-      await fetch(`/api/reproduction/${confirmReproId}`, { method: 'DELETE' })
+      await apiDelete(`/api/reproduction/${confirmReproId}`)
       onRefresh()
     } finally {
       setDeletingReproId(null)
@@ -590,7 +591,7 @@ function WeightsTab({ animal, onLogWeight, onRefresh }: { animal: Animal; onLogW
     if (!confirmId) return
     setDeletingId(confirmId)
     try {
-      await fetch(`/api/animals/${animal.id}/weights/${confirmId}`, { method: 'DELETE' })
+      await apiDelete(`/api/animals/${animal.id}/weights/${confirmId}`)
       onRefresh()
     } finally {
       setDeletingId(null)
@@ -677,7 +678,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   const [sellOpen, setSellOpen]       = useState(false)
 
   const fetchAnimal = useCallback(() => {
-    fetch(`/api/animals/${id}`)
+    apiGet(`/api/animals/${id}`)
       .then(async r => {
         if (!r.ok) { setLoading(false); return }
         const { data } = await r.json()

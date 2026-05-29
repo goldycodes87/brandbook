@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
+import { apiGet, apiPost } from '@/lib/fetch'
 
 type State = 'loading' | 'setup' | 'authenticating' | 'error'
 
@@ -25,7 +26,7 @@ export default function VetPortalEntryPage() {
   useEffect(() => {
     async function verify() {
       try {
-        const res  = await fetch(`/api/vet/verify?token=${encodeURIComponent(token)}`)
+        const res  = await apiGet(`/api/vet/verify?token=${encodeURIComponent(token)}`)
         const data = await res.json()
         if (!res.ok) { setState('error'); setErrorMsg(data.error ?? 'Invalid link'); return }
         if (data.isAuthenticated) {
@@ -55,11 +56,7 @@ export default function VetPortalEntryPage() {
     if (!name.trim()) return
     setSaving(true)
     try {
-      const res = await fetch('/api/vet/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, name, practice_name: practiceName, license_number: licenseNumber }),
-      })
+      const res = await apiPost('/api/vet/setup', { token, name, practice_name: practiceName, license_number: licenseNumber })
       const data = await res.json()
       if (!res.ok) { setErrorMsg(data.error ?? 'Setup failed'); return }
       router.replace('/vet/dashboard')
@@ -74,11 +71,7 @@ export default function VetPortalEntryPage() {
     e.preventDefault()
     setSaving(true)
     try {
-      const res = await fetch('/api/vet/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, name: name || 'Vet', practice_name: practiceName }),
-      })
+      const res = await apiPost('/api/vet/setup', { token, name: name || 'Vet', practice_name: practiceName })
       const data = await res.json()
       if (!res.ok) { setErrorMsg(data.error ?? 'Login failed'); return }
       router.replace('/vet/dashboard')

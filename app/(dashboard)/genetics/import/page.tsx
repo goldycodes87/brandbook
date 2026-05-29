@@ -8,6 +8,7 @@ import { Panel } from '@/components/ui/Panel'
 import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ContextBanner } from '@/components/ui/ContextBanner'
+import { apiPost } from '@/lib/fetch'
 
 interface ExtractedBull {
   bull_name: string
@@ -66,7 +67,7 @@ export default function GeneticsImportPage() {
       fd.append('file', file)
       fd.append('stud', stud)
 
-      const res  = await fetch('/api/genetics/import', { method: 'POST', body: fd })
+      const res  = await apiPost('/api/genetics/import', fd)
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Extraction failed'); return }
 
@@ -89,11 +90,7 @@ export default function GeneticsImportPage() {
     setConfirming(true)
     setError('')
     try {
-      const res  = await fetch('/api/genetics/import/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stud, pdf_url: pdfUrl, pdf_filename: pdfFilename, bulls: selectedBulls }),
-      })
+      const res  = await apiPost('/api/genetics/import/confirm', { stud, pdf_url: pdfUrl, pdf_filename: pdfFilename, bulls: selectedBulls })
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Import failed'); return }
       setImportedCount(json.imported)

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { apiGet } from '@/lib/fetch'
 
 type FeedItem = {
   type: 'health' | 'weight' | 'animal' | 'repro'
@@ -33,7 +34,7 @@ export function ActivityFeed() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/dashboard/activity')
+    apiGet('/api/dashboard/activity')
       .then(r => r.json())
       .then(d => setItems(d.items ?? []))
       .catch(() => {})

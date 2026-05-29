@@ -14,6 +14,7 @@ import { Field, Input, Textarea, Select } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ActionFooter } from '@/components/ui/ActionFooter'
 import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
+import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
 
 // ── Ear tag color picker ──────────────────────────────────────────────────────
 
@@ -163,8 +164,8 @@ export default function NewAnimalPage() {
   const earTagColor = watch('ear_tag_color') ?? ''
 
   useEffect(() => {
-    fetch('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
-    fetch('/api/settings/ranch').then(r => r.json()).then(d => {
+    apiGet('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
+    apiGet('/api/settings/ranch').then(r => r.json()).then(d => {
       const s = d.data ?? d
       setRanchDefaults({ default_ear_tag_color: s.default_ear_tag_color || undefined, default_breed: s.default_breed || undefined })
       if (s.default_ear_tag_color) setValue('ear_tag_color', s.default_ear_tag_color)
@@ -244,7 +245,7 @@ export default function NewAnimalPage() {
         fd.append('audio', blob, `recording.${ext}`)
         try {
           console.log('[voice] sending to API')
-          const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd })
+          const res = await apiPost('/api/voice/transcribe', fd)
           console.log('[voice] response status:', res.status)
           const result = await res.json()
           console.log('[voice] result:', JSON.stringify(result))
@@ -277,18 +278,14 @@ export default function NewAnimalPage() {
     setUploadingPhoto(true)
     try {
       if (!pendingIdRef.current) {
-        const res = await fetch('/api/animals', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_number: watch('tag_number') || `DRAFT-${Date.now()}`, sex: watch('sex') || 'calf', ear_tag_color: watch('ear_tag_color') || 'Yellow', status: 'active' }),
-        })
+        const res = await apiPost('/api/animals', { tag_number: watch('tag_number') || `DRAFT-${Date.now()}`, sex: watch('sex') || 'calf', ear_tag_color: watch('ear_tag_color') || 'Yellow', status: 'active' })
         if (!res.ok) return
         const data = await res.json()
         pendingIdRef.current = data.id
       }
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch(`/api/animals/${pendingIdRef.current}/photos`, { method: 'POST', body: fd })
+      const res = await apiPost(`/api/animals/${pendingIdRef.current}/photos`, fd)
       if (res.ok) {
         const data = await res.json()
         setPhotoUrls(data.photos)
@@ -321,17 +318,9 @@ export default function NewAnimalPage() {
 
       let res: Response
       if (pendingIdRef.current) {
-        res = await fetch(`/api/animals/${pendingIdRef.current}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(raw),
-        })
+        res = await apiPatch(`/api/animals/${pendingIdRef.current}`, raw)
       } else {
-        res = await fetch('/api/animals', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(raw),
-        })
+        res = await apiPost('/api/animals', raw)
       }
 
       const data = await res.json()

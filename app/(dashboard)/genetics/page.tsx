@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button'
 import { SireCard } from '@/components/genetics/SireCard'
 import { AddSireSheet } from '@/components/genetics/AddSireSheet'
 import type { SireLibraryRecord } from '@/components/genetics/SireCard'
+import { apiGet } from '@/lib/fetch'
 
 type FilterType = 'all' | 'ai_sire' | 'owned' | 'leased'
 
@@ -38,7 +39,7 @@ export default function GeneticsPage() {
       const params = new URLSearchParams()
       if (filter !== 'all') params.set('bull_type', filter)
       if (search.trim())    params.set('search', search.trim())
-      const res  = await fetch(`/api/genetics/sires?${params}`)
+      const res  = await apiGet(`/api/genetics/sires?${params}`)
       const json = await res.json()
       setSires(json.data ?? [])
       setCount(json.count ?? 0)

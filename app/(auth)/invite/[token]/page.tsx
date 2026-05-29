@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
 import { Chip } from '@/components/ui/Chip'
+import { apiGet, apiPost } from '@/lib/fetch'
 
 interface InviteInfo {
   valid: boolean
@@ -28,7 +29,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/invite/verify?token=${token}`)
+    apiGet(`/api/invite/verify?token=${token}`)
       .then(r => r.json())
       .then(data => {
         setInfo(data)
@@ -45,11 +46,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
     setError('')
     setSubmitting(true)
     try {
-      const res = await fetch('/api/invite/accept', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, name, password }),
-      })
+      const res = await apiPost('/api/invite/accept', { token, name, password })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to accept invite'); return }
       router.push('/dashboard')

@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Panel } from '@/components/ui/Panel'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
+import { apiGet } from '@/lib/fetch'
 
 interface SaleRow {
   id: string
@@ -31,7 +32,7 @@ export default function SalesPage() {
   const [total, setTotal]     = useState(0)
 
   useEffect(() => {
-    fetch('/api/sales')
+    apiGet('/api/sales')
       .then(r => r.json())
       .then(d => {
         const rows = d.data ?? d ?? []

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { SearchField } from '@/components/ui/Field'
 import { Chip } from '@/components/ui/Chip'
 import { WeightForm } from '@/components/animals/WeightForm'
+import { apiGet } from '@/lib/fetch'
 
 const COLOR_MAP: Record<string, string> = {
   Yellow:  '#F5C518',
@@ -43,7 +44,7 @@ export function WeightLogSheet() {
     if (!q.trim()) { setResults([]); return }
     setSearching(true)
     try {
-      const res  = await fetch(`/api/animals?search=${encodeURIComponent(q)}&limit=8`)
+      const res  = await apiGet(`/api/animals?search=${encodeURIComponent(q)}&limit=8`)
       const data = await res.json()
       setResults((data.data ?? []) as AnimalResult[])
     } finally {

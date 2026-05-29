@@ -7,6 +7,7 @@ import { Panel } from '@/components/ui/Panel'
 import { Button } from '@/components/ui/Button'
 import { Field, Textarea } from '@/components/ui/Field'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { apiGet, apiPost } from '@/lib/fetch'
 
 interface VetMessage {
   id: string
@@ -40,7 +41,7 @@ export default function MessagesPage() {
 
   const loadMessages = async () => {
     try {
-      const res  = await fetch('/api/messages')
+      const res  = await apiGet('/api/messages')
       const data = await res.json()
       const msgs: VetMessage[] = data.data ?? []
 
@@ -83,11 +84,7 @@ export default function MessagesPage() {
     setSending(true)
     setError('')
     try {
-      const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vet_invite_id: active, message_body: replyBody }),
-      })
+      const res = await apiPost('/api/messages', { vet_invite_id: active, message_body: replyBody })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Failed'); return }
       setReplyBody('')
       loadMessages()

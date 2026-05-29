@@ -17,6 +17,7 @@ import type { TabItem } from '@/components/ui/Tabs'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
 import { AddOwnerSheet, type GrazingOwner } from '@/components/settings/AddOwnerSheet'
 import { Check, Download } from 'lucide-react'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ function RanchTab() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/settings/ranch')
+    apiGet('/api/settings/ranch')
       .then(r => r.json())
       .then(d => {
         const s = d.data ?? d
@@ -109,22 +110,14 @@ function RanchTab() {
 
   const handleBrandSave = async (url: string) => {
     setForm(f => ({ ...f, brand_photo_url: url }))
-    await fetch('/api/settings/ranch', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brand_photo_url: url }),
-    })
+    await apiPatch('/api/settings/ranch', { brand_photo_url: url })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true); setError(''); setSaved(false)
     try {
-      const res = await fetch('/api/settings/ranch', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
+      const res = await apiPatch('/api/settings/ranch', form)
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Save failed'); return }
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -277,7 +270,7 @@ function AccountTab() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/settings/profile')
+    apiGet('/api/settings/profile')
       .then(r => r.json())
       .then(d => {
         const p = d.profile ?? {}
@@ -293,11 +286,7 @@ function AccountTab() {
     e.preventDefault()
     setSaving(true); setError(''); setSaved(false)
     try {
-      const res = await fetch('/api/settings/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone }),
-      })
+      const res = await apiPatch('/api/settings/profile', { name, phone })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Save failed'); return }
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -368,7 +357,7 @@ function NotificationsTab() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/settings/notifications')
+    apiGet('/api/settings/notifications')
       .then(r => r.json())
       .then(d => { setPrefs(p => ({ ...p, ...(d.data ?? d) })); setLoading(false) })
       .catch(() => setLoading(false))
@@ -379,11 +368,7 @@ function NotificationsTab() {
   const handleSave = async () => {
     setSaving(true); setError(''); setSaved(false)
     try {
-      const res = await fetch('/api/settings/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(prefs),
-      })
+      const res = await apiPatch('/api/settings/notifications', prefs)
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Save failed'); return }
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -453,7 +438,7 @@ function UsersTab() {
   const [revoking, setRevoking] = useState<string | null>(null)
 
   const fetchUsers = useCallback(() => {
-    fetch('/api/settings/users')
+    apiGet('/api/settings/users')
       .then(r => r.json())
       .then(d => { setUsers(Array.isArray(d.data) ? d.data : []); setLoading(false) })
       .catch(() => setLoading(false))
@@ -465,11 +450,7 @@ function UsersTab() {
     e.preventDefault()
     setInviting(true); setInviteError(''); setInviteSent(false)
     try {
-      const res = await fetch('/api/settings/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail, name: inviteName, role: inviteRole }),
-      })
+      const res = await apiPost('/api/settings/invite', { email: inviteEmail, name: inviteName, role: inviteRole })
       const d = await res.json()
       if (!res.ok) { setInviteError(d.error ?? 'Invite failed'); return }
       setInviteSent(true)
@@ -484,7 +465,7 @@ function UsersTab() {
     if (!confirm('Remove this user? This cannot be undone.')) return
     setRevoking(id)
     try {
-      await fetch(`/api/settings/users/${id}`, { method: 'DELETE' })
+      await apiDelete(`/api/settings/users/${id}`)
       fetchUsers()
     } finally { setRevoking(null) }
   }
@@ -604,7 +585,7 @@ function DataTab() {
     try {
       const fd = new FormData()
       fd.append('csv', csvFile)
-      const res  = await fetch('/api/animals/bulk-import', { method: 'POST', body: fd })
+      const res  = await apiPost('/api/animals/bulk-import', fd)
       const json = await res.json()
       if (!res.ok) { setImportError(json.error ?? 'Import failed'); return }
       setImportResult(json)
@@ -747,7 +728,7 @@ function GrazingTab() {
 
   const load = useCallback(() => {
     setLoading(true)
-    fetch('/api/grazing-owners')
+    apiGet('/api/grazing-owners')
       .then(r => r.json())
       .then(d => { setOwners(Array.isArray(d.data) ? d.data : []); setLoading(false) })
       .catch(() => setLoading(false))

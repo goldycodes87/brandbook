@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
+import { apiPost } from '@/lib/fetch'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -15,11 +16,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const res  = await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
+      const res  = await apiPost('/api/auth/session', { email, password })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Sign in failed'); return }
       window.location.href = '/dashboard'

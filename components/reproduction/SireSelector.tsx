@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { SearchField, Field, Input } from '@/components/ui/Field'
+import { apiGet } from '@/lib/fetch'
 
 export interface SireResult {
   id: string
@@ -51,7 +52,7 @@ export function SireSelector({
     if (!q.trim()) { setResults([]); return }
     setSearching(true)
     try {
-      const res  = await fetch(`/api/animals?search=${encodeURIComponent(q)}&sex=bull&limit=10`)
+      const res  = await apiGet(`/api/animals?search=${encodeURIComponent(q)}&sex=bull&limit=10`)
       const data = await res.json()
       setResults((data.data ?? []) as SireResult[])
     } finally { setSearching(false) }
@@ -61,7 +62,7 @@ export function SireSelector({
     if (!q.trim()) { setResults([]); return }
     setSearching(true)
     try {
-      const res  = await fetch(`/api/genetics/sires/search?q=${encodeURIComponent(q)}`)
+      const res  = await apiGet(`/api/genetics/sires/search?q=${encodeURIComponent(q)}`)
       const data = await res.json()
       setResults(Array.isArray(data) ? data : [])
     } finally { setSearching(false) }

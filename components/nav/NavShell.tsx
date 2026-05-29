@@ -21,6 +21,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { apiFetch, apiGet } from '@/lib/fetch'
 
 const NAV_ITEMS = [
   { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
@@ -41,7 +42,7 @@ const NAV_ITEMS = [
 const BOTTOM_TABS = NAV_ITEMS.slice(0, 4)
 
 async function handleLogout() {
-  await fetch('/api/auth/logout', { method: 'POST' })
+  await apiFetch('/api/auth/logout', { method: 'POST' })
   window.location.href = '/login'
 }
 
@@ -101,12 +102,12 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
-    fetch('/api/messages/unread-count')
+    apiGet('/api/messages/unread-count')
       .then(r => r.json())
       .then(d => setUnreadCount(d.count ?? 0))
       .catch(() => {})
     const interval = setInterval(() => {
-      fetch('/api/messages/unread-count')
+      apiGet('/api/messages/unread-count')
         .then(r => r.json())
         .then(d => setUnreadCount(d.count ?? 0))
         .catch(() => {})

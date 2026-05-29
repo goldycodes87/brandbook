@@ -6,6 +6,7 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Field, Textarea } from '@/components/ui/Field'
+import { apiGet, apiPost } from '@/lib/fetch'
 
 interface VetMessage {
   id: string
@@ -29,7 +30,7 @@ export default function VetMessagesPage() {
 
   const loadMessages = async () => {
     try {
-      const res  = await fetch('/api/vet/messages')
+      const res  = await apiGet('/api/vet/messages')
       const data = await res.json()
       setMessages(data.data ?? [])
     } finally {
@@ -45,11 +46,7 @@ export default function VetMessagesPage() {
     setSending(true)
     setError('')
     try {
-      const res = await fetch('/api/vet/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message_body: body }),
-      })
+      const res = await apiPost('/api/vet/messages', { message_body: body })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Failed'); return }
       setBody('')
       loadMessages()

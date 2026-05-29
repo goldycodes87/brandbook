@@ -6,6 +6,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Button } from '@/components/ui/Button'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
+import { apiPost } from '@/lib/fetch'
 
 type Mode    = 'upload' | 'draw'
 type PenSize = 'sm' | 'md' | 'lg'
@@ -61,7 +62,7 @@ export function BrandDrawingPad({ onSave, existingUrl }: BrandDrawingPadProps) {
       const blob    = dataURLToBlob(dataUrl)
       const fd      = new FormData()
       fd.append('image', blob, 'brand-drawing.png')
-      const res  = await fetch('/api/settings/upload-brand', { method: 'POST', body: fd })
+      const res  = await apiPost('/api/settings/upload-brand', fd)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Upload failed'); return }
       onSave(data.url)
@@ -80,7 +81,7 @@ export function BrandDrawingPad({ onSave, existingUrl }: BrandDrawingPadProps) {
     try {
       const fd = new FormData()
       fd.append('image', file)
-      const res  = await fetch('/api/settings/upload-brand', { method: 'POST', body: fd })
+      const res  = await apiPost('/api/settings/upload-brand', fd)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Upload failed'); return }
       onSave(data.url)

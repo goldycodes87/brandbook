@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { LayoutDashboard, Beef, Folder, MessageSquare, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
+import { apiDelete } from '@/lib/fetch'
 
 const NAV = [
   { href: '/vet/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
@@ -15,7 +16,7 @@ const NAV = [
 ]
 
 async function doLogout() {
-  await fetch('/api/vet/session', { method: 'DELETE' })
+  await apiDelete('/api/vet/session')
   window.location.href = '/'
 }
 

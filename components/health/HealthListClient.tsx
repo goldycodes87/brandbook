@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP } from '@/components/ui/tokens'
 import { HealthEventForm, type HealthEventData } from '@/components/health/HealthEventForm'
+import { apiGet } from '@/lib/fetch'
 
 function fmtDate(d: string | null): string {
   if (!d) return '—'
@@ -31,7 +32,7 @@ export function HealthListClient() {
       const params = new URLSearchParams()
       if (sp.get('event_type'))    params.set('event_type', sp.get('event_type')!)
       if (sp.get('in_withdrawal')) params.set('in_withdrawal', sp.get('in_withdrawal')!)
-      const res  = await fetch(`/api/health?${params}`)
+      const res  = await apiGet(`/api/health?${params}`)
       const data = await res.json()
       setEvents(Array.isArray(data) ? data : (data.data ?? []))
     } finally {

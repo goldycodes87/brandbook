@@ -14,6 +14,7 @@ import { Button, ButtonLink } from '@/components/ui/Button'
 import { ActionFooter } from '@/components/ui/ActionFooter'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
+import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
 
 // ── Ear tag color picker ──────────────────────────────────────────────────────
 
@@ -162,12 +163,12 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
   })
 
   useEffect(() => {
-    fetch('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
+    apiGet('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
   }, [])
 
   // Fetch and populate on mount
   useEffect(() => {
-    fetch(`/api/animals/${id}`)
+    apiGet(`/api/animals/${id}`)
       .then(async r => {
         if (!r.ok) { setNotFound(true); setLoading(false); return }
         const { data: animal } = await r.json()
@@ -235,7 +236,7 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
         const fd = new FormData()
         fd.append('audio', blob, `recording.${ext}`)
         try {
-          const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd })
+          const res = await apiPost('/api/voice/transcribe', fd)
           const result = await res.json()
           if (!res.ok) return
           setVoiceResult({ transcript: result.transcript, fields: result.fields ?? {} })
@@ -261,7 +262,7 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch(`/api/animals/${id}/photos`, { method: 'POST', body: fd })
+      const res = await apiPost(`/api/animals/${id}/photos`, fd)
       if (res.ok) {
         const data = await res.json()
         setPhotoUrls(data.photos)
@@ -290,11 +291,7 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
         breeds:           breeds.length > 0 ? breeds : null,
         photos:           photoUrls,
       })
-      const res = await fetch(`/api/animals/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(raw),
-      })
+      const res = await apiPatch(`/api/animals/${id}`, raw)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Save failed'); return }
       router.push(`/animals/${id}`)

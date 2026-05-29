@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { EmptyState } from '@/components/ui/EmptyState'
 import Link from 'next/link'
+import { apiGet, apiPost } from '@/lib/fetch'
 
 interface VetCase {
   id: string
@@ -35,7 +36,7 @@ export default function VetCasesPage() {
   const [error, setError]       = useState('')
 
   useEffect(() => {
-    fetch('/api/vet/cases')
+    apiGet('/api/vet/cases')
       .then(r => r.json())
       .then(d => { setCases(d.data ?? []); setLoading(false) })
       .catch(() => setLoading(false))
@@ -47,7 +48,7 @@ export default function VetCasesPage() {
     setSaving(true)
     setError('')
     try {
-      const res  = await fetch('/api/vet/cases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, description: desc }) })
+      const res  = await apiPost('/api/vet/cases', { title, description: desc })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to create case'); return }
       setCases(prev => [data.data, ...prev])

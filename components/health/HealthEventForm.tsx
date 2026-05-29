@@ -12,6 +12,7 @@ import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DrugSelector, type DrugRecord } from '@/components/health/DrugSelector'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
 type EventType = 'treatment' | 'vaccine' | 'vet_visit' | 'illness' | 'bcs_log'
 
@@ -102,7 +103,7 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
   useEffect(() => {
     if (isEdit || initialData) return
     if (defaultAdministeredBy) { setValue('administered_by', defaultAdministeredBy); return }
-    fetch('/api/settings/ranch').then(r => r.json()).then(d => {
+    apiGet('/api/settings/ranch').then(r => r.json()).then(d => {
       const val = (d.data ?? d).default_administered_by
       if (val) { setValue('administered_by', val) }
     }).catch(() => {})
@@ -147,10 +148,8 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
         notes:                values.notes || null,
       }
 
-      const url    = isEdit ? `/api/health/${eventId}` : '/api/health'
-      const method = isEdit ? 'PATCH' : 'POST'
-
-      const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const url = isEdit ? `/api/health/${eventId}` : '/api/health'
+      const res = await (isEdit ? apiPatch(url, payload) : apiPost(url, payload))
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
       onSuccess?.()
@@ -165,7 +164,7 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
     if (!eventId) return
     setDeleting(true)
     try {
-      const res = await fetch(`/api/health/${eventId}`, { method: 'DELETE' })
+      const res = await apiDelete(`/api/health/${eventId}`)
       if (!res.ok && res.status !== 204) {
         const j = await res.json().catch(() => ({}))
         setError(j.error ?? 'Delete failed')

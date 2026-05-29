@@ -10,6 +10,7 @@ import { ActionFooter } from '@/components/ui/ActionFooter'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import type { SireLibraryRecord } from './SireCard'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
 const schema = z.object({
   bull_name:           z.string().min(1, 'Name required'),
@@ -116,10 +117,8 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
         acc_bw: toNum(values.acc_bw), acc_ww: toNum(values.acc_ww), acc_yw: toNum(values.acc_yw),
       }
 
-      const url    = isEdit ? `/api/genetics/sires/${editSire!.id}` : '/api/genetics/sires'
-      const method = isEdit ? 'PATCH' : 'POST'
-
-      const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const url = isEdit ? `/api/genetics/sires/${editSire!.id}` : '/api/genetics/sires'
+      const res = await (isEdit ? apiPatch(url, payload) : apiPost(url, payload))
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
       onClose()
@@ -135,7 +134,7 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
     if (!editSire) return
     setDeleting(true)
     try {
-      const res = await fetch(`/api/genetics/sires/${editSire.id}`, { method: 'DELETE' })
+      const res = await apiDelete(`/api/genetics/sires/${editSire.id}`)
       if (!res.ok && res.status !== 204) {
         const j = await res.json().catch(() => ({}))
         setError(j.error ?? 'Delete failed')
