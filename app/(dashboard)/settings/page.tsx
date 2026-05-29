@@ -16,7 +16,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
 import { AddOwnerSheet, type GrazingOwner } from '@/components/settings/AddOwnerSheet'
-import { Check, Download } from 'lucide-react'
+import { Check, Download, Tag, AlertTriangle, FileText, MapPin, Calendar } from 'lucide-react'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -700,19 +700,127 @@ function DataTab() {
   )
 }
 
-// ─── Custom Fields Tab ────────────────────────────────────────────────────────
+// ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
-function CustomTab() {
+const DEFAULT_DASHBOARD_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'active_leases']
+const MAX_STATS = 4
+
+const AVAILABLE_STATS = [
+  { key: 'total_animals',      label: 'Total Animals',       Icon: Tag },
+  { key: 'active_bulls',       label: 'Active Bulls',        Icon: Tag },
+  { key: 'cows_heifers',       label: 'Cows & Heifers',      Icon: Tag },
+  { key: 'calves',             label: 'Calves',              Icon: Tag },
+  { key: 'in_withdrawal',      label: 'In Withdrawal',       Icon: AlertTriangle },
+  { key: 'open_invoices',      label: 'Open Invoices',       Icon: FileText },
+  { key: 'active_leases',      label: 'Active Leases',       Icon: MapPin },
+  { key: 'confirmed_pregnant', label: 'Confirmed Pregnant',  Icon: Calendar },
+  { key: 'expected_calvings',  label: 'Calvings (30 days)',  Icon: Calendar },
+  { key: 'calves_born',        label: 'Calves Born',         Icon: Tag },
+]
+
+function DashboardTab() {
+  const [saved, setSaved]         = useState<string[]>(DEFAULT_DASHBOARD_STATS)
+  const [selected, setSelected]   = useState<string[]>(DEFAULT_DASHBOARD_STATS)
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
+  const [showSaved, setShowSaved] = useState(false)
+
+  useEffect(() => {
+    apiGet('/api/settings/notifications')
+      .then(r => r.json())
+      .then(d => {
+        const stats = (d.data?.dashboard_stats ?? d.dashboard_stats) as string[] | null
+        const initial = Array.isArray(stats) && stats.length > 0 ? stats : DEFAULT_DASHBOARD_STATS
+        setSaved(initial)
+        setSelected(initial)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  const toggle = (key: string) => {
+    setSelected(prev => {
+      if (prev.includes(key)) return prev.filter(k => k !== key)
+      if (prev.length >= MAX_STATS) return prev
+      return [...prev, key]
+    })
+  }
+
+  const isDirty = JSON.stringify([...selected].sort()) !== JSON.stringify([...saved].sort())
+
+  const handleSave = async () => {
+    setSaving(true); setError(''); setShowSaved(false)
+    try {
+      const res = await apiPatch('/api/settings/notifications', { dashboard_stats: selected })
+      if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Save failed'); return }
+      setSaved(selected)
+      setShowSaved(true)
+      setTimeout(() => setShowSaved(false), 3000)
+    } catch { setError('Connection error') }
+    finally { setSaving(false) }
+  }
+
+  if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
+
   return (
     <div className="flex flex-col gap-6">
-      <ContextBanner tone="neutral">
-        Custom fields are coming in a future update.
-      </ContextBanner>
-      <EmptyState
-        variant="neutral"
-        title="Custom fields"
-        body="Define additional fields for your animals, health records, and more."
-      />
+      <Panel title="DASHBOARD STATS" subtitle="Choose up to 4 metrics to show on your dashboard">
+        <div className="px-4 pb-4 flex flex-col gap-4">
+          <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5">
+            {AVAILABLE_STATS.map(({ key, label, Icon }) => {
+              const isSelected = selected.includes(key)
+              const isDisabled = !isSelected && selected.length >= MAX_STATS
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => toggle(key)}
+                  className="relative flex flex-col items-start gap-2 rounded-[var(--radius-lg)] text-left transition-all duration-100"
+                  style={{
+                    padding: '12px',
+                    border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                    background: isSelected ? 'var(--accent-soft)' : 'var(--surface-2)',
+                    opacity: isDisabled ? 0.4 : 1,
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {isSelected && (
+                    <Check
+                      size={12}
+                      className="absolute top-2 right-2"
+                      style={{ color: 'var(--accent)' }}
+                    />
+                  )}
+                  <Icon size={16} style={{ color: 'var(--accent)' }} />
+                  <span className="type-section-label leading-tight" style={{ color: 'var(--text)' }}>{label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+            {selected.length} of {MAX_STATS} selected
+          </p>
+
+          {error && (
+            <p className="type-helper px-3 py-2 rounded" style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
+              {error}
+            </p>
+          )}
+
+          {showSaved && (
+            <ContextBanner tone="success">Dashboard updated</ContextBanner>
+          )}
+
+          <div className="flex justify-end">
+            <Button intent="primary" size="sm" loading={saving} disabled={!isDirty} onClick={handleSave}>
+              SAVE DASHBOARD
+            </Button>
+          </div>
+        </div>
+      </Panel>
     </div>
   )
 }
@@ -815,7 +923,7 @@ function GrazingTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'ranch' | 'account' | 'notifications' | 'users' | 'grazing' | 'data' | 'custom'
+type Tab = 'ranch' | 'account' | 'notifications' | 'users' | 'grazing' | 'data' | 'dashboard'
 
 const TABS: TabItem[] = [
   { value: 'ranch',         label: 'Ranch Profile' },
@@ -824,7 +932,7 @@ const TABS: TabItem[] = [
   { value: 'users',         label: 'Users & Access' },
   { value: 'grazing',       label: 'Custom Grazing' },
   { value: 'data',          label: 'Data' },
-  { value: 'custom',        label: 'Custom Fields' },
+  { value: 'dashboard',     label: 'Dashboard' },
 ]
 
 export default function SettingsPage() {
@@ -840,7 +948,7 @@ export default function SettingsPage() {
       {tab === 'users'         && <UsersTab />}
       {tab === 'grazing'       && <GrazingTab />}
       {tab === 'data'          && <DataTab />}
-      {tab === 'custom'        && <CustomTab />}
+      {tab === 'dashboard'     && <DashboardTab />}
     </PageContainer>
   )
 }
