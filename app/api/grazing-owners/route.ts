@@ -6,9 +6,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function GET() {
   const supabase = createAdminClient()
   const { data, error } = await supabase
-    .from('sales')
-    .select('*, animal:animal_id ( tag_number, name )')
-    .order('sale_date', { ascending: false })
+    .from('grazing_owners')
+    .select('id, name, email, profile_id')
+    .order('name', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data: data ?? [] })
+  return NextResponse.json(data ?? [])
 }

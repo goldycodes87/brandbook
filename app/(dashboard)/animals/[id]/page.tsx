@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
 import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
+import { SellAnimalSheet } from '@/components/animals/SellAnimalSheet'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
@@ -673,6 +674,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   const [logOpen, setLogOpen]         = useState(false)
   const [weightOpen, setWeightOpen]   = useState(false)
   const [reproOpen, setReproOpen]     = useState(false)
+  const [sellOpen, setSellOpen]       = useState(false)
 
   const fetchAnimal = useCallback(() => {
     fetch(`/api/animals/${id}`)
@@ -731,6 +733,16 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
         <Button intent="secondary" size="sm" onClick={() => setLogOpen(true)}>HEALTH EVENT</Button>
         {animal.sex !== 'steer' && (
           <Button intent="secondary" size="sm" onClick={() => setReproOpen(true)}>REPRO EVENT</Button>
+        )}
+        {animal.status === 'active' && (
+          <Button
+            intent="secondary"
+            size="sm"
+            style={{ borderColor: 'var(--success-border)', color: 'var(--success-fg)' }}
+            onClick={() => setSellOpen(true)}
+          >
+            SELL
+          </Button>
         )}
         <ButtonLink href={`/animals/${id}/edit`} intent="ghost" size="sm">EDIT ANIMAL</ButtonLink>
       </div>
@@ -802,6 +814,14 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
       )}
+
+      {/* Sell animal sheet */}
+      <SellAnimalSheet
+        isOpen={sellOpen}
+        onClose={() => setSellOpen(false)}
+        animal={{ id, tag_number: animal.tag_number, name: animal.name, sex: animal.sex }}
+        onSuccess={() => { setSellOpen(false); fetchAnimal() }}
+      />
     </PageContainer>
   )
 }

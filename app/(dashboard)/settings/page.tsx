@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Panel, PanelSection } from '@/components/ui/Panel'
@@ -15,6 +15,7 @@ import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
+import { Download } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -527,6 +528,33 @@ function UsersTab() {
 // ─── Data Tab ─────────────────────────────────────────────────────────────────
 
 function DataTab() {
+  const csvRef = useRef<HTMLInputElement>(null)
+  const [csvFile, setCsvFile]         = useState<File | null>(null)
+  const [importing, setImporting]     = useState(false)
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
+  const [importError, setImportError] = useState('')
+
+  const handleImport = async () => {
+    if (!csvFile) return
+    setImporting(true)
+    setImportResult(null)
+    setImportError('')
+    try {
+      const fd = new FormData()
+      fd.append('csv', csvFile)
+      const res  = await fetch('/api/animals/bulk-import', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok) { setImportError(json.error ?? 'Import failed'); return }
+      setImportResult(json)
+      setCsvFile(null)
+      if (csvRef.current) csvRef.current.value = ''
+    } catch {
+      setImportError('Connection error')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const exports = [
     { label: 'Animals', description: 'All animals with tags, breed, status', href: '/api/export/animals' },
     { label: 'Weight history', description: 'All recorded weights by animal', href: '/api/export/weights' },
@@ -536,6 +564,74 @@ function DataTab() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Bulk Import */}
+      <Panel title="BULK ANIMAL IMPORT">
+        <PanelSection>
+          <ContextBanner tone="info">
+            Fill in the template and upload to import multiple animals at once.
+          </ContextBanner>
+
+          <div className="mt-4 flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <a href="/templates/animals-import-template.csv" download>
+                <Button intent="ghost" size="sm" leading={<Download size={14} />}>
+                  DOWNLOAD TEMPLATE
+                </Button>
+              </a>
+              <span className="type-helper" style={{ color: 'var(--text-muted)' }}>animals-import-template.csv</span>
+            </div>
+
+            <input
+              ref={csvRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={e => { setCsvFile(e.target.files?.[0] ?? null); setImportResult(null); setImportError('') }}
+            />
+
+            {csvFile ? (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                <span className="type-data-sm truncate">{csvFile.name}</span>
+                <button type="button" className="type-helper" style={{ color: 'var(--accent)' }} onClick={() => { setCsvFile(null); if (csvRef.current) csvRef.current.value = '' }}>change</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => csvRef.current?.click()}
+                className="w-full px-4 py-5 rounded-lg border-2 border-dashed text-center"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+              >
+                <div className="type-field-label mb-0.5">TAP TO SELECT CSV FILE</div>
+                <div className="type-helper">.csv format only</div>
+              </button>
+            )}
+
+            {importError && (
+              <p className="type-helper px-3 py-2 rounded" style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
+                {importError}
+              </p>
+            )}
+
+            {importResult && (
+              <ContextBanner tone={importResult.imported > 0 ? 'success' : 'warning'} eyebrow="IMPORT COMPLETE">
+                <strong>{importResult.imported}</strong> animal{importResult.imported !== 1 ? 's' : ''} imported
+                {importResult.skipped > 0 && `, ${importResult.skipped} skipped`}.
+                {importResult.errors.length > 0 && (
+                  <ul className="mt-1 list-disc list-inside">
+                    {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                )}
+              </ContextBanner>
+            )}
+
+            <Button intent="primary" size="sm" disabled={!csvFile} loading={importing} onClick={handleImport}>
+              IMPORT ANIMALS
+            </Button>
+          </div>
+        </PanelSection>
+      </Panel>
+
+      {/* Export Data */}
       <Panel title="EXPORT DATA">
         <PanelSection>
           <p className="type-body mb-4" style={{ color: 'var(--text-secondary)' }}>

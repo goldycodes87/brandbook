@@ -6,6 +6,7 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Mic, MicOff, Plus, Trash2, Upload, Check } from 'lucide-react'
+import { useEffect } from 'react'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Panel, PanelSection } from '@/components/ui/Panel'
@@ -129,10 +130,13 @@ const FIELD_LABELS: Record<string, string> = {
   breed_percentage: 'Breed %',
 }
 
+interface GrazingOwner { id: string; name: string; profile_id: string | null }
+
 export default function NewAnimalPage() {
   const router = useRouter()
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
+  const [owners, setOwners]                 = useState<GrazingOwner[]>([])
   const [recording, setRecording]           = useState<RecordingState>('idle')
   const [voiceResult, setVoiceResult]       = useState<VoiceResult | null>(null)
   const [showVoiceModal, setShowVoiceModal] = useState(false)
@@ -150,6 +154,10 @@ export default function NewAnimalPage() {
   })
 
   const earTagColor = watch('ear_tag_color') ?? ''
+
+  useEffect(() => {
+    fetch('/api/grazing-owners').then(r => r.json()).then(d => { if (Array.isArray(d)) setOwners(d) }).catch(() => {})
+  }, [])
 
   const { fields: regFields, append: addReg, remove: removeReg } = useFieldArray({
     control,
@@ -525,6 +533,23 @@ export default function NewAnimalPage() {
                 <Input {...register('sire_id')} placeholder="Optional" />
               </Field>
             </div>
+          </PanelSection>
+        </Panel>
+
+        {/* Panel 5b — Owner */}
+        <Panel title="OWNER">
+          <PanelSection>
+            <Field label="Owner" helper="Leave blank if this is your animal">
+              <Select
+                value={watch('owner_id') || ''}
+                onChange={e => setValue('owner_id', e.target.value || undefined)}
+              >
+                <option value="">My Animal</option>
+                {owners.map(o => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </Select>
+            </Field>
           </PanelSection>
         </Panel>
 

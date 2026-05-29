@@ -134,6 +134,7 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params)
   const router = useRouter()
 
+  const [owners, setOwners]                 = useState<{ id: string; name: string; profile_id: string | null }[]>([])
   const [loading, setLoading]               = useState(true)
   const [notFound, setNotFound]             = useState(false)
   const [saving, setSaving]                 = useState(false)
@@ -159,6 +160,10 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
     control,
     name: 'registration_numbers',
   })
+
+  useEffect(() => {
+    fetch('/api/grazing-owners').then(r => r.json()).then(d => { if (Array.isArray(d)) setOwners(d) }).catch(() => {})
+  }, [])
 
   // Fetch and populate on mount
   useEffect(() => {
@@ -511,6 +516,23 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
                 <Input {...register('sire_id')} placeholder="Optional" />
               </Field>
             </div>
+          </PanelSection>
+        </Panel>
+
+        {/* Panel 5b — Owner */}
+        <Panel title="OWNER">
+          <PanelSection>
+            <Field label="Owner" helper="Leave blank if this is your animal">
+              <Select
+                value={watch('owner_id') || ''}
+                onChange={e => setValue('owner_id', e.target.value || undefined)}
+              >
+                <option value="">My Animal</option>
+                {owners.map(o => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </Select>
+            </Field>
           </PanelSection>
         </Panel>
 
