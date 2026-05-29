@@ -137,13 +137,13 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[100]"
+        className="fixed inset-0 z-[100] flex items-end md:items-center md:justify-center"
         style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
         onClick={onClose}
       >
-        {/* Sheet */}
+        {/* Sheet — positioned by flexbox on backdrop, NOT fixed */}
         <div
-          className="fixed bottom-0 left-0 right-0 rounded-t-xl md:relative md:rounded-xl md:mx-auto md:mt-10 md:max-w-[480px] flex flex-col"
+          className="w-full rounded-t-xl md:rounded-xl md:max-w-lg flex flex-col"
           style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh' }}
           onClick={e => e.stopPropagation()}
         >
@@ -167,8 +167,8 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
 
           {/* Scrollable body */}
           <div
-            className="flex-1 overflow-y-auto overscroll-contain flex flex-col gap-4"
-            style={{ padding: '20px' }}
+            className="flex-1 overflow-y-auto flex flex-col gap-4"
+            style={{ padding: '20px', WebkitOverflowScrolling: 'touch' }}
           >
             {/* Contact */}
             <Panel title="CONTACT">
