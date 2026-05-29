@@ -15,9 +15,23 @@ import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
-import { Download } from 'lucide-react'
+import { AddOwnerSheet, type GrazingOwner } from '@/components/settings/AddOwnerSheet'
+import { Check, Download } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+const EAR_TAG_COLORS = [
+  { name: 'Yellow',  hex: '#F5C518' },
+  { name: 'Orange',  hex: '#F97316' },
+  { name: 'White',   hex: '#F3F4F6' },
+  { name: 'Green',   hex: '#22C55E' },
+  { name: 'Blue',    hex: '#3B82F6' },
+  { name: 'Red',     hex: '#EF4444' },
+  { name: 'Pink',    hex: '#EC4899' },
+  { name: 'Purple',  hex: '#A855F7' },
+  { name: 'Silver',  hex: '#9CA3AF' },
+  { name: 'Black',   hex: '#1F2937' },
+]
 
 interface RanchSettings {
   ranch_name: string
@@ -31,6 +45,9 @@ interface RanchSettings {
   timezone: string
   logo_url: string
   brand_photo_url: string
+  default_ear_tag_color: string
+  default_breed: string
+  default_administered_by: string
 }
 
 interface Profile {
@@ -66,6 +83,7 @@ function RanchTab() {
   const [form, setForm] = useState<RanchSettings>({
     ranch_name: '', owner_name: '', address: '', city: '', state: '', zip: '',
     phone: '', email: '', timezone: 'America/Denver', logo_url: '', brand_photo_url: '',
+    default_ear_tag_color: '', default_breed: '', default_administered_by: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -180,6 +198,50 @@ function RanchTab() {
             existingUrl={form.brand_photo_url || undefined}
             onSave={handleBrandSave}
           />
+        </PanelSection>
+      </Panel>
+
+      <Panel title="CATTLE DEFAULTS" subtitle="Applied to your animals when no owner is assigned">
+        <PanelSection>
+          <div className="flex flex-col gap-4">
+            <Field label="Default ear tag color">
+              <div className="flex flex-wrap gap-2 mt-1">
+                {EAR_TAG_COLORS.map(c => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    title={c.name}
+                    onClick={() => setForm(f => ({ ...f, default_ear_tag_color: f.default_ear_tag_color === c.name ? '' : c.name }))}
+                    className="relative w-8 h-8 rounded-full transition-transform duration-100 active:scale-90"
+                    style={{
+                      backgroundColor: c.hex,
+                      border: form.default_ear_tag_color === c.name ? '3px solid var(--accent)' : '2px solid var(--border)',
+                      boxShadow: form.default_ear_tag_color === c.name ? '0 0 0 1px var(--accent)' : undefined,
+                    }}
+                  >
+                    {form.default_ear_tag_color === c.name && (
+                      <Check
+                        size={14}
+                        className="absolute inset-0 m-auto"
+                        style={{ color: c.name === 'White' || c.name === 'Yellow' || c.name === 'Silver' ? '#000' : '#fff' }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Default breed">
+              <Input value={form.default_breed} onChange={set('default_breed')} placeholder="e.g. Angus" list="ranch-breed-list" />
+              <datalist id="ranch-breed-list">
+                {['Angus', 'Hereford', 'Simmental', 'Charolais', 'Limousin', 'Gelbvieh', 'Red Angus', 'Shorthorn', 'Black Baldy', 'Crossbred'].map(b => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Default administered by" helper="Pre-fills the 'administered by' field on health events">
+              <Input value={form.default_administered_by} onChange={set('default_administered_by')} placeholder="Your name or role" />
+            </Field>
+          </div>
         </PanelSection>
       </Panel>
 
@@ -674,15 +736,112 @@ function CustomTab() {
   )
 }
 
+// ─── Grazing Tab ─────────────────────────────────────────────────────────────
+
+function GrazingTab() {
+  const [owners, setOwners]       = useState<GrazingOwner[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editing, setEditing]     = useState<GrazingOwner | null>(null)
+  const [deleteError, setDeleteError] = useState('')
+
+  const load = useCallback(() => {
+    setLoading(true)
+    fetch('/api/grazing-owners')
+      .then(r => r.json())
+      .then(d => { setOwners(Array.isArray(d.data) ? d.data : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>
+          {owners.length} OWNER{owners.length !== 1 ? 'S' : ''}
+        </p>
+        <Button intent="primary" size="sm" onClick={() => { setEditing(null); setSheetOpen(true) }}>
+          + ADD OWNER
+        </Button>
+      </div>
+
+      {deleteError && (
+        <p className="type-helper px-3 py-2 rounded" style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
+          {deleteError}
+          <button type="button" className="ml-2 underline" onClick={() => setDeleteError('')}>dismiss</button>
+        </p>
+      )}
+
+      {owners.length === 0 ? (
+        <EmptyState
+          variant="neutral"
+          title="No custom grazing owners"
+          body="Add cattle owners to track their animals separately and generate invoices."
+          action={<Button intent="primary" size="sm" onClick={() => { setEditing(null); setSheetOpen(true) }}>+ ADD OWNER</Button>}
+        />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {owners.map(owner => {
+            const tagColor = EAR_TAG_COLORS.find(c => c.name === owner.default_ear_tag_color)
+            return (
+              <div
+                key={owner.id}
+                className="flex items-center justify-between gap-3 px-4 py-3 rounded-[var(--radius-lg)]"
+                style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {tagColor && (
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: tagColor.hex, border: '1px solid var(--border-strong)' }}
+                      title={tagColor.name}
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate" style={{ color: 'var(--text)' }}>{owner.name}</p>
+                    <p className="type-helper truncate" style={{ color: 'var(--text-muted)' }}>
+                      {[owner.email, owner.phone].filter(Boolean).join(' · ')}
+                      {owner.default_breed && <span className="ml-1">· {owner.default_breed}</span>}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  intent="ghost"
+                  size="sm"
+                  onClick={() => { setEditing(owner); setSheetOpen(true) }}
+                >
+                  EDIT
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <AddOwnerSheet
+        isOpen={sheetOpen}
+        onClose={() => { setSheetOpen(false); setEditing(null) }}
+        onSuccess={load}
+        initialData={editing}
+        mode={editing ? 'edit' : 'create'}
+      />
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'ranch' | 'account' | 'notifications' | 'users' | 'data' | 'custom'
+type Tab = 'ranch' | 'account' | 'notifications' | 'users' | 'grazing' | 'data' | 'custom'
 
 const TABS: TabItem[] = [
   { value: 'ranch',         label: 'Ranch Profile' },
   { value: 'account',       label: 'My Account' },
   { value: 'notifications', label: 'Notifications' },
   { value: 'users',         label: 'Users & Access' },
+  { value: 'grazing',       label: 'Custom Grazing' },
   { value: 'data',          label: 'Data' },
   { value: 'custom',        label: 'Custom Fields' },
 ]
@@ -698,6 +857,7 @@ export default function SettingsPage() {
       {tab === 'account'       && <AccountTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'users'         && <UsersTab />}
+      {tab === 'grazing'       && <GrazingTab />}
       {tab === 'data'          && <DataTab />}
       {tab === 'custom'        && <CustomTab />}
     </PageContainer>

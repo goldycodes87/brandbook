@@ -162,7 +162,7 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
   })
 
   useEffect(() => {
-    fetch('/api/grazing-owners').then(r => r.json()).then(d => { if (Array.isArray(d)) setOwners(d) }).catch(() => {})
+    fetch('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
   }, [])
 
   // Fetch and populate on mount

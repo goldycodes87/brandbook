@@ -55,6 +55,7 @@ interface HealthEventFormProps {
   eventId?: string
   initialData?: HealthEventData
   mode?: 'create' | 'edit'
+  defaultAdministeredBy?: string
   onSuccess?: () => void
   onCancel?: () => void
   onDelete?: () => void
@@ -72,7 +73,7 @@ function addDays(date: Date, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-export function HealthEventForm({ animalId, eventId, initialData, mode = 'create', onSuccess, onCancel, onDelete }: HealthEventFormProps) {
+export function HealthEventForm({ animalId, eventId, initialData, mode = 'create', defaultAdministeredBy, onSuccess, onCancel, onDelete }: HealthEventFormProps) {
   const isEdit = mode === 'edit'
 
   const [eventType, setEventType]         = useState<EventType>((initialData?.event_type as EventType) ?? 'treatment')
@@ -84,7 +85,7 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
 
   const showDrug = eventType === 'treatment' || eventType === 'vaccine'
 
-  const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       event_date:      initialData?.event_date ?? new Date().toISOString().slice(0, 10),
@@ -97,6 +98,15 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
       notes:           initialData?.notes ?? '',
     },
   })
+
+  useEffect(() => {
+    if (isEdit || initialData) return
+    if (defaultAdministeredBy) { setValue('administered_by', defaultAdministeredBy); return }
+    fetch('/api/settings/ranch').then(r => r.json()).then(d => {
+      const val = (d.data ?? d).default_administered_by
+      if (val) { setValue('administered_by', val) }
+    }).catch(() => {})
+  }, [isEdit, initialData, defaultAdministeredBy, setValue])
 
   useEffect(() => {
     if (initialData) {

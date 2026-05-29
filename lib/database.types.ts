@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_studs: {
+        Row: {
+          id: string
+          logo_url: string | null
+          name: string
+          search_url: string | null
+          website: string | null
+        }
+        Insert: {
+          id?: string
+          logo_url?: string | null
+          name: string
+          search_url?: string | null
+          website?: string | null
+        }
+        Update: {
+          id?: string
+          logo_url?: string | null
+          name?: string
+          search_url?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
       animals: {
         Row: {
           age_class: string | null
@@ -41,6 +65,7 @@ export type Database = {
           registration_numbers: Json | null
           sex: Database["public"]["Enums"]["animal_sex"] | null
           sire_id: string | null
+          sire_library_id: string | null
           status: Database["public"]["Enums"]["animal_status"] | null
           tag_number: string
           updated_at: string | null
@@ -75,6 +100,7 @@ export type Database = {
           registration_numbers?: Json | null
           sex?: Database["public"]["Enums"]["animal_sex"] | null
           sire_id?: string | null
+          sire_library_id?: string | null
           status?: Database["public"]["Enums"]["animal_status"] | null
           tag_number: string
           updated_at?: string | null
@@ -109,6 +135,7 @@ export type Database = {
           registration_numbers?: Json | null
           sex?: Database["public"]["Enums"]["animal_sex"] | null
           sire_id?: string | null
+          sire_library_id?: string | null
           status?: Database["public"]["Enums"]["animal_status"] | null
           tag_number?: string
           updated_at?: string | null
@@ -144,6 +171,13 @@ export type Database = {
             columns: ["sire_id"]
             isOneToOne: false
             referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "animals_sire_library_id_fkey"
+            columns: ["sire_library_id"]
+            isOneToOne: false
+            referencedRelation: "sire_library"
             referencedColumns: ["id"]
           },
         ]
@@ -492,43 +526,73 @@ export type Database = {
       }
       grazing_owners: {
         Row: {
+          address: string | null
+          billing_address: string | null
           billing_rate: number | null
           billing_type: string | null
+          brand_drawing_url: string | null
           brand_photo: string | null
+          brand_photo_url: string | null
+          city: string | null
           created_at: string | null
+          default_breed: string | null
+          default_ear_tag_color: string | null
+          default_tag_prefix: string | null
           email: string | null
           id: string
           name: string
           notes: string | null
           phone: string | null
           profile_id: string | null
+          state: string | null
           stripe_customer_id: string | null
+          zip: string | null
         }
         Insert: {
+          address?: string | null
+          billing_address?: string | null
           billing_rate?: number | null
           billing_type?: string | null
+          brand_drawing_url?: string | null
           brand_photo?: string | null
+          brand_photo_url?: string | null
+          city?: string | null
           created_at?: string | null
+          default_breed?: string | null
+          default_ear_tag_color?: string | null
+          default_tag_prefix?: string | null
           email?: string | null
           id?: string
           name: string
           notes?: string | null
           phone?: string | null
           profile_id?: string | null
+          state?: string | null
           stripe_customer_id?: string | null
+          zip?: string | null
         }
         Update: {
+          address?: string | null
+          billing_address?: string | null
           billing_rate?: number | null
           billing_type?: string | null
+          brand_drawing_url?: string | null
           brand_photo?: string | null
+          brand_photo_url?: string | null
+          city?: string | null
           created_at?: string | null
+          default_breed?: string | null
+          default_ear_tag_color?: string | null
+          default_tag_prefix?: string | null
           email?: string | null
           id?: string
           name?: string
           notes?: string | null
           phone?: string | null
           profile_id?: string | null
+          state?: string | null
           stripe_customer_id?: string | null
+          zip?: string | null
         }
         Relationships: [
           {
@@ -896,6 +960,10 @@ export type Database = {
           brand_photo_url: string | null
           city: string | null
           created_at: string | null
+          default_administered_by: string | null
+          default_breed: string | null
+          default_ear_tag_color: string | null
+          default_ear_tag_color_owner: string | null
           email: string | null
           id: string
           logo_url: string | null
@@ -912,6 +980,10 @@ export type Database = {
           brand_photo_url?: string | null
           city?: string | null
           created_at?: string | null
+          default_administered_by?: string | null
+          default_breed?: string | null
+          default_ear_tag_color?: string | null
+          default_ear_tag_color_owner?: string | null
           email?: string | null
           id?: string
           logo_url?: string | null
@@ -928,6 +1000,10 @@ export type Database = {
           brand_photo_url?: string | null
           city?: string | null
           created_at?: string | null
+          default_administered_by?: string | null
+          default_breed?: string | null
+          default_ear_tag_color?: string | null
+          default_ear_tag_color_owner?: string | null
           email?: string | null
           id?: string
           logo_url?: string | null
@@ -960,6 +1036,7 @@ export type Database = {
           preg_check_method: string | null
           preg_check_result: string | null
           sire_id: string | null
+          sire_library_id: string | null
           sire_name_text: string | null
           weaning_date: string | null
           weaning_weight_lbs: number | null
@@ -982,6 +1059,7 @@ export type Database = {
           preg_check_method?: string | null
           preg_check_result?: string | null
           sire_id?: string | null
+          sire_library_id?: string | null
           sire_name_text?: string | null
           weaning_date?: string | null
           weaning_weight_lbs?: number | null
@@ -1004,6 +1082,7 @@ export type Database = {
           preg_check_method?: string | null
           preg_check_result?: string | null
           sire_id?: string | null
+          sire_library_id?: string | null
           sire_name_text?: string | null
           weaning_date?: string | null
           weaning_weight_lbs?: number | null
@@ -1035,6 +1114,13 @@ export type Database = {
             columns: ["sire_id"]
             isOneToOne: false
             referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reproduction_events_sire_library_id_fkey"
+            columns: ["sire_library_id"]
+            isOneToOne: false
+            referencedRelation: "sire_library"
             referencedColumns: ["id"]
           },
         ]
@@ -1124,6 +1210,222 @@ export type Database = {
           tank_id?: string | null
         }
         Relationships: []
+      }
+      sire_import_batches: {
+        Row: {
+          bulls_found: number | null
+          bulls_imported: number | null
+          created_at: string | null
+          error_text: string | null
+          id: string
+          imported_by: string | null
+          pdf_filename: string | null
+          pdf_url: string | null
+          status: string | null
+          stud: string
+        }
+        Insert: {
+          bulls_found?: number | null
+          bulls_imported?: number | null
+          created_at?: string | null
+          error_text?: string | null
+          id?: string
+          imported_by?: string | null
+          pdf_filename?: string | null
+          pdf_url?: string | null
+          status?: string | null
+          stud: string
+        }
+        Update: {
+          bulls_found?: number | null
+          bulls_imported?: number | null
+          created_at?: string | null
+          error_text?: string | null
+          id?: string
+          imported_by?: string | null
+          pdf_filename?: string | null
+          pdf_url?: string | null
+          status?: string | null
+          stud?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sire_import_batches_imported_by_fkey"
+            columns: ["imported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sire_library: {
+        Row: {
+          acc_bw: number | null
+          acc_ww: number | null
+          acc_yw: number | null
+          animal_id: string | null
+          birth_year: number | null
+          breed: string | null
+          bull_name: string
+          bull_type: string | null
+          community_status: string | null
+          created_at: string | null
+          epd_bw: number | null
+          epd_cw: number | null
+          epd_dollar_b: number | null
+          epd_dollar_f: number | null
+          epd_dollar_g: number | null
+          epd_dollar_w: number | null
+          epd_fat: number | null
+          epd_marbling: number | null
+          epd_milk: number | null
+          epd_raw_data: Json | null
+          epd_rea: number | null
+          epd_source: string | null
+          epd_tm: number | null
+          epd_updated_at: string | null
+          epd_ww: number | null
+          epd_yw: number | null
+          id: string
+          import_batch_id: string | null
+          is_active: boolean | null
+          lease_end: string | null
+          lease_fee: number | null
+          lease_from: string | null
+          lease_start: string | null
+          naab_code: string | null
+          notes: string | null
+          owner: string | null
+          pct_bw: number | null
+          pct_milk: number | null
+          pct_ww: number | null
+          pct_yw: number | null
+          photo_url: string | null
+          registration_number: string | null
+          source: string | null
+          stud: string | null
+          submitted_by: string | null
+          use_count: number | null
+        }
+        Insert: {
+          acc_bw?: number | null
+          acc_ww?: number | null
+          acc_yw?: number | null
+          animal_id?: string | null
+          birth_year?: number | null
+          breed?: string | null
+          bull_name: string
+          bull_type?: string | null
+          community_status?: string | null
+          created_at?: string | null
+          epd_bw?: number | null
+          epd_cw?: number | null
+          epd_dollar_b?: number | null
+          epd_dollar_f?: number | null
+          epd_dollar_g?: number | null
+          epd_dollar_w?: number | null
+          epd_fat?: number | null
+          epd_marbling?: number | null
+          epd_milk?: number | null
+          epd_raw_data?: Json | null
+          epd_rea?: number | null
+          epd_source?: string | null
+          epd_tm?: number | null
+          epd_updated_at?: string | null
+          epd_ww?: number | null
+          epd_yw?: number | null
+          id?: string
+          import_batch_id?: string | null
+          is_active?: boolean | null
+          lease_end?: string | null
+          lease_fee?: number | null
+          lease_from?: string | null
+          lease_start?: string | null
+          naab_code?: string | null
+          notes?: string | null
+          owner?: string | null
+          pct_bw?: number | null
+          pct_milk?: number | null
+          pct_ww?: number | null
+          pct_yw?: number | null
+          photo_url?: string | null
+          registration_number?: string | null
+          source?: string | null
+          stud?: string | null
+          submitted_by?: string | null
+          use_count?: number | null
+        }
+        Update: {
+          acc_bw?: number | null
+          acc_ww?: number | null
+          acc_yw?: number | null
+          animal_id?: string | null
+          birth_year?: number | null
+          breed?: string | null
+          bull_name?: string
+          bull_type?: string | null
+          community_status?: string | null
+          created_at?: string | null
+          epd_bw?: number | null
+          epd_cw?: number | null
+          epd_dollar_b?: number | null
+          epd_dollar_f?: number | null
+          epd_dollar_g?: number | null
+          epd_dollar_w?: number | null
+          epd_fat?: number | null
+          epd_marbling?: number | null
+          epd_milk?: number | null
+          epd_raw_data?: Json | null
+          epd_rea?: number | null
+          epd_source?: string | null
+          epd_tm?: number | null
+          epd_updated_at?: string | null
+          epd_ww?: number | null
+          epd_yw?: number | null
+          id?: string
+          import_batch_id?: string | null
+          is_active?: boolean | null
+          lease_end?: string | null
+          lease_fee?: number | null
+          lease_from?: string | null
+          lease_start?: string | null
+          naab_code?: string | null
+          notes?: string | null
+          owner?: string | null
+          pct_bw?: number | null
+          pct_milk?: number | null
+          pct_ww?: number | null
+          pct_yw?: number | null
+          photo_url?: string | null
+          registration_number?: string | null
+          source?: string | null
+          stud?: string | null
+          submitted_by?: string | null
+          use_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sire_library_animal_id_fkey"
+            columns: ["animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sire_library_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "sire_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sire_library_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       treatment_plans: {
         Row: {

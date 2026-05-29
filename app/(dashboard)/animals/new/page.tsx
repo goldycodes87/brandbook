@@ -130,13 +130,20 @@ const FIELD_LABELS: Record<string, string> = {
   breed_percentage: 'Breed %',
 }
 
-interface GrazingOwner { id: string; name: string; profile_id: string | null }
+interface GrazingOwner {
+  id: string; name: string; profile_id: string | null
+  default_ear_tag_color?: string | null
+  default_breed?: string | null
+}
+
+interface RanchDefaults { default_ear_tag_color?: string; default_breed?: string }
 
 export default function NewAnimalPage() {
   const router = useRouter()
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
   const [owners, setOwners]                 = useState<GrazingOwner[]>([])
+  const [ranchDefaults, setRanchDefaults]   = useState<RanchDefaults>({})
   const [recording, setRecording]           = useState<RecordingState>('idle')
   const [voiceResult, setVoiceResult]       = useState<VoiceResult | null>(null)
   const [showVoiceModal, setShowVoiceModal] = useState(false)
@@ -156,8 +163,24 @@ export default function NewAnimalPage() {
   const earTagColor = watch('ear_tag_color') ?? ''
 
   useEffect(() => {
-    fetch('/api/grazing-owners').then(r => r.json()).then(d => { if (Array.isArray(d)) setOwners(d) }).catch(() => {})
-  }, [])
+    fetch('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
+    fetch('/api/settings/ranch').then(r => r.json()).then(d => {
+      const s = d.data ?? d
+      setRanchDefaults({ default_ear_tag_color: s.default_ear_tag_color || undefined, default_breed: s.default_breed || undefined })
+      if (s.default_ear_tag_color) setValue('ear_tag_color', s.default_ear_tag_color)
+    }).catch(() => {})
+  }, [setValue])
+
+  const ownerId = watch('owner_id')
+  useEffect(() => {
+    if (!ownerId) {
+      if (ranchDefaults.default_ear_tag_color) setValue('ear_tag_color', ranchDefaults.default_ear_tag_color)
+      return
+    }
+    const owner = owners.find(o => o.id === ownerId)
+    if (owner?.default_ear_tag_color) setValue('ear_tag_color', owner.default_ear_tag_color)
+    else if (ranchDefaults.default_ear_tag_color) setValue('ear_tag_color', ranchDefaults.default_ear_tag_color)
+  }, [ownerId, owners, ranchDefaults, setValue])
 
   const { fields: regFields, append: addReg, remove: removeReg } = useFieldArray({
     control,
