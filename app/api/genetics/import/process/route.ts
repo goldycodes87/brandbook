@@ -95,20 +95,78 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'AI extraction failed: ' + (e as Error).message }, { status: 500 })
   }
 
-  // Parse JSON — strip markdown fences, then find array with regex as fallback
-  let bulls: unknown[]
-  try {
-    const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+  const rawText = responseText
+
+  console.log('[process] response length:', rawText.length)
+  console.log('[process] first 300:', rawText.slice(0, 300))
+  console.log('[process] last 200:', rawText.slice(-200))
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let bulls: any[] = []
+
+  // Strategy 1: direct parse — response starts with [
+  if (!bulls.length) {
     try {
-      bulls = JSON.parse(cleaned)
-    } catch {
-      const match = cleaned.match(/\[[\s\S]*\]/)
-      if (!match) throw new Error('no array found')
-      bulls = JSON.parse(match[0])
-    }
-    if (!Array.isArray(bulls)) bulls = []
-  } catch {
-    return NextResponse.json({ error: 'Could not parse AI response', raw: responseText }, { status: 422 })
+      const trimmed = rawText.trim()
+      if (trimmed.startsWith('[')) {
+        bulls = JSON.parse(trimmed)
+        console.log('[process] strategy 1 success:', bulls.length)
+      }
+    } catch (_) {}
+  }
+
+  // Strategy 2: strip markdown fences then parse
+  if (!bulls.length) {
+    try {
+      const stripped = rawText.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim()
+      if (stripped.startsWith('[')) {
+        bulls = JSON.parse(stripped)
+        console.log('[process] strategy 2 success:', bulls.length)
+      }
+    } catch (_) {}
+  }
+
+  // Strategy 3: find array anywhere in the text
+  if (!bulls.length) {
+    try {
+      const start = rawText.indexOf('[')
+      const end   = rawText.lastIndexOf(']')
+      if (start !== -1 && end !== -1 && end > start) {
+        bulls = JSON.parse(rawText.slice(start, end + 1))
+        console.log('[process] strategy 3 success:', bulls.length)
+      }
+    } catch (_) {}
+  }
+
+  // Strategy 4: Claude returned individual objects instead of an array
+  if (!bulls.length) {
+    try {
+      const objects: unknown[] = []
+      const regex = /\{[^{}]*\}/g
+      let match
+      while ((match = regex.exec(rawText)) !== null) {
+        try { objects.push(JSON.parse(match[0])) } catch (_) {}
+      }
+      if (objects.length > 0) {
+        bulls = objects
+        console.log('[process] strategy 4 success:', bulls.length)
+      }
+    } catch (_) {}
+  }
+
+  console.log('[process] final bull count:', bulls.length)
+
+  if (bulls.length === 0) {
+    console.log('[process] all strategies failed, raw sample:', rawText.slice(0, 1000))
+    return NextResponse.json({
+      stud:         stud || 'Unknown',
+      pdf_url:      pdfUrl,
+      pdf_filename: pdfFilename,
+      bulls:        [],
+      bulls_found:  0,
+      warning:      'No bulls could be parsed from AI response',
+      raw_sample:   rawText.slice(0, 500),
+    })
   }
 
   return NextResponse.json({
@@ -116,5 +174,6 @@ export async function POST(req: NextRequest) {
     pdf_url:      pdfUrl,
     pdf_filename: pdfFilename,
     bulls,
+    bulls_found:  bulls.length,
   })
 }
