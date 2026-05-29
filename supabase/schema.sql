@@ -321,4 +321,57 @@ alter table reproduction_events add column if not exists preg_check_method text;
 alter table reproduction_events add column if not exists days_bred int;
 alter table reproduction_events add column if not exists donor_dam_id uuid references animals(id);
 
+-- ─── Sire Library ──────────────────────────────────────────────────────────
+
+create table if not exists ai_studs (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  short_name text,
+  website    text,
+  is_active  boolean default true,
+  created_at timestamptz default now()
+);
+
+create table if not exists sire_library (
+  id                  uuid primary key default gen_random_uuid(),
+  bull_name           text not null,
+  bull_type           text not null default 'ai_sire', -- owned | leased | ai_sire
+  breed               text,
+  registration_number text,
+  naab_code           text,
+  stud                text,
+  birth_year          int,
+  is_active           boolean default true,
+  source              text not null default 'manual',  -- manual | pdf_import
+  photo_url           text,
+  notes               text,
+  -- EPD values
+  epd_bw       numeric, epd_ww    numeric, epd_yw     numeric,
+  epd_milk     numeric, epd_tm    numeric, epd_cw     numeric,
+  epd_rea      numeric, epd_fat   numeric, epd_marbling numeric,
+  epd_dollar_w numeric, epd_dollar_f numeric, epd_dollar_g numeric, epd_dollar_b numeric,
+  acc_bw       numeric, acc_ww    numeric, acc_yw     numeric,
+  epd_source      text,       -- pdf_import | manual
+  epd_updated_at  timestamptz,
+  import_batch_id uuid,
+  use_count       int default 0,
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
+
+create table if not exists sire_import_batches (
+  id             uuid primary key default gen_random_uuid(),
+  stud           text not null,
+  pdf_url        text,
+  pdf_filename   text,
+  status         text default 'processing', -- processing | complete | failed
+  bulls_found    int default 0,
+  bulls_imported int default 0,
+  error_text     text,
+  created_at     timestamptz default now()
+);
+
+-- Link reproduction events to sire library
+alter table reproduction_events add column if not exists sire_library_id uuid references sire_library(id);
+
 notify pgrst, 'reload schema';

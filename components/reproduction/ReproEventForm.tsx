@@ -108,6 +108,7 @@ export function ReproEventForm({
   const [conceptionMethod, setConceptionMethod] = useState<ConceptionMethod>('natural')
   const [sireId,           setSireId]           = useState<string | null>(null)
   const [sireName,         setSireName]         = useState<string | null>(null)
+  const [sireLibraryId,    setSireLibraryId]    = useState<string | null>(null)
   const [aiTech,           setAiTech]           = useState('')
   const [pregResult,       setPregResult]       = useState<PregCheckResult>('confirmed')
   const [pregMethod,       setPregMethod]       = useState('ultrasound')
@@ -187,6 +188,7 @@ export function ReproEventForm({
           ...payload,
           sire_id:            sireId,
           sire_name_text:     sireName,
+          sire_library_id:    sireLibraryId,
           conception_method:  conceptionMethod,
           ai_technician:      conceptionMethod === 'ai' ? aiTech || null : null,
         }
@@ -301,8 +303,10 @@ export function ReproEventForm({
             <SireSelector
               sireId={sireId}
               sireName={sireName}
+              sireLibraryId={sireLibraryId}
               onChangeSireId={setSireId}
               onChangeSireName={setSireName}
+              onChangeSireLibraryId={setSireLibraryId}
             />
           </Field>
 
