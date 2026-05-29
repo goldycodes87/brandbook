@@ -37,13 +37,26 @@ EPD abbreviations: BW=birth weight, WW=weaning weight, YW=yearling weight, Milk=
 Dollar values: $W=Weaned Calf Value, $F=Feedlot, $G=Grid, $B=Beef Value.`
 
 export async function POST(req: NextRequest) {
-  const formData = req.formData ? await req.formData() : null
-  if (!formData) return NextResponse.json({ error: 'Multipart form required' }, { status: 400 })
+  console.log('[import] route hit')
+  console.log('[import] method:', req.method)
 
-  const file = formData.get('file') as File | null
-  const stud = (formData.get('stud') as string) || 'Unknown'
+  const formData = await req.formData().catch(e => {
+    console.error('[import] formData error:', e.message)
+    return null
+  })
 
-  if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 })
+  console.log('[import] formData:', !!formData)
+
+  const file = formData?.get('pdf') as File | null
+  const stud = (formData?.get('stud') as string) || 'Unknown'
+
+  console.log('[import] file:', (file as File | null)?.name, (file as File | null)?.size)
+  console.log('[import] stud:', stud)
+
+  if (!file) {
+    console.error('[import] no file received')
+    return NextResponse.json({ error: 'No PDF file received' }, { status: 400 })
+  }
   if (file.type !== 'application/pdf' && !file.type.startsWith('image/')) {
     return NextResponse.json({ error: 'Only PDF or image files are supported' }, { status: 400 })
   }
