@@ -22,18 +22,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json()
 
   const clean: Record<string, unknown> = {}
-  const allowed = ['name', 'email', 'phone', 'address', 'city', 'state', 'zip', 'billing_address', 'billing_rate', 'billing_type', 'brand_photo_url', 'default_breed', 'default_ear_tag_color', 'default_tag_prefix', 'notes']
+  const allowed = ['name', 'company_name', 'owner_name', 'email', 'phone', 'address', 'city', 'state', 'zip', 'billing_address', 'billing_rate', 'billing_type', 'brand_photo_url', 'brand_drawing_url', 'default_breed', 'default_ear_tag_color', 'default_tag_prefix', 'notes']
   for (const k of allowed) {
     if (k in body) clean[k] = body[k] === '' ? null : body[k]
   }
   if (clean.billing_rate != null) clean.billing_rate = Number(clean.billing_rate)
 
-  const { data, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let { data, error } = await (supabase as any)
     .from('grazing_owners')
     .update(clean)
     .eq('id', id)
     .select()
     .single()
+
+  // Retry without new columns if migration hasn't run yet
+  if (error?.code === '42703') {
+    delete clean.company_name; delete clean.owner_name; delete clean.brand_drawing_url
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;({ data, error } = await (supabase as any)
+      .from('grazing_owners').update(clean).eq('id', id).select().single())
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data })

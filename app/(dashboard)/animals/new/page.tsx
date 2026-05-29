@@ -133,6 +133,8 @@ const FIELD_LABELS: Record<string, string> = {
 
 interface GrazingOwner {
   id: string; name: string; profile_id: string | null
+  company_name?: string | null
+  owner_name?: string | null
   default_ear_tag_color?: string | null
   default_breed?: string | null
 }
@@ -558,7 +560,11 @@ export default function NewAnimalPage() {
               >
                 <option value="">My Animal</option>
                 {owners.map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
+                  <option key={o.id} value={o.id}>
+                    {o.company_name
+                      ? o.owner_name ? `${o.company_name} — ${o.owner_name}` : o.company_name
+                      : (o.owner_name || o.name)}
+                  </option>
                 ))}
               </Select>
             </Field>

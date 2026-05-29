@@ -890,8 +890,13 @@ function GrazingTab() {
                     />
                   )}
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm truncate" style={{ color: 'var(--text)' }}>{owner.name}</p>
+                    <p className="font-semibold text-sm truncate" style={{ color: 'var(--text)' }}>
+                      {owner.company_name || owner.owner_name || owner.name}
+                    </p>
                     <p className="type-helper truncate" style={{ color: 'var(--text-muted)' }}>
+                      {owner.company_name && owner.owner_name && (
+                        <span className="mr-1">{owner.owner_name} ·</span>
+                      )}
                       {[owner.email, owner.phone].filter(Boolean).join(' · ')}
                       {owner.default_breed && <span className="ml-1">· {owner.default_breed}</span>}
                     </p>

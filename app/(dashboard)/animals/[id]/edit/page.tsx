@@ -135,7 +135,7 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params)
   const router = useRouter()
 
-  const [owners, setOwners]                 = useState<{ id: string; name: string; profile_id: string | null }[]>([])
+  const [owners, setOwners]                 = useState<{ id: string; name: string; profile_id: string | null; company_name?: string | null; owner_name?: string | null }[]>([])
   const [loading, setLoading]               = useState(true)
   const [notFound, setNotFound]             = useState(false)
   const [saving, setSaving]                 = useState(false)
@@ -526,7 +526,11 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
               >
                 <option value="">My Animal</option>
                 {owners.map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
+                  <option key={o.id} value={o.id}>
+                    {o.company_name
+                      ? o.owner_name ? `${o.company_name} — ${o.owner_name}` : o.company_name
+                      : (o.owner_name || o.name)}
+                  </option>
                 ))}
               </Select>
             </Field>
