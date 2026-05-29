@@ -48,6 +48,7 @@ export function SegmentedControl<V extends string = string>({
         return (
           <button
             key={item.value}
+            type="button"
             role="radio"
             aria-checked={active}
             disabled={item.disabled}

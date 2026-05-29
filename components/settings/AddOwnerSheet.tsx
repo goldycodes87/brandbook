@@ -143,8 +143,8 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
       >
         <form
           onSubmit={handleSubmit}
-          className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg flex flex-col"
-          style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '92dvh' }}
+          className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-[480px] flex flex-col"
+          style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh' }}
         >
           {/* Header */}
           <div
@@ -169,23 +169,19 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
                   <Field label="Name" required>
                     <Input value={form.name} onChange={set('name')} placeholder="John Smith" required />
                   </Field>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Field label="Email">
-                      <Input value={form.email} onChange={set('email')} placeholder="john@example.com" type="email" />
-                    </Field>
-                    <Field label="Phone">
-                      <Input value={form.phone} onChange={set('phone')} placeholder="(555) 000-0000" type="tel" />
-                    </Field>
-                  </div>
+                  <Field label="Email">
+                    <Input value={form.email} onChange={set('email')} placeholder="john@example.com" type="email" />
+                  </Field>
+                  <Field label="Phone">
+                    <Input value={form.phone} onChange={set('phone')} placeholder="(555) 000-0000" type="tel" />
+                  </Field>
                   <Field label="Address">
                     <Input value={form.address} onChange={set('address')} placeholder="123 Ranch Road" />
                   </Field>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="col-span-2">
-                      <Field label="City">
-                        <Input value={form.city} onChange={set('city')} placeholder="Laramie" />
-                      </Field>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <Field label="City">
+                      <Input value={form.city} onChange={set('city')} placeholder="Laramie" />
+                    </Field>
                     <Field label="State">
                       <Input value={form.state} onChange={set('state')} placeholder="WY" maxLength={2} />
                     </Field>
@@ -209,7 +205,7 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
                           type="button"
                           title={c.name}
                           onClick={() => setForm(f => ({ ...f, default_ear_tag_color: f.default_ear_tag_color === c.name ? '' : c.name }))}
-                          className="relative w-8 h-8 rounded-full transition-transform duration-100 active:scale-90"
+                          className="relative w-9 h-9 rounded-full transition-transform duration-100 active:scale-90"
                           style={{
                             backgroundColor: c.hex,
                             border: form.default_ear_tag_color === c.name ? '3px solid var(--accent)' : '2px solid var(--border)',
