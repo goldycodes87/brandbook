@@ -23,8 +23,8 @@ const EAR_TAG_COLORS = [
 ]
 
 const BILLING_TYPES = [
-  { value: 'per_head_day',    label: 'HEAD/DAY' },
-  { value: 'per_acre_month',  label: 'ACRE/MO' },
+  { value: 'per_head_day',    label: 'PER HEAD/DAY' },
+  { value: 'per_acre_month',  label: 'PER ACRE/MO' },
   { value: 'flat_rate',       label: 'FLAT RATE' },
 ]
 
@@ -137,7 +137,7 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[100] flex items-end md:items-center md:justify-center"
+        className="fixed inset-0 z-[100] flex flex-col justify-end md:justify-center md:items-center md:p-4"
         style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
         onClick={onClose}
       >
