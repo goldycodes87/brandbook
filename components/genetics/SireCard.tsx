@@ -29,23 +29,28 @@ const TYPE_LABELS: Record<string, string> = {
 interface EpdPillProps {
   label: string
   value: number | null
-  highlight?: boolean
+  isDollar?: boolean
 }
-function EpdPill({ label, value, highlight }: EpdPillProps) {
+
+function EpdPill({ label, value, isDollar }: EpdPillProps) {
+  let valueColor = 'var(--text)'
+  if (isDollar) {
+    if (value == null || value === 0) valueColor = 'var(--text-muted)'
+    else if (value > 0)              valueColor = 'var(--success-fg)'
+    else                             valueColor = 'var(--danger-fg)'
+  }
+
   return (
     <div
       className="flex flex-col items-center px-2 py-1 rounded"
       style={{
-        backgroundColor: highlight ? 'var(--accent-bg)' : 'var(--surface-2)',
-        border: highlight ? '1px solid var(--accent)' : '1px solid var(--border)',
+        backgroundColor: 'var(--surface-2)',
+        border: '1px solid var(--border)',
         minWidth: 44,
       }}
     >
       <span className="text-[9px] font-bold tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>{label}</span>
-      <span
-        className="text-xs font-mono font-semibold"
-        style={{ color: highlight ? 'var(--accent)' : 'var(--text)' }}
-      >
+      <span className="text-xs font-mono font-semibold" style={{ color: valueColor }}>
         {value != null ? (value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1)) : '—'}
       </span>
     </div>
@@ -74,16 +79,14 @@ export function SireCard({ sire, onClick }: SireCardProps) {
         <div className="min-w-0">
           <div className="font-semibold truncate" style={{ color: 'var(--text)' }}>{sire.bull_name}</div>
           <div className="type-helper mt-0.5 flex items-center gap-1.5 flex-wrap">
-            {sire.naab_code && <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{sire.naab_code}</span>}
-            {sire.breed && <span style={{ color: 'var(--text-muted)' }}>{sire.breed}</span>}
-            {sire.stud && <span style={{ color: 'var(--text-muted)' }}>· {sire.stud}</span>}
+            {sire.naab_code  && <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{sire.naab_code}</span>}
+            {sire.breed      && <span style={{ color: 'var(--text-muted)' }}>{sire.breed}</span>}
+            {sire.stud       && <span style={{ color: 'var(--text-muted)' }}>· {sire.stud}</span>}
             {sire.birth_year && <span style={{ color: 'var(--text-muted)' }}>· {sire.birth_year}</span>}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <Badge
-            variant={sire.bull_type === 'owned' ? 'success' : sire.bull_type === 'leased' ? 'warning' : 'neutral'}
-          >
+          <Badge variant={sire.bull_type === 'owned' ? 'success' : sire.bull_type === 'leased' ? 'warning' : 'neutral'}>
             {TYPE_LABELS[sire.bull_type] ?? sire.bull_type}
           </Badge>
           {!sire.is_active && <span className="text-[10px] font-bold" style={{ color: 'var(--text-muted)' }}>INACTIVE</span>}
@@ -92,12 +95,12 @@ export function SireCard({ sire, onClick }: SireCardProps) {
 
       {/* EPD strip */}
       <div className="px-4 pb-3 flex items-center gap-1.5 flex-wrap">
-        <EpdPill label="BW"  value={sire.epd_bw} />
-        <EpdPill label="WW"  value={sire.epd_ww} />
-        <EpdPill label="YW"  value={sire.epd_yw} />
+        <EpdPill label="BW"   value={sire.epd_bw} />
+        <EpdPill label="WW"   value={sire.epd_ww} />
+        <EpdPill label="YW"   value={sire.epd_yw} />
         <EpdPill label="Milk" value={sire.epd_milk} />
-        <EpdPill label="$B"  value={sire.epd_dollar_b} highlight />
-        <EpdPill label="$W"  value={sire.epd_dollar_w} />
+        <EpdPill label="$B"   value={sire.epd_dollar_b} isDollar />
+        <EpdPill label="$W"   value={sire.epd_dollar_w} isDollar />
         {sire.use_count > 0 && (
           <span className="ml-auto type-helper" style={{ color: 'var(--text-muted)' }}>
             {sire.use_count} use{sire.use_count !== 1 ? 's' : ''}
