@@ -59,6 +59,9 @@ export function GeneticsImportClient() {
   }
 
   const handleExtract = async () => {
+    console.log('[import-client] handleExtract called')
+    console.log('[import-client] file:', file?.name, file?.size)
+    console.log('[import-client] stud:', stud)
     if (!file) return
     setExtracting(true)
     setError('')
@@ -67,7 +70,9 @@ export function GeneticsImportClient() {
       fd.append('file', file)
       fd.append('stud', stud)
 
+      console.log('[import-client] calling apiPost...')
       const res  = await apiPost('/api/genetics/import', fd)
+      console.log('[import-client] apiPost returned:', res.status, res.ok)
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Extraction failed'); return }
 
