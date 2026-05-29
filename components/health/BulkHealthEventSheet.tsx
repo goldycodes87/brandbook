@@ -165,11 +165,16 @@ export function BulkHealthEventSheet() {
           onClick={e => { if (e.target === e.currentTarget) reset() }}
         >
           <div
-            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
-            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '92dvh', padding: '24px 16px' }}
+            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] w-full md:max-w-lg flex flex-col"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh' }}
           >
+            {/* Handle bar */}
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+            </div>
+
             {/* Header */}
-            <div className="flex items-start justify-between gap-2 mb-5">
+            <div className="flex items-start justify-between gap-2 px-4 pb-3 flex-shrink-0">
               <div>
                 <p className="type-panel-title">Bulk Treatment</p>
                 <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -187,6 +192,9 @@ export function BulkHealthEventSheet() {
                 </button>
               )}
             </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
 
             {/* Step 1: Group selection */}
             {step === 'group' && (
@@ -340,6 +348,8 @@ export function BulkHealthEventSheet() {
                 </button>
               </div>
             )}
+
+            </div>{/* end scrollable content */}
           </div>
         </div>
       )}

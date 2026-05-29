@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
-import { ActionFooter } from '@/components/ui/ActionFooter'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import type { SireLibraryRecord } from './SireCard'
@@ -161,111 +160,122 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
         onClick={e => { if (e.target === e.currentTarget) onClose() }}
       >
         <div
-          className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
+          className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] w-full md:max-w-lg flex flex-col"
           style={{
             background: 'var(--surface-1)',
             borderTop: '1px solid var(--border)',
             maxHeight: '90dvh',
           }}
         >
-          <div className="flex justify-center pt-3 pb-1">
+          {/* Handle bar */}
+          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
             <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
           </div>
 
-          <div className="px-4 pb-2">
+          {/* Header */}
+          <div className="px-4 pb-2 flex-shrink-0">
             <h2 className="type-heading">{isEdit ? 'EDIT SIRE' : 'ADD SIRE'}</h2>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="px-4 pb-6 flex flex-col gap-4">
-            {/* Identity */}
-            <Field label="Bull type">
-              <SegmentedControl
-                value={bullType}
-                onChange={v => setValue('bull_type', v)}
-                items={BULL_TYPES}
-                block size="sm"
-              />
-            </Field>
+          <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 flex flex-col gap-4">
+              {/* Identity */}
+              <Field label="Bull type">
+                <SegmentedControl
+                  value={bullType}
+                  onChange={v => setValue('bull_type', v)}
+                  items={BULL_TYPES}
+                  block size="sm"
+                />
+              </Field>
 
-            <Field label="Bull name" required error={errors.bull_name?.message}>
-              <Input {...register('bull_name')} placeholder="e.g. Angus Flagship" />
-            </Field>
+              <Field label="Bull name" required error={errors.bull_name?.message}>
+                <Input {...register('bull_name')} placeholder="e.g. Angus Flagship" />
+              </Field>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="NAAB code"><Input {...register('naab_code')} placeholder="7AN935" /></Field>
-              <Field label="Breed"><Input {...register('breed')} placeholder="Angus" /></Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="NAAB code"><Input {...register('naab_code')} placeholder="7AN935" /></Field>
+                <Field label="Breed"><Input {...register('breed')} placeholder="Angus" /></Field>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Stud / AI company"><Input {...register('stud')} placeholder="ABS" /></Field>
+                <Field label="Birth year"><Input {...register('birth_year')} type="number" min="1990" max="2030" placeholder="2022" /></Field>
+              </div>
+
+              <Field label="Registration #">
+                <Input {...register('registration_number')} placeholder="20249872" />
+              </Field>
+
+              {/* EPDs */}
+              <SectionDivider label="EPD VALUES" />
+              <div className="grid grid-cols-3 gap-2.5">
+                <Field label="BW"><Input {...register('epd_bw')} type="number" step="0.1" placeholder="+1.5" /></Field>
+                <Field label="WW"><Input {...register('epd_ww')} type="number" step="0.1" placeholder="+60" /></Field>
+                <Field label="YW"><Input {...register('epd_yw')} type="number" step="0.1" placeholder="+100" /></Field>
+                <Field label="Milk"><Input {...register('epd_milk')} type="number" step="0.1" placeholder="+25" /></Field>
+                <Field label="TM"><Input {...register('epd_tm')} type="number" step="0.1" placeholder="+55" /></Field>
+                <Field label="CW"><Input {...register('epd_cw')} type="number" step="0.1" placeholder="+40" /></Field>
+                <Field label="REA"><Input {...register('epd_rea')} type="number" step="0.01" placeholder="+0.35" /></Field>
+                <Field label="Fat"><Input {...register('epd_fat')} type="number" step="0.001" placeholder="+0.010" /></Field>
+                <Field label="Marb"><Input {...register('epd_marbling')} type="number" step="0.01" placeholder="+0.55" /></Field>
+              </div>
+
+              <SectionDivider label="DOLLAR INDEXES" />
+              <div className="grid grid-cols-4 gap-2">
+                <Field label="$W"><Input {...register('epd_dollar_w')} type="number" step="0.01" placeholder="+80" /></Field>
+                <Field label="$F"><Input {...register('epd_dollar_f')} type="number" step="0.01" placeholder="+95" /></Field>
+                <Field label="$G"><Input {...register('epd_dollar_g')} type="number" step="0.01" placeholder="+40" /></Field>
+                <Field label="$B"><Input {...register('epd_dollar_b')} type="number" step="0.01" placeholder="+175" /></Field>
+              </div>
+
+              <SectionDivider label="ACCURACY" />
+              <div className="grid grid-cols-3 gap-2.5">
+                <Field label="Acc BW"><Input {...register('acc_bw')} type="number" step="0.01" min="0" max="1" placeholder="0.72" /></Field>
+                <Field label="Acc WW"><Input {...register('acc_ww')} type="number" step="0.01" min="0" max="1" placeholder="0.68" /></Field>
+                <Field label="Acc YW"><Input {...register('acc_yw')} type="number" step="0.01" min="0" max="1" placeholder="0.65" /></Field>
+              </div>
+
+              {/* Status + Notes */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isActive}
+                  onChange={e => setIsActive(e.target.checked)}
+                  className="w-4 h-4 rounded"
+                  style={{ accentColor: 'var(--accent)' }}
+                />
+                <span className="type-field-label">Active in library</span>
+              </label>
+
+              <Field label="Notes">
+                <Textarea {...register('notes')} rows={2} placeholder="Additional details…" />
+              </Field>
+
+              {error && (
+                <p
+                  className="type-helper px-3 py-2 rounded"
+                  style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}
+                >
+                  {error}
+                </p>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Stud / AI company"><Input {...register('stud')} placeholder="ABS" /></Field>
-              <Field label="Birth year"><Input {...register('birth_year')} type="number" min="1990" max="2030" placeholder="2022" /></Field>
-            </div>
-
-            <Field label="Registration #">
-              <Input {...register('registration_number')} placeholder="20249872" />
-            </Field>
-
-            {/* EPDs */}
-            <SectionDivider label="EPD VALUES" />
-            <div className="grid grid-cols-3 gap-2.5">
-              <Field label="BW"><Input {...register('epd_bw')} type="number" step="0.1" placeholder="+1.5" /></Field>
-              <Field label="WW"><Input {...register('epd_ww')} type="number" step="0.1" placeholder="+60" /></Field>
-              <Field label="YW"><Input {...register('epd_yw')} type="number" step="0.1" placeholder="+100" /></Field>
-              <Field label="Milk"><Input {...register('epd_milk')} type="number" step="0.1" placeholder="+25" /></Field>
-              <Field label="TM"><Input {...register('epd_tm')} type="number" step="0.1" placeholder="+55" /></Field>
-              <Field label="CW"><Input {...register('epd_cw')} type="number" step="0.1" placeholder="+40" /></Field>
-              <Field label="REA"><Input {...register('epd_rea')} type="number" step="0.01" placeholder="+0.35" /></Field>
-              <Field label="Fat"><Input {...register('epd_fat')} type="number" step="0.001" placeholder="+0.010" /></Field>
-              <Field label="Marb"><Input {...register('epd_marbling')} type="number" step="0.01" placeholder="+0.55" /></Field>
-            </div>
-
-            <SectionDivider label="DOLLAR INDEXES" />
-            <div className="grid grid-cols-4 gap-2">
-              <Field label="$W"><Input {...register('epd_dollar_w')} type="number" step="0.01" placeholder="+80" /></Field>
-              <Field label="$F"><Input {...register('epd_dollar_f')} type="number" step="0.01" placeholder="+95" /></Field>
-              <Field label="$G"><Input {...register('epd_dollar_g')} type="number" step="0.01" placeholder="+40" /></Field>
-              <Field label="$B"><Input {...register('epd_dollar_b')} type="number" step="0.01" placeholder="+175" /></Field>
-            </div>
-
-            <SectionDivider label="ACCURACY" />
-            <div className="grid grid-cols-3 gap-2.5">
-              <Field label="Acc BW"><Input {...register('acc_bw')} type="number" step="0.01" min="0" max="1" placeholder="0.72" /></Field>
-              <Field label="Acc WW"><Input {...register('acc_ww')} type="number" step="0.01" min="0" max="1" placeholder="0.68" /></Field>
-              <Field label="Acc YW"><Input {...register('acc_yw')} type="number" step="0.01" min="0" max="1" placeholder="0.65" /></Field>
-            </div>
-
-            {/* Status + Notes */}
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isActive}
-                onChange={e => setIsActive(e.target.checked)}
-                className="w-4 h-4 rounded"
-                style={{ accentColor: 'var(--accent)' }}
-              />
-              <span className="type-field-label">Active in library</span>
-            </label>
-
-            <Field label="Notes">
-              <Textarea {...register('notes')} rows={2} placeholder="Additional details…" />
-            </Field>
-
-            {error && (
-              <p
-                className="type-helper px-3 py-2 rounded"
-                style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}
-              >
-                {error}
-              </p>
-            )}
-
-            <ActionFooter
-              primary={<Button type="submit" intent="primary" loading={saving}>{isEdit ? 'UPDATE SIRE' : 'ADD SIRE'}</Button>}
-              secondary={<Button type="button" intent="ghost" onClick={onClose}>CANCEL</Button>}
-              destructive={isEdit ? (
+            {/* Footer — always visible */}
+            <div
+              className="flex items-center gap-3 px-4 py-4 flex-shrink-0"
+              style={{ borderTop: '1px solid var(--border)' }}
+            >
+              {isEdit && (
                 <Button type="button" intent="danger" size="sm" onClick={() => setConfirmDel(true)}>DELETE</Button>
-              ) : undefined}
-            />
+              )}
+              <div className="flex gap-2 ml-auto">
+                <Button type="button" intent="ghost" onClick={onClose}>CANCEL</Button>
+                <Button type="submit" intent="primary" loading={saving}>{isEdit ? 'UPDATE SIRE' : 'ADD SIRE'}</Button>
+              </div>
+            </div>
           </form>
         </div>
       </div>

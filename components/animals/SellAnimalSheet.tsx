@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
-import { ActionFooter } from '@/components/ui/ActionFooter'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiPost } from '@/lib/fetch'
 
@@ -97,19 +96,22 @@ export function SellAnimalSheet({ isOpen, onClose, animal, onSuccess }: SellAnim
       onClick={e => { if (e.target === e.currentTarget) handleClose() }}
     >
       <div
-        className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
+        className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] w-full md:max-w-lg flex flex-col"
         style={{ background: 'var(--surface-1)', borderTop: '1px solid var(--border)', maxHeight: '90dvh' }}
       >
-        <div className="flex justify-center pt-3 pb-1">
+        {/* Handle bar */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
 
-        <div className="px-4 pb-2">
+        {/* Header */}
+        <div className="px-4 pb-2 flex-shrink-0">
           <h2 className="type-heading">SELL ANIMAL</h2>
           <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>{tagLabel}</p>
         </div>
 
-        <div className="px-4 pb-6 flex flex-col gap-4">
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 flex flex-col gap-4">
           <ContextBanner tone="warning">
             This will mark <strong>{tagLabel}</strong> as sold and record the transaction.
           </ContextBanner>
@@ -177,15 +179,17 @@ export function SellAnimalSheet({ isOpen, onClose, animal, onSuccess }: SellAnim
               {error}
             </p>
           )}
+        </div>
 
-          <ActionFooter
-            primary={
-              <Button intent="primary" loading={saving} onClick={handleSubmit}>
-                SELL {tagLabel}
-              </Button>
-            }
-            secondary={<Button intent="ghost" onClick={handleClose}>CANCEL</Button>}
-          />
+        {/* Footer — always visible */}
+        <div
+          className="flex items-center justify-end gap-2 px-4 py-4 flex-shrink-0"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          <Button type="button" intent="ghost" onClick={handleClose}>CANCEL</Button>
+          <Button type="button" intent="primary" loading={saving} onClick={handleSubmit}>
+            SELL {tagLabel}
+          </Button>
         </div>
       </div>
     </div>

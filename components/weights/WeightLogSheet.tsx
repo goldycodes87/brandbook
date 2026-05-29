@@ -78,9 +78,10 @@ export function WeightLogSheet() {
           onClick={e => { if (e.target === e.currentTarget) reset() }}
         >
           <div
-            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
-            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh', padding: '24px 16px' }}
+            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] w-full md:max-w-lg flex flex-col"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh' }}
           >
+            <div className="flex-1 overflow-y-auto overscroll-contain" style={{ padding: '24px 16px' }}>
             {saved ? (
               <div className="py-8 text-center">
                 <p className="type-panel-title mb-1" style={{ color: 'var(--success-fg)' }}>Weight saved!</p>
@@ -154,6 +155,7 @@ export function WeightLogSheet() {
                 />
               </>
             )}
+            </div>{/* end scrollable content */}
           </div>
         </div>
       )}

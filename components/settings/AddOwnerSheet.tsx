@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { Panel, PanelSection } from '@/components/ui/Panel'
 import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -103,8 +103,7 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
   const set = (k: keyof typeof BLANK) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     setSaving(true)
     setError('')
     try {
@@ -136,32 +135,41 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
 
   return (
     <>
+      {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 flex flex-col justify-end md:justify-center md:items-center md:p-4"
-        style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
-        onClick={e => { if (e.target === e.currentTarget) onClose() }}
+        className="fixed inset-0 z-[100]"
+        style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+        onClick={onClose}
       >
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-[480px] flex flex-col"
-          style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh' }}
+        {/* Sheet */}
+        <div
+          className="fixed bottom-0 left-0 right-0 rounded-t-xl md:relative md:rounded-xl md:mx-auto md:mt-10 md:max-w-[480px] flex flex-col"
+          style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh' }}
+          onClick={e => e.stopPropagation()}
         >
+          {/* Handle bar — mobile only */}
+          <div className="md:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-strong, var(--border))' }} />
+          </div>
+
           {/* Header */}
           <div
             className="flex items-center justify-between px-5 py-4 flex-shrink-0"
             style={{ borderBottom: '1px solid var(--border)' }}
           >
-            <span className="type-panel-title">
+            <h2 className="type-panel-title" style={{ color: 'var(--text)' }}>
               {mode === 'create' ? 'ADD GRAZING OWNER' : 'EDIT OWNER'}
-            </span>
-            <button type="button" onClick={onClose} style={{ color: 'var(--text-muted)' }}>
-              ✕
+            </h2>
+            <button type="button" onClick={onClose}>
+              <X size={20} style={{ color: 'var(--text-muted)' }} />
             </button>
           </div>
 
           {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
-
+          <div
+            className="flex-1 overflow-y-auto overscroll-contain flex flex-col gap-4"
+            style={{ padding: '20px' }}
+          >
             {/* Contact */}
             <Panel title="CONTACT">
               <PanelSection>
@@ -268,9 +276,9 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
             )}
           </div>
 
-          {/* Footer */}
+          {/* Footer — always visible */}
           <div
-            className="flex items-center gap-3 px-4 py-4 flex-shrink-0"
+            className="flex items-center gap-3 px-5 py-4 flex-shrink-0"
             style={{ borderTop: '1px solid var(--border)' }}
           >
             {mode === 'edit' && (
@@ -278,13 +286,14 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
                 DELETE
               </Button>
             )}
-            <div className="flex-1" />
-            <Button type="button" intent="ghost" size="sm" onClick={onClose}>CANCEL</Button>
-            <Button type="submit" intent="primary" size="sm" loading={saving}>
-              {mode === 'create' ? 'ADD OWNER' : 'SAVE CHANGES'}
-            </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button type="button" intent="ghost" size="sm" onClick={onClose}>CANCEL</Button>
+              <Button type="button" intent="primary" size="sm" loading={saving} onClick={handleSubmit}>
+                {mode === 'create' ? 'ADD OWNER' : 'SAVE CHANGES'}
+              </Button>
+            </div>
           </div>
-        </form>
+        </div>
       </div>
 
       <ConfirmDialog
