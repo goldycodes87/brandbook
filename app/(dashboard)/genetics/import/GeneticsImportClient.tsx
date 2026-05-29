@@ -38,6 +38,7 @@ export function GeneticsImportClient() {
   const [stud, setStud]           = useState('')
   const [file, setFile]           = useState<File | null>(null)
   const [extracting, setExtracting] = useState(false)
+  const [extractStatus, setExtractStatus] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [error, setError]         = useState('')
   const [bulls, setBulls]         = useState<ExtractedBull[]>([])
@@ -59,22 +60,34 @@ export function GeneticsImportClient() {
   }
 
   const handleExtract = async () => {
-    console.log('[import-client] handleExtract called')
-    console.log('[import-client] file:', file?.name, file?.size)
-    console.log('[import-client] stud:', stud)
     if (!file) return
     setExtracting(true)
     setError('')
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('stud', stud)
+      // Step 1: get presigned PUT URL
+      setExtractStatus('Preparing upload…')
+      const presignRes = await apiPost('/api/genetics/import/presign', {
+        filename:    file.name,
+        contentType: file.type,
+      })
+      const presignJson = await presignRes.json()
+      if (!presignRes.ok) { setError(presignJson.error ?? 'Could not prepare upload'); return }
+      const { url, key } = presignJson
 
-      console.log('[import-client] calling apiPost...')
-      const res  = await apiPost('/api/genetics/import', fd)
-      console.log('[import-client] apiPost returned:', res.status, res.ok)
-      const json = await res.json()
-      if (!res.ok) { setError(json.error ?? 'Extraction failed'); return }
+      // Step 2: upload directly to R2 (bypasses Vercel body limit)
+      setExtractStatus('Uploading PDF to storage…')
+      const uploadRes = await fetch(url, {
+        method:  'PUT',
+        body:    file,
+        headers: { 'Content-Type': file.type },
+      })
+      if (!uploadRes.ok) { setError('Upload to storage failed. Try again.'); return }
+
+      // Step 3: extract bulls via AI
+      setExtractStatus('AI is reading the sire directory…')
+      const processRes  = await apiPost('/api/genetics/import/process', { key, stud })
+      const json = await processRes.json()
+      if (!processRes.ok) { setError(json.error ?? 'Extraction failed'); return }
 
       setBulls(json.bulls ?? [])
       setPdfUrl(json.pdf_url)
@@ -83,7 +96,6 @@ export function GeneticsImportClient() {
       setStep('review')
     } catch (error: unknown) {
       const err = error as { message?: string }
-      console.error('[import-ui] error:', error)
       if (err.message?.includes('Session expired') || err.message?.includes('307')) {
         setError('Session expired. Refresh the page and try again.')
       } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
@@ -93,6 +105,7 @@ export function GeneticsImportClient() {
       }
     } finally {
       setExtracting(false)
+      setExtractStatus('')
     }
   }
 
@@ -185,6 +198,12 @@ export function GeneticsImportClient() {
                   style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}
                 >
                   {error}
+                </p>
+              )}
+
+              {extractStatus && (
+                <p className="type-helper text-center" style={{ color: 'var(--text-muted)' }}>
+                  {extractStatus}
                 </p>
               )}
 
