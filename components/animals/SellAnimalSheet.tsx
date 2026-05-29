@@ -95,12 +95,12 @@ export function SellAnimalSheet({ isOpen, onClose, animal, onSuccess }: SellAnim
 
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col justify-end"
+      className="fixed inset-0 z-40 flex flex-col justify-end md:justify-center md:items-center md:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={e => { if (e.target === e.currentTarget) handleClose() }}
     >
       <div
-        className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+        className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
         style={{ background: 'var(--surface-1)', borderTop: '1px solid var(--border)', maxHeight: '90dvh' }}
       >
         <div className="flex justify-center pt-3 pb-1">

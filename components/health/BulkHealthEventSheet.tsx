@@ -159,12 +159,12 @@ export function BulkHealthEventSheet() {
 
       {open && (
         <div
-          className="fixed inset-0 z-40 flex flex-col justify-end"
+          className="fixed inset-0 z-40 flex flex-col justify-end md:justify-center md:items-center md:p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           onClick={e => { if (e.target === e.currentTarget) reset() }}
         >
           <div
-            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
             style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '92dvh', padding: '24px 16px' }}
           >
             {/* Header */}

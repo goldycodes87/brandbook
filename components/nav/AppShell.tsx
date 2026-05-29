@@ -106,7 +106,7 @@ function Topbar({ title }: { title: string }) {
       {/* Mobile topbar */}
       <header
         style={{ backgroundColor: 'var(--surface-1)', borderColor: 'var(--border)' }}
-        className="md:hidden flex items-center justify-between px-4 h-14 border-b sticky top-0 z-30"
+        className="lg:hidden flex items-center justify-between px-4 h-14 border-b sticky top-0 z-30"
       >
         <div className="flex items-end gap-0 leading-none">
           <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent)' }}>BRAND</span>
@@ -119,7 +119,7 @@ function Topbar({ title }: { title: string }) {
       {/* Desktop topbar */}
       <header
         style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-        className="hidden md:flex items-center justify-between px-6 h-14 border-b sticky top-0 z-30 backdrop-blur-sm"
+        className="hidden lg:flex items-center justify-between px-6 h-14 border-b sticky top-0 z-30 backdrop-blur-sm"
       >
         <span className="type-page-title text-base">{title}</span>
         <div className="flex items-center gap-3">
@@ -154,7 +154,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           backgroundColor: 'var(--surface-1)',
           borderColor: 'var(--border)',
         }}
-        className="hidden md:flex flex-col fixed left-0 top-0 bottom-0 border-r z-40"
+        className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 border-r z-40"
       >
         {/* Logo area */}
         <div style={{ borderColor: 'var(--border)', height: '4rem' }} className="flex flex-col justify-center px-5 border-b flex-shrink-0">
@@ -189,11 +189,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main column */}
       <div
         style={{ marginLeft: 0 }}
-        className="flex-1 md:ml-[var(--sidebar-w)] flex flex-col min-h-dvh"
+        className="flex-1 lg:ml-[var(--sidebar-w)] flex flex-col min-h-dvh"
       >
         <Topbar title={pageTitle} />
         <main
-          className="flex-1 pb-[var(--bottomnav-h)] md:pb-0"
+          className="flex-1 pb-[var(--bottomnav-h)] lg:pb-0"
           style={{ backgroundColor: 'var(--surface-0)' }}
         >
           {children}
@@ -207,7 +207,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           backgroundColor: 'var(--surface-1)',
           borderColor: 'var(--border)',
         }}
-        className="md:hidden fixed bottom-0 left-0 right-0 flex items-stretch border-t z-40"
+        className="lg:hidden fixed bottom-0 left-0 right-0 flex items-stretch border-t z-40"
       >
         {BOTTOM_TABS.map(item => (
           <BottomTab key={item.href} {...item} active={isActive(item.href)} />
@@ -231,13 +231,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {moreOpen && (
         <>
           <div
-            className="md:hidden fixed inset-0 z-50"
+            className="lg:hidden fixed inset-0 z-50"
             style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
             onClick={() => setMoreOpen(false)}
           />
           <div
             style={{ backgroundColor: 'var(--surface-2)', borderColor: 'var(--border)' }}
-            className="md:hidden fixed bottom-0 left-0 right-0 rounded-t-2xl z-50 border-t"
+            className="lg:hidden fixed bottom-0 left-0 right-0 rounded-t-2xl z-50 border-t"
           >
             <div style={{ borderColor: 'var(--border)' }} className="flex items-center justify-between px-5 py-4 border-b">
               <span className="type-panel-title">MORE</span>

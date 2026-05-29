@@ -356,12 +356,12 @@ function HealthTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEve
 
       {editing && (
         <div
-          className="fixed inset-0 z-40 flex flex-col justify-end"
+          className="fixed inset-0 z-40 flex flex-col justify-end md:justify-center md:items-center md:p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           onClick={e => { if (e.target === e.currentTarget) setEditing(null) }}
         >
           <div
-            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
             style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '92dvh', padding: '24px 16px' }}
           >
             <p className="type-panel-title mb-4">Edit Health Event</p>
@@ -761,9 +761,9 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Weight slide-up sheet */}
       {weightOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="fixed inset-0 z-40 flex flex-col justify-end md:justify-center md:items-center md:p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div
-            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
             style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh', padding: '24px 16px' }}
           >
             <p className="type-panel-title mb-4">Log Weight</p>
@@ -778,9 +778,9 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Health event slide-up sheet */}
       {logOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="fixed inset-0 z-40 flex flex-col justify-end md:justify-center md:items-center md:p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div
-            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
             style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '90dvh', padding: '24px 16px' }}
           >
             <p className="type-panel-title mb-4">Log Health Event</p>
@@ -795,9 +795,9 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Reproduction event slide-up sheet */}
       {reproOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="fixed inset-0 z-40 flex flex-col justify-end md:justify-center md:items-center md:p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div
-            className="rounded-t-[var(--radius-xl)] overflow-y-auto"
+            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
             style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '92dvh', padding: '24px 16px' }}
           >
             <p className="type-panel-title mb-1">Log Reproduction Event</p>

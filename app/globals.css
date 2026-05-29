@@ -242,3 +242,8 @@ select:focus {
 @utility animate-scan-line {
   animation: scan-line 2s ease-in-out infinite;
 }
+
+/* Tablet landscape: reduce bottom nav height */
+@media (orientation: landscape) and (max-width: 1023px) {
+  :root { --bottomnav-h: 52px; }
+}
