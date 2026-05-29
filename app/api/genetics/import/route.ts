@@ -2,12 +2,13 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { uploadToR2 } from '@/lib/r2'
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const SYSTEM_PROMPT = `You are a cattle genetics data extractor. The user will provide a PDF or image from a bull stud catalog or EPD summary sheet.
-Extract all bull/sire records you find. For each bull return a JSON object in this exact shape:
+const EXTRACTION_PROMPT = `You are a cattle genetics data extractor. Extract all bull/sire records from this sire directory PDF.
+
+For each bull return a JSON object in this exact shape:
 {
   "bull_name": string,
   "naab_code": string | null,
@@ -47,16 +48,17 @@ export async function POST(req: NextRequest) {
 
   console.log('[import] formData:', !!formData)
 
-  const file = formData?.get('pdf') as File | null
+  const file = formData?.get('file') as File | null
   const stud = (formData?.get('stud') as string) || 'Unknown'
 
-  console.log('[import] file:', (file as File | null)?.name, (file as File | null)?.size)
+  console.log('[import] file:', file?.name, file?.size)
   console.log('[import] stud:', stud)
 
   if (!file) {
     console.error('[import] no file received')
-    return NextResponse.json({ error: 'No PDF file received' }, { status: 400 })
+    return NextResponse.json({ error: 'No file received' }, { status: 400 })
   }
+
   if (file.type !== 'application/pdf' && !file.type.startsWith('image/')) {
     return NextResponse.json({ error: 'Only PDF or image files are supported' }, { status: 400 })
   }
@@ -69,49 +71,58 @@ export async function POST(req: NextRequest) {
   try {
     const key = `genetics/imports/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
     pdfUrl = await uploadToR2(key, buffer, file.type)
-  } catch {
-    // non-fatal
+    console.log('[import] uploaded to R2:', pdfUrl)
+  } catch (e) {
+    console.error('[import] R2 upload failed (non-fatal):', (e as Error).message)
   }
 
-  // Convert to base64 for OpenAI
   const base64 = buffer.toString('base64')
-  const mimeType = file.type === 'application/pdf' ? 'image/png' : file.type
+  const isPdf  = file.type === 'application/pdf'
 
-  // For PDFs we convert first page to image via the prompt
-  let response: string
+  let responseText: string
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fileBlock: any = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+      : { type: 'image', source: { type: 'base64', media_type: file.type, data: base64 } }
+
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-7',
       max_tokens: 4096,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
           content: [
-            {
-              type: 'image_url' as const,
-              image_url: { url: `data:${mimeType};base64,${base64}`, detail: 'high' as const },
-            },
-            { type: 'text' as const, text: `Extract all bull EPD records from this ${stud} catalog page.` },
+            fileBlock,
+            { type: 'text', text: `${EXTRACTION_PROMPT}\n\nExtract all bull/sire EPD data from this ${stud} sire directory PDF.` },
           ],
         },
       ],
     })
-    response = completion.choices[0]?.message?.content ?? '[]'
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `AI extraction failed: ${msg}` }, { status: 500 })
+
+    console.log('[import] claude response stop_reason:', response.stop_reason)
+    console.log('[import] content blocks:', response.content.length)
+
+    responseText = response.content
+      .filter(b => b.type === 'text')
+      .map(b => (b as { type: 'text'; text: string }).text)
+      .join('')
+  } catch (e) {
+    console.error('[import] claude error:', (e as Error).message)
+    return NextResponse.json({ error: 'AI extraction failed: ' + (e as Error).message }, { status: 500 })
   }
 
   // Parse extracted JSON
   let bulls: unknown[]
   try {
-    const cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     bulls = JSON.parse(cleaned)
     if (!Array.isArray(bulls)) bulls = []
   } catch {
-    return NextResponse.json({ error: 'Could not parse AI response as JSON', raw: response }, { status: 422 })
+    return NextResponse.json({ error: 'Could not parse AI response as JSON', raw: responseText }, { status: 422 })
   }
+
+  console.log('[import] bulls found:', bulls.length)
 
   return NextResponse.json({
     stud,
