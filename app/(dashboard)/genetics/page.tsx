@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { SireCard } from '@/components/genetics/SireCard'
 import { AddSireSheet } from '@/components/genetics/AddSireSheet'
+import { SireCompareModal } from '@/components/genetics/SireCompareModal'
 import type { SireLibraryRecord } from '@/components/genetics/SireCard'
 import { apiGet } from '@/lib/fetch'
 
@@ -71,8 +72,18 @@ function GeneticsContent() {
   const [total, setTotal]   = useState(0)
   const [studs, setStuds]   = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [addOpen, setAddOpen]   = useState(false)
-  const [editing, setEditing]   = useState<SireLibraryRecord | null>(null)
+  const [addOpen, setAddOpen]     = useState(false)
+  const [editing, setEditing]     = useState<SireLibraryRecord | null>(null)
+  const [comparing, setComparing] = useState<string[]>([])
+  const [showCompare, setShowCompare] = useState(false)
+
+  const toggleCompare = (id: string) => {
+    setComparing(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id)
+      if (prev.length >= 4) return prev
+      return [...prev, id]
+    })
+  }
 
   // Helper: update a single URL param (empty string removes it)
   const setParam = useCallback((key: string, value: string) => {
@@ -267,7 +278,13 @@ function GeneticsContent() {
       ) : (
         <div className="flex flex-col gap-3">
           {sires.map(sire => (
-            <SireCard key={sire.id} sire={sire} onClick={() => setEditing(sire)} />
+            <SireCard
+              key={sire.id}
+              sire={sire}
+              onClick={() => setEditing(sire)}
+              isComparing={comparing.includes(sire.id)}
+              onToggleCompare={toggleCompare}
+            />
           ))}
         </div>
       )}
@@ -279,6 +296,54 @@ function GeneticsContent() {
         editSire={editing}
         onSuccess={() => { setEditing(null); load() }}
       />
+
+      {/* Compare bar */}
+      {comparing.length > 0 && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-50 lg:left-[var(--sidebar-w)]"
+          style={{
+            background: 'var(--surface-1)',
+            borderTop: '1px solid var(--border)',
+            padding: '12px 16px',
+            paddingBottom: 'calc(12px + var(--bottomnav-h))',
+          }}
+        >
+          <div className="flex items-center justify-between gap-3 max-w-[80rem] mx-auto">
+            <div className="flex items-center gap-2">
+              <span className="type-helper" style={{ color: 'var(--text)' }}>
+                {comparing.length} bull{comparing.length !== 1 ? 's' : ''} selected
+              </span>
+              <button
+                type="button"
+                className="type-helper underline"
+                style={{ color: 'var(--text-muted)' }}
+                onClick={() => setComparing([])}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <Button intent="ghost" size="sm" onClick={() => setComparing([])}>Cancel</Button>
+              <Button
+                intent="primary"
+                size="sm"
+                disabled={comparing.length < 2}
+                onClick={() => setShowCompare(true)}
+              >
+                COMPARE {comparing.length} BULL{comparing.length !== 1 ? 'S' : ''}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compare modal */}
+      {showCompare && (
+        <SireCompareModal
+          sireIds={comparing}
+          onClose={() => setShowCompare(false)}
+        />
+      )}
     </PageContainer>
   )
 }
