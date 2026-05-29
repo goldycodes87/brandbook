@@ -23,8 +23,8 @@ const EAR_TAG_COLORS = [
 ]
 
 const BILLING_TYPES = [
-  { value: 'per_head_day',    label: 'PER HEAD/DAY' },
-  { value: 'per_acre_month',  label: 'PER ACRE/MO' },
+  { value: 'per_head_day',    label: 'HEAD/DAY' },
+  { value: 'per_acre_month',  label: 'ACRE/MO' },
   { value: 'flat_rate',       label: 'FLAT RATE' },
 ]
 
@@ -167,7 +167,7 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
 
           {/* Scrollable body */}
           <div
-            className="flex-1 overflow-y-auto flex flex-col gap-4"
+            className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4"
             style={{ padding: '20px', WebkitOverflowScrolling: 'touch' }}
           >
             {/* Contact */}
@@ -186,10 +186,10 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
                   <Field label="Address">
                     <Input value={form.address} onChange={set('address')} placeholder="123 Ranch Road" />
                   </Field>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field label="City">
-                      <Input value={form.city} onChange={set('city')} placeholder="Laramie" />
-                    </Field>
+                  <Field label="City">
+                    <Input value={form.city} onChange={set('city')} placeholder="Laramie" />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
                     <Field label="State">
                       <Input value={form.state} onChange={set('state')} placeholder="WY" maxLength={2} />
                     </Field>
