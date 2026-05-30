@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { Camera } from 'lucide-react'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -46,11 +47,15 @@ interface AddSireSheetProps {
 }
 
 export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireSheetProps) {
-  const [saving, setSaving]       = useState(false)
-  const [deleting, setDeleting]   = useState(false)
-  const [confirmDel, setConfirmDel] = useState(false)
-  const [error, setError]         = useState('')
-  const [isActive, setIsActive]   = useState(true)
+  const [saving, setSaving]             = useState(false)
+  const [deleting, setDeleting]         = useState(false)
+  const [confirmDel, setConfirmDel]     = useState(false)
+  const [error, setError]               = useState('')
+  const [isActive, setIsActive]         = useState(true)
+  const [photoUrl, setPhotoUrl]         = useState<string | null>(null)
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const isEdit = !!editSire
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
@@ -63,8 +68,10 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
   useEffect(() => {
     if (open) {
       setError('')
+      setPendingPhoto(null)
       if (editSire) {
         setIsActive(editSire.is_active)
+        setPhotoUrl(editSire.photo_url ?? null)
         reset({
           bull_name:           editSire.bull_name,
           bull_type:           editSire.bull_type,
@@ -86,10 +93,36 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
         })
       } else {
         setIsActive(true)
+        setPhotoUrl(null)
         reset({ bull_type: 'ai_sire' })
       }
     }
   }, [open, editSire, reset])
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    if (isEdit && editSire) {
+      setUploadingPhoto(true)
+      try {
+        const fd = new FormData()
+        fd.append('photo', file)
+        const res = await fetch(`/api/genetics/sires/${editSire.id}/photo`, { method: 'POST', body: fd })
+        const json = await res.json()
+        if (res.ok) setPhotoUrl(json.url)
+        else setError(json.error ?? 'Photo upload failed')
+      } catch {
+        setError('Photo upload failed')
+      } finally {
+        setUploadingPhoto(false)
+      }
+    } else {
+      setPendingPhoto(file)
+      setPhotoUrl(URL.createObjectURL(file))
+    }
+  }
 
   const onSubmit = async (values: FormValues) => {
     setSaving(true)
@@ -120,6 +153,16 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
       const res = await (isEdit ? apiPatch(url, payload) : apiPost(url, payload))
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
+
+      if (!isEdit && pendingPhoto) {
+        const newId = json.data?.id
+        if (newId) {
+          const fd = new FormData()
+          fd.append('photo', pendingPhoto)
+          await fetch(`/api/genetics/sires/${newId}/photo`, { method: 'POST', body: fd })
+        }
+      }
+
       onClose()
       onSuccess?.()
     } catch {
@@ -180,6 +223,45 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
           <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 flex flex-col gap-4">
+              {/* Photo */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="flex-shrink-0"
+                >
+                  {photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt=""
+                      className="w-16 h-16 rounded-lg object-cover"
+                      style={{ border: '1px solid var(--border)' }}
+                    />
+                  ) : (
+                    <div
+                      className="w-16 h-16 rounded-lg flex items-center justify-center"
+                      style={{ border: '2px dashed var(--border)', background: 'var(--surface-2)' }}
+                    >
+                      <Camera size={22} style={{ color: 'var(--text-muted)' }} />
+                    </div>
+                  )}
+                </button>
+                <div className="flex flex-col gap-0.5">
+                  <span className="type-field-label">Bull photo</span>
+                  <span className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                    {uploadingPhoto ? 'Uploading…' : photoUrl ? 'Tap to change' : 'Optional'}
+                  </span>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
+              </div>
+
               {/* Identity */}
               <Field label="Bull type">
                 <SegmentedControl

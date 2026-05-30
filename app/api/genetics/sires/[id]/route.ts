@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body     = await req.json()
   const supabase = createAdminClient()
 
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  const updates: Record<string, unknown> = {}
 
   const textFields = ['bull_name', 'bull_type', 'breed', 'registration_number', 'naab_code', 'stud', 'photo_url', 'notes', 'epd_source']
   textFields.forEach(f => { if (f in body) updates[f] = body[f] || null })

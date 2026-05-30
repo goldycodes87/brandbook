@@ -15,6 +15,7 @@ interface FullSire {
   stud: string | null
   birth_year: number | null
   bull_type: string | null
+  photo_url: string | null
   epd_bw: number | null
   epd_ww: number | null
   epd_yw: number | null
@@ -186,6 +187,15 @@ export function SireCompareModal({ sireIds, onClose }: SireCompareModalProps) {
                         className="px-4 py-3 text-center"
                         style={{ color: 'var(--text)', minWidth: 130 }}
                       >
+                        {s.photo_url && (
+                          <div className="flex justify-center mb-2">
+                            <img
+                              src={s.photo_url}
+                              alt=""
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          </div>
+                        )}
                         <div className="font-semibold text-sm">{s.bull_name}</div>
                         {s.naab_code && (
                           <div className="type-helper font-normal mt-0.5" style={{ color: 'var(--accent)' }}>

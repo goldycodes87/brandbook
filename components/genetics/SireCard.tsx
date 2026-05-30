@@ -12,6 +12,7 @@ export interface SireLibraryRecord {
   stud: string | null
   birth_year: number | null
   is_active: boolean
+  photo_url: string | null
   epd_bw: number | null
   epd_ww: number | null
   epd_yw: number | null
@@ -105,8 +106,15 @@ export function SireCard({ sire, onClick, isComparing, onToggleCompare }: SireCa
       )}
 
       {/* Header */}
-      <div className={`pt-3 pb-2 flex items-start justify-between gap-2${compareMode ? ' pl-10 pr-4' : ' px-4'}`}>
-        <div className="min-w-0">
+      <div className={`pt-3 pb-2 flex items-start gap-2${compareMode ? ' pl-10 pr-4' : ' px-4'}`}>
+        {sire.photo_url && (
+          <img
+            src={sire.photo_url}
+            alt=""
+            className="w-10 h-10 rounded-lg object-cover flex-shrink-0 mt-0.5"
+          />
+        )}
+        <div className="min-w-0 flex-1">
           <div className="font-semibold truncate" style={{ color: 'var(--text)' }}>{sire.bull_name}</div>
           <div className="type-helper mt-0.5 flex items-center gap-1.5 flex-wrap">
             {sire.naab_code  && <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{sire.naab_code}</span>}
