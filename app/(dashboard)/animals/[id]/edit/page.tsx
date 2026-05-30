@@ -14,6 +14,7 @@ import { Button, ButtonLink } from '@/components/ui/Button'
 import { ActionFooter } from '@/components/ui/ActionFooter'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
+import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
 
 // ── Ear tag color picker ──────────────────────────────────────────────────────
@@ -135,8 +136,14 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params)
   const router = useRouter()
 
-  const [owners, setOwners]                 = useState<{ id: string; name: string; profile_id: string | null; company_name?: string | null; owner_name?: string | null }[]>([])
-  const [loading, setLoading]               = useState(true)
+  interface GrazingOwner { id: string; name: string; profile_id: string | null; company_name?: string | null; owner_name?: string | null; default_ear_tag_color?: string | null; default_breed?: string | null }
+  interface RanchDefaults { default_ear_tag_color?: string; default_breed?: string }
+
+  const [owners, setOwners]                   = useState<GrazingOwner[]>([])
+  const [ranchDefaults, setRanchDefaults]     = useState<RanchDefaults>({})
+  const [defaultsApplied, setDefaultsApplied] = useState<string | null>(null)
+  const initialOwnerRef                       = useRef<string | null>(null)
+  const [loading, setLoading]                 = useState(true)
   const [notFound, setNotFound]             = useState(false)
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
@@ -164,6 +171,10 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => {
     apiGet('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
+    apiGet('/api/settings/ranch').then(r => r.json()).then(d => {
+      const s = d.data ?? d
+      setRanchDefaults({ default_ear_tag_color: s.default_ear_tag_color || undefined, default_breed: s.default_breed || undefined })
+    }).catch(() => {})
   }, [])
 
   // Fetch and populate on mount
@@ -195,6 +206,7 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
           setBreeds([{ breed: animal.breed, pct: animal.breed_percentage ?? 100 }])
         }
         setPhotoUrls(animal.photos ?? [])
+        initialOwnerRef.current = animal.owner_id ?? null
         setLoading(false)
       })
       .catch(() => { setNotFound(true); setLoading(false) })
@@ -219,6 +231,41 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
     setShowVoiceModal(false)
     setVoiceResult(null)
   }, [setValue])
+
+  const handleOwnerChange = (ownerId: string | null) => {
+    if (ownerId === initialOwnerRef.current) {
+      setValue('owner_id', ownerId || undefined)
+      return
+    }
+    setValue('owner_id', ownerId || undefined)
+
+    if (!ownerId) {
+      if (ranchDefaults.default_ear_tag_color) setValue('ear_tag_color', ranchDefaults.default_ear_tag_color)
+      setDefaultsApplied(null)
+      return
+    }
+
+    const owner = owners.find(o => o.id === ownerId)
+    if (!owner) return
+
+    if (owner.default_ear_tag_color) {
+      setValue('ear_tag_color', owner.default_ear_tag_color, { shouldDirty: true })
+    } else if (ranchDefaults.default_ear_tag_color) {
+      setValue('ear_tag_color', ranchDefaults.default_ear_tag_color, { shouldDirty: true })
+    }
+
+    if (owner.default_breed && breeds.length === 0) {
+      setBreeds([{ breed: owner.default_breed, pct: 100 }])
+    }
+
+    setDefaultsApplied(owner.company_name || owner.owner_name || owner.name)
+  }
+
+  useEffect(() => {
+    if (!defaultsApplied) return
+    const t = setTimeout(() => setDefaultsApplied(null), 3000)
+    return () => clearTimeout(t)
+  }, [defaultsApplied])
 
   const startRecording = useCallback(async () => {
     try {
@@ -522,9 +569,9 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
             <Field label="Owner" helper="Leave blank if this is your animal">
               <Select
                 value={watch('owner_id') || ''}
-                onChange={e => setValue('owner_id', e.target.value || undefined)}
+                onChange={e => handleOwnerChange(e.target.value || null)}
               >
-                <option value="">My Animal</option>
+                <option value="">My Animal (Ranch Default)</option>
                 {owners.map(o => (
                   <option key={o.id} value={o.id}>
                     {o.company_name
@@ -534,6 +581,13 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
                 ))}
               </Select>
             </Field>
+            {defaultsApplied && (
+              <div className="mt-3">
+                <ContextBanner tone="info" eyebrow="DEFAULTS APPLIED">
+                  Applied {defaultsApplied}&apos;s cattle defaults to this form. You can override any field.
+                </ContextBanner>
+              </div>
+            )}
           </PanelSection>
         </Panel>
 

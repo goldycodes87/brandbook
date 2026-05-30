@@ -14,6 +14,7 @@ import { Field, Input, Textarea, Select } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ActionFooter } from '@/components/ui/ActionFooter'
 import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
+import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
 
 // ── Ear tag color picker ──────────────────────────────────────────────────────
@@ -154,6 +155,7 @@ export default function NewAnimalPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [breeds, setBreeds]                 = useState<BreedEntry[]>([])
   const [breedError, setBreedError]         = useState('')
+  const [defaultsApplied, setDefaultsApplied] = useState<string | null>(null)
   const mediaRef    = useRef<MediaRecorder | null>(null)
   const chunksRef   = useRef<Blob[]>([])
   const pendingIdRef = useRef<string | null>(null)
@@ -174,16 +176,39 @@ export default function NewAnimalPage() {
     }).catch(() => {})
   }, [setValue])
 
-  const ownerId = watch('owner_id')
-  useEffect(() => {
+  const handleOwnerChange = (ownerId: string | null) => {
+    setValue('owner_id', ownerId || undefined)
+
     if (!ownerId) {
       if (ranchDefaults.default_ear_tag_color) setValue('ear_tag_color', ranchDefaults.default_ear_tag_color)
+      if (ranchDefaults.default_breed && breeds.length === 0) {
+        setBreeds([{ breed: ranchDefaults.default_breed, pct: 100 }])
+      }
+      setDefaultsApplied(null)
       return
     }
+
     const owner = owners.find(o => o.id === ownerId)
-    if (owner?.default_ear_tag_color) setValue('ear_tag_color', owner.default_ear_tag_color)
-    else if (ranchDefaults.default_ear_tag_color) setValue('ear_tag_color', ranchDefaults.default_ear_tag_color)
-  }, [ownerId, owners, ranchDefaults, setValue])
+    if (!owner) return
+
+    if (owner.default_ear_tag_color) {
+      setValue('ear_tag_color', owner.default_ear_tag_color, { shouldDirty: true })
+    } else if (ranchDefaults.default_ear_tag_color) {
+      setValue('ear_tag_color', ranchDefaults.default_ear_tag_color, { shouldDirty: true })
+    }
+
+    if (owner.default_breed && breeds.length === 0) {
+      setBreeds([{ breed: owner.default_breed, pct: 100 }])
+    }
+
+    setDefaultsApplied(owner.company_name || owner.owner_name || owner.name)
+  }
+
+  useEffect(() => {
+    if (!defaultsApplied) return
+    const t = setTimeout(() => setDefaultsApplied(null), 3000)
+    return () => clearTimeout(t)
+  }, [defaultsApplied])
 
   const { fields: regFields, append: addReg, remove: removeReg } = useFieldArray({
     control,
@@ -556,9 +581,9 @@ export default function NewAnimalPage() {
             <Field label="Owner" helper="Leave blank if this is your animal">
               <Select
                 value={watch('owner_id') || ''}
-                onChange={e => setValue('owner_id', e.target.value || undefined)}
+                onChange={e => handleOwnerChange(e.target.value || null)}
               >
-                <option value="">My Animal</option>
+                <option value="">My Animal (Ranch Default)</option>
                 {owners.map(o => (
                   <option key={o.id} value={o.id}>
                     {o.company_name
@@ -568,6 +593,13 @@ export default function NewAnimalPage() {
                 ))}
               </Select>
             </Field>
+            {defaultsApplied && (
+              <div className="mt-3">
+                <ContextBanner tone="info" eyebrow="DEFAULTS APPLIED">
+                  Applied {defaultsApplied}&apos;s cattle defaults to this form. You can override any field.
+                </ContextBanner>
+              </div>
+            )}
           </PanelSection>
         </Panel>
 
