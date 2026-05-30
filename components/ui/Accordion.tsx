@@ -15,8 +15,8 @@ export function AccordionSection({ title, defaultOpen = false, children, summary
 
   return (
     <div
-      className="rounded-[var(--radius-lg)] overflow-hidden"
-      style={{ border: '1px solid var(--border)' }}
+      className="rounded-[var(--radius-lg)]"
+      style={{ border: '1px solid var(--border)', overflow: 'clip' }}
     >
       <button
         type="button"
