@@ -437,4 +437,39 @@ create policy if not exists "service role full access" on aum_records
 alter table grazing_assignments add column if not exists notes text;
 alter table grazing_assignments add column if not exists moved_from_lease_id uuid references leases(id) on delete set null;
 
+-- Owner portal access token
+alter table grazing_owners add column if not exists portal_token text unique
+  default encode(gen_random_bytes(16), 'hex');
+
+-- Invoice number sequence and trigger
+create sequence if not exists invoice_number_seq start 1001;
+
+create or replace function generate_invoice_number()
+returns trigger as $$
+begin
+  if new.invoice_number is null then
+    new.invoice_number := 'INV-' || to_char(now(), 'YYYYMM') || '-' || lpad(nextval('invoice_number_seq')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists invoice_number_trigger on invoices;
+create trigger invoice_number_trigger
+  before insert on invoices
+  for each row execute function generate_invoice_number();
+
+-- Expense categories (pre-seeded)
+insert into expense_categories (name, description, sort_order) values
+  ('Hay', 'Hay and forage', 10),
+  ('Mineral/Supplements', 'Mineral and nutritional supplements', 20),
+  ('Vet Bills', 'Veterinary services and medications', 30),
+  ('Pasture Treatment', 'Herbicide, fertilizer, seeding', 40),
+  ('Water', 'Water hauling or tank maintenance', 50),
+  ('Salt', 'Salt and trace mineral blocks', 60),
+  ('Labor', 'Labor and management fees', 70),
+  ('Equipment', 'Equipment use and maintenance', 80),
+  ('Other', 'Miscellaneous expenses', 90)
+on conflict do nothing;
+
 notify pgrst, 'reload schema';

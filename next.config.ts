@@ -9,6 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['html-pdf-node', 'puppeteer-core'],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

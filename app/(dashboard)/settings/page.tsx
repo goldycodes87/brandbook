@@ -16,7 +16,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
 import { AddOwnerSheet, type GrazingOwner } from '@/components/settings/AddOwnerSheet'
-import { Check, Download, Tag, AlertTriangle, FileText, MapPin, Calendar } from 'lucide-react'
+import { Check, Download, Tag, AlertTriangle, FileText, MapPin, Calendar, Mail, Plus, Pencil } from 'lucide-react'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -825,29 +825,76 @@ function DashboardTab() {
   )
 }
 
+interface ExpenseCategory {
+  id: string
+  name: string
+  description: string | null
+}
+
 // ─── Grazing Tab ─────────────────────────────────────────────────────────────
 
 function GrazingTab() {
   const [owners, setOwners]       = useState<GrazingOwner[]>([])
+  const [categories, setCategories] = useState<ExpenseCategory[]>([])
   const [loading, setLoading]     = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing]     = useState<GrazingOwner | null>(null)
   const [deleteError, setDeleteError] = useState('')
+  const [inviting, setInviting]   = useState<string | null>(null)
+  const [inviteMsg, setInviteMsg] = useState<{ id: string; msg: string } | null>(null)
+  const [showAddCategory, setShowAddCategory] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [addingCat, setAddingCat] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
-    apiGet('/api/grazing-owners')
-      .then(r => r.json())
-      .then(d => { setOwners(Array.isArray(d.data) ? d.data : []); setLoading(false) })
-      .catch(() => setLoading(false))
+    Promise.all([
+      apiGet('/api/grazing-owners').then(r => r.json()),
+      apiGet('/api/billing/expenses/categories').then(r => r.json()),
+    ]).then(([owners, cats]) => {
+      setOwners(Array.isArray(owners.data) ? owners.data : [])
+      setCategories(Array.isArray(cats.data) ? cats.data : [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const handleSendInvite = async (ownerId: string) => {
+    setInviting(ownerId); setInviteMsg(null)
+    try {
+      const res  = await fetch(`/api/billing/owners/${ownerId}/invite`, { method: 'POST' })
+      const json = await res.json()
+      setInviteMsg({ id: ownerId, msg: res.ok ? 'Invite sent!' : (json.error ?? 'Send failed') })
+    } catch {
+      setInviteMsg({ id: ownerId, msg: 'Connection error' })
+    } finally {
+      setInviting(null)
+      setTimeout(() => setInviteMsg(null), 3000)
+    }
+  }
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newCatName.trim()) return
+    setAddingCat(true)
+    try {
+      const res = await apiPost('/api/billing/expenses/categories', { name: newCatName.trim() })
+      if (res.ok) {
+        setNewCatName('')
+        setShowAddCategory(false)
+        load()
+      }
+    } finally {
+      setAddingCat(false)
+    }
+  }
 
   if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Owners */}
       <div className="flex items-center justify-between">
         <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>
           {owners.length} OWNER{owners.length !== 1 ? 'S' : ''}
@@ -875,6 +922,8 @@ function GrazingTab() {
         <div className="flex flex-col gap-3">
           {owners.map(owner => {
             const tagColor = EAR_TAG_COLORS.find(c => c.name === owner.default_ear_tag_color)
+            const isThisInviting = inviting === owner.id
+            const thisMsg = inviteMsg?.id === owner.id ? inviteMsg.msg : null
             return (
               <div
                 key={owner.id}
@@ -900,20 +949,81 @@ function GrazingTab() {
                       {[owner.email, owner.phone].filter(Boolean).join(' · ')}
                       {owner.default_breed && <span className="ml-1">· {owner.default_breed}</span>}
                     </p>
+                    {thisMsg && (
+                      <p className="type-helper" style={{ color: thisMsg === 'Invite sent!' ? 'var(--success-fg)' : 'var(--danger-fg)' }}>
+                        {thisMsg}
+                      </p>
+                    )}
                   </div>
                 </div>
-                <Button
-                  intent="ghost"
-                  size="sm"
-                  onClick={() => { setEditing(owner); setSheetOpen(true) }}
-                >
-                  EDIT
-                </Button>
+                <div className="flex gap-2 flex-shrink-0">
+                  {owner.email && (
+                    <Button
+                      intent="ghost" size="sm"
+                      loading={isThisInviting}
+                      onClick={() => handleSendInvite(owner.id)}
+                      leading={<Mail size={13} />}
+                    >
+                      PORTAL INVITE
+                    </Button>
+                  )}
+                  <Button
+                    intent="ghost" size="sm"
+                    onClick={() => { setEditing(owner); setSheetOpen(true) }}
+                    leading={<Pencil size={13} />}
+                  >
+                    EDIT
+                  </Button>
+                </div>
               </div>
             )
           })}
         </div>
       )}
+
+      {/* Expense Categories */}
+      <Panel title="EXPENSE CATEGORIES" subtitle="Categories for shared expense billing">
+        <PanelSection>
+          <div className="flex flex-col gap-2">
+            {categories.map(cat => (
+              <div key={cat.id} className="flex items-center justify-between py-1.5"
+                style={{ borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <p className="type-field-label" style={{ color: 'var(--text)' }}>{cat.name}</p>
+                  {cat.description && (
+                    <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>{cat.description}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {showAddCategory ? (
+            <form onSubmit={handleAddCategory} className="flex items-end gap-2 mt-3">
+              <div className="flex-1">
+                <Field label="Category name">
+                  <Input
+                    value={newCatName}
+                    onChange={e => setNewCatName(e.target.value)}
+                    placeholder="e.g. Hauling"
+                    autoFocus
+                  />
+                </Field>
+              </div>
+              <Button type="submit" intent="primary" size="sm" loading={addingCat}>ADD</Button>
+              <Button type="button" intent="ghost" size="sm" onClick={() => setShowAddCategory(false)}>CANCEL</Button>
+            </form>
+          ) : (
+            <Button
+              intent="ghost" size="sm" className="mt-3"
+              onClick={() => setShowAddCategory(true)}
+              leading={<Plus size={14} />}
+            >
+              ADD CATEGORY
+            </Button>
+          )}
+        </PanelSection>
+      </Panel>
 
       <AddOwnerSheet
         isOpen={sheetOpen}
