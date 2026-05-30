@@ -84,13 +84,26 @@ create table if not exists leases (
   landowner_email text,
   landowner_phone text,
   acreage numeric,
+  total_aum_capacity numeric,
   legal_description text,
   parcel_id text,
+  parcel_ids text[],
+  county text,
+  state text default 'CO',
   start_date date,
   end_date date,
   rate_per_acre numeric,
   flat_rate numeric,
+  rate_type text default 'per_acre',
+  payment_frequency text default 'annual',
   renewal_alert_days int default 60,
+  auto_renew boolean default false,
+  status text default 'active',
+  map_coordinates jsonb,
+  photos text[] default '{}',
+  documents text[] default '{}',
+  landowner_portal_token text unique default encode(gen_random_bytes(16), 'hex'),
+  landowner_portal_enabled boolean default false,
   notes text,
   created_at timestamptz default now()
 );
@@ -384,5 +397,30 @@ create table if not exists sire_import_batches (
 
 -- Link reproduction events to sire library
 alter table reproduction_events add column if not exists sire_library_id uuid references sire_library(id);
+
+-- AUM tracking
+create table if not exists aum_records (
+  id uuid primary key default gen_random_uuid(),
+  lease_id uuid references leases(id) on delete cascade not null,
+  animal_id uuid references animals(id) on delete cascade not null,
+  assignment_id uuid references grazing_assignments(id) on delete cascade,
+  recorded_date date not null default current_date,
+  weight_lbs numeric,
+  aum_value numeric,
+  notes text,
+  created_at timestamptz default now()
+);
+
+create index if not exists aum_lease_idx on aum_records(lease_id);
+create index if not exists aum_animal_idx on aum_records(animal_id);
+create index if not exists aum_date_idx on aum_records(recorded_date);
+
+alter table aum_records enable row level security;
+create policy if not exists "service role full access" on aum_records
+  for all to service_role using (true) with check (true);
+
+-- Grazing assignment enhancements
+alter table grazing_assignments add column if not exists notes text;
+alter table grazing_assignments add column if not exists moved_from_lease_id uuid references leases(id) on delete set null;
 
 notify pgrst, 'reload schema';
