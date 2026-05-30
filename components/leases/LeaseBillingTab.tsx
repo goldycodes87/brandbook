@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatCard } from '@/components/ui/StatCard'
@@ -11,6 +12,20 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { AddPeriodSheet } from './AddPeriodSheet'
 import { apiPatch, apiDelete } from '@/lib/fetch'
 import type { Lease } from './LeaseSheet'
+
+interface AumOwnerRow {
+  owner_id: string | null
+  owner_name: string
+  billable: number
+  calves_excluded: number
+  percent_of_herd: number
+}
+
+interface AumData {
+  total_billable_units: number
+  unweaned_calves_excluded: number
+  by_owner: AumOwnerRow[]
+}
 
 interface Period {
   id: string
@@ -50,8 +65,10 @@ function fmtDate(d: string | null) {
 }
 
 export function LeaseBillingTab({ leaseId, lease }: Props) {
+  const router = useRouter()
   const [periods, setPeriods]   = useState<Period[]>([])
   const [summary, setSummary]   = useState<BillingSummary | null>(null)
+  const [aumData, setAumData]   = useState<AumData | null>(null)
   const [loading, setLoading]   = useState(true)
   const [addOpen, setAddOpen]   = useState(false)
   const [editTarget, setEditTarget] = useState<Period | null>(null)
@@ -62,10 +79,15 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res  = await fetch(`/api/leases/${leaseId}/billing`)
-      const json = await res.json()
-      setPeriods(json.periods ?? [])
-      setSummary(json.summary ?? null)
+      const [billingRes, aumRes] = await Promise.all([
+        fetch(`/api/leases/${leaseId}/billing`),
+        fetch(`/api/leases/${leaseId}/aum`),
+      ])
+      const billing = await billingRes.json()
+      const aum     = await aumRes.json()
+      setPeriods(billing.periods ?? [])
+      setSummary(billing.summary ?? null)
+      if (!aum.error) setAumData(aum)
     } finally {
       setLoading(false)
     }
@@ -123,6 +145,87 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
       {/* ── Rate banner ───────────────────────────────────────────────── */}
       {summary && (
         <ContextBanner tone="neutral" title={`Rate: ${summary.rate_used}`} />
+      )}
+
+      {/* ── Herd composition ──────────────────────────────────────────── */}
+      {aumData && aumData.by_owner.length > 0 && (
+        <Panel
+          title="HERD COMPOSITION"
+          subtitle={`${aumData.total_billable_units} billable units${aumData.unweaned_calves_excluded > 0 ? ` · ${aumData.unweaned_calves_excluded} unweaned calves excluded` : ''}`}
+          padding="none"
+        >
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                  {['Owner', 'Billable Head', 'Calves (excluded)', '% of Herd', ''].map(h => (
+                    <th key={h} className="text-left px-4 py-2 type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {aumData.by_owner.map((row, i) => (
+                  <tr key={row.owner_id ?? 'unassigned'} style={{ borderBottom: i < aumData.by_owner.length - 1 ? '1px solid var(--border)' : undefined }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{row.owner_name}</td>
+                    <td className="px-4 py-3 font-semibold" style={{ color: 'var(--text)' }}>{row.billable}</td>
+                    <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{row.calves_excluded > 0 ? row.calves_excluded : '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 rounded-full flex-1 max-w-[80px]" style={{ background: 'var(--surface-2)' }}>
+                          <div className="h-full rounded-full" style={{ width: `${row.percent_of_herd}%`, background: 'var(--accent)' }} />
+                        </div>
+                        <span className="type-helper font-semibold" style={{ color: 'var(--text)' }}>{row.percent_of_herd}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.owner_id && (
+                        <Button
+                          intent="ghost" size="sm"
+                          onClick={() => router.push(`/billing?new=1&owner_id=${row.owner_id}&head_count=${row.billable}`)}
+                        >
+                          APPLY TO INVOICE
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden flex flex-col">
+            {aumData.by_owner.map((row, i) => (
+              <div
+                key={row.owner_id ?? 'unassigned'}
+                className="px-4 py-4"
+                style={{ borderBottom: i < aumData.by_owner.length - 1 ? '1px solid var(--border)' : undefined }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>{row.owner_name}</p>
+                  <span className="type-helper font-bold" style={{ color: 'var(--accent)' }}>{row.percent_of_herd}%</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{row.billable}</span>
+                    <span className="type-helper ml-1" style={{ color: 'var(--text-muted)' }}>billable</span>
+                  </div>
+                  {row.calves_excluded > 0 && (
+                    <span className="type-helper" style={{ color: 'var(--text-muted)' }}>+{row.calves_excluded} calves</span>
+                  )}
+                </div>
+                {row.owner_id && (
+                  <Button
+                    intent="ghost" size="sm" className="mt-3"
+                    onClick={() => router.push(`/billing?new=1&owner_id=${row.owner_id}&head_count=${row.billable}`)}
+                  >
+                    APPLY TO INVOICE
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </Panel>
       )}
 
       {/* ── Grazing periods ───────────────────────────────────────────── */}

@@ -99,12 +99,46 @@ export async function POST(_req: NextRequest, { params }: Params) {
   if (sendError) return NextResponse.json({ error: (sendError as any).message ?? 'Email send failed' }, { status: 500 })
 
   const now = new Date().toISOString()
+
+  // Optionally auto-create Square payment link
+  let squareLink: string | null = null
+  if (process.env.SQUARE_ACCESS_TOKEN && process.env.SQUARE_LOCATION_ID) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { SquareClient, SquareEnvironment } = require('square') as {
+        SquareClient: new (opts: { token: string; environment: string }) => {
+          checkout: {
+            paymentLinks: {
+              create: (body: unknown) => Promise<{ paymentLink?: { url?: string } }>
+            }
+          }
+        }
+        SquareEnvironment: { Production: string; Sandbox: string }
+      }
+      const sqClient = new SquareClient({
+        token:       process.env.SQUARE_ACCESS_TOKEN,
+        environment: process.env.SQUARE_ENVIRONMENT === 'production' ? SquareEnvironment.Production : SquareEnvironment.Sandbox,
+      })
+      const ownerLabel = owner.company_name || owner.owner_name || owner.name || 'Owner'
+      const result = await sqClient.checkout.paymentLinks.create({
+        idempotencyKey: `send-${id}-${Date.now()}`,
+        quickPay: {
+          name:       `Invoice ${invoice.invoice_number} — ${ownerLabel}`,
+          priceMoney: { amount: BigInt(Math.round((invoice.total_amount ?? 0) * 100)), currency: 'USD' },
+          locationId: process.env.SQUARE_LOCATION_ID,
+        },
+      })
+      if (result.paymentLink?.url) squareLink = result.paymentLink.url
+    } catch { /* non-fatal */ }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('invoices').update({
-    status:         'sent',
-    sent_at:        now,
-    email_sent_at:  now,
+    status:              'sent',
+    sent_at:             now,
+    email_sent_at:       now,
+    ...(squareLink ? { square_payment_link: squareLink } : {}),
   }).eq('id', id)
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, square_link: squareLink })
 }

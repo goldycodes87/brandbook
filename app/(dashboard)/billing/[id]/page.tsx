@@ -9,8 +9,9 @@ import Badge from '@/components/ui/Badge'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { InvoiceForm } from '@/components/billing/InvoiceForm'
-import { Send, Download, CheckCircle, RotateCcw, ArrowLeft, Printer } from 'lucide-react'
+import { Send, Download, CheckCircle, RotateCcw, ArrowLeft, Printer, Link, DollarSign } from 'lucide-react'
 import { apiGet, apiPatch } from '@/lib/fetch'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,9 @@ interface Invoice {
   paid_at: string | null
   viewed_at: string | null
   created_at: string
+  square_payment_link: string | null
+  payment_method: string | null
+  payment_reference: string | null
   line_items: Array<{ description: string; amount: number }>
   expense_splits: Array<{ description: string; category: string; owner_amount: number }>
 }
@@ -180,8 +184,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [editing, setEditing]       = useState(false)
   const [sending, setSending]       = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [creatingLink, setCreatingLink] = useState(false)
   const [confirmSend, setConfirmSend] = useState(false)
   const [confirmPaid, setConfirmPaid] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [paymentReference, setPaymentReference] = useState('')
   const [actionError, setActionError] = useState('')
 
   const load = async () => {
@@ -212,8 +219,28 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const handleMarkPaid = async () => {
-    const res = await apiPatch(`/api/billing/${id}`, { status: 'paid', paid_at: new Date().toISOString() })
+    const body: Record<string, unknown> = {
+      status:   'paid',
+      paid_at:  new Date().toISOString(),
+      payment_method: paymentMethod || null,
+    }
+    if (paymentReference.trim()) body.payment_reference = paymentReference.trim()
+    const res = await apiPatch(`/api/billing/${id}`, body)
     if (res.ok) { setConfirmPaid(false); load() }
+  }
+
+  const handleCreateSquareLink = async () => {
+    setCreatingLink(true); setActionError('')
+    try {
+      const res  = await fetch(`/api/billing/${id}/square-link`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) { setActionError(json.error ?? 'Failed to create payment link'); return }
+      load()
+    } catch {
+      setActionError('Connection error')
+    } finally {
+      setCreatingLink(false)
+    }
   }
 
   const handleDownloadPdf = async () => {
@@ -319,6 +346,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <Button intent="ghost" size="sm" loading={sending} onClick={() => setConfirmSend(true)} leading={<RotateCcw size={14} />}>
               RESEND
             </Button>
+            {!invoice.square_payment_link && (
+              <Button intent="ghost" size="sm" loading={creatingLink} onClick={handleCreateSquareLink} leading={<Link size={14} />}>
+                CREATE PAYMENT LINK
+              </Button>
+            )}
           </>
         )}
         {invoice.status === 'paid' && (
@@ -328,11 +360,75 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
-      {/* Square payment banner for sent invoices */}
-      {invoice.status === 'sent' && (
-        <ContextBanner tone="neutral" eyebrow="PAYMENT" className="mb-5">
-          Square payment integration coming soon. Mark invoice as paid manually when payment is received.
-        </ContextBanner>
+      {/* Square payment link (active) */}
+      {invoice.square_payment_link && invoice.status === 'sent' && (
+        <div
+          className="flex items-start justify-between gap-4 rounded-lg px-4 py-3 mb-4"
+          style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <Link size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent)' }} />
+            <div className="min-w-0">
+              <p className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>SQUARE PAYMENT LINK</p>
+              <p className="text-xs truncate mt-0.5" style={{ color: 'var(--accent)' }}>{invoice.square_payment_link}</p>
+            </div>
+          </div>
+          <a href={invoice.square_payment_link} target="_blank" rel="noopener noreferrer">
+            <Button intent="ghost" size="sm">OPEN</Button>
+          </a>
+        </div>
+      )}
+
+      {/* Mark as paid panel */}
+      {confirmPaid && (
+        <div
+          className="rounded-lg p-5 mb-4 flex flex-col gap-4"
+          style={{ background: 'var(--surface-1)', border: '2px solid var(--accent)' }}
+        >
+          <div className="flex items-center gap-2">
+            <DollarSign size={18} style={{ color: 'var(--accent)' }} />
+            <p className="font-semibold" style={{ color: 'var(--text)' }}>Record Payment</p>
+          </div>
+          <div>
+            <p className="type-field-label mb-2" style={{ color: 'var(--text-muted)' }}>PAYMENT METHOD</p>
+            <SegmentedControl
+              value={paymentMethod}
+              onChange={setPaymentMethod}
+              items={[
+                { label: 'Cash',            value: 'cash' },
+                { label: 'Check',           value: 'check' },
+                { label: 'Sq Terminal',     value: 'square_terminal' },
+                { label: 'Sq Online',       value: 'square_online' },
+              ]}
+            />
+          </div>
+          {(paymentMethod === 'check' || paymentMethod === 'square_terminal') && (
+            <div>
+              <p className="type-field-label mb-1" style={{ color: 'var(--text-muted)' }}>
+                {paymentMethod === 'check' ? 'CHECK NUMBER' : 'RECEIPT / REFERENCE'}
+              </p>
+              <input
+                type="text"
+                value={paymentReference}
+                onChange={e => setPaymentReference(e.target.value)}
+                placeholder={paymentMethod === 'check' ? 'e.g. 1042' : 'Terminal receipt #'}
+                className="w-full text-sm px-3 py-2 rounded-[var(--radius-md)]"
+                style={{
+                  background: 'var(--surface-0)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button intent="primary" size="sm" onClick={handleMarkPaid} leading={<CheckCircle size={14} />}>
+              CONFIRM PAID
+            </Button>
+            <Button intent="ghost" size="sm" onClick={() => setConfirmPaid(false)}>CANCEL</Button>
+          </div>
+        </div>
       )}
 
       {/* Invoice preview */}
@@ -354,14 +450,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         loading={sending}
       />
 
-      <ConfirmDialog
-        isOpen={confirmPaid}
-        onClose={() => setConfirmPaid(false)}
-        onConfirm={handleMarkPaid}
-        title="Mark as paid?"
-        message="This will mark the invoice as paid with today's date."
-        confirmLabel="MARK PAID"
-      />
     </PageContainer>
   )
 }

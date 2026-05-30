@@ -81,6 +81,7 @@ interface UserRow {
 // ─── Ranch Tab ───────────────────────────────────────────────────────────────
 
 function RanchTab() {
+  const logoFileRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState<RanchSettings>({
     ranch_name: '', owner_name: '', address: '', city: '', state: '', zip: '',
     phone: '', email: '', timezone: 'America/Denver', logo_url: '', brand_photo_url: '',
@@ -90,6 +91,7 @@ function RanchTab() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingLogo, setUploadingLogo] = useState(false)
 
   useEffect(() => {
     apiGet('/api/settings/ranch')
@@ -111,6 +113,22 @@ function RanchTab() {
   const handleBrandSave = async (url: string) => {
     setForm(f => ({ ...f, brand_photo_url: url }))
     await apiPatch('/api/settings/ranch', { brand_photo_url: url })
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingLogo(true)
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const res  = await fetch('/api/settings/upload-logo', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (json.url) setForm(f => ({ ...f, logo_url: json.url }))
+    } finally {
+      setUploadingLogo(false)
+      if (logoFileRef.current) logoFileRef.current.value = ''
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -181,9 +199,35 @@ function RanchTab() {
 
       <Panel title="BRANDING">
         <PanelSection>
-          <Field label="Logo URL" helper="Direct link to your logo image">
-            <Input value={form.logo_url} onChange={set('logo_url')} placeholder="https://…" />
-          </Field>
+          <p className="type-field-label mb-3" style={{ color: 'var(--text)' }}>Ranch logo</p>
+          <div className="flex items-center gap-4">
+            {form.logo_url ? (
+              <img
+                src={form.logo_url}
+                alt="Logo"
+                className="h-14 w-auto max-w-[120px] object-contain rounded-lg"
+                style={{ border: '1px solid var(--border)', background: 'white', padding: 4 }}
+              />
+            ) : (
+              <div
+                className="h-14 w-24 rounded-lg flex items-center justify-center"
+                style={{ border: '2px dashed var(--border)', background: 'var(--surface-2)' }}
+              >
+                <span className="type-helper" style={{ color: 'var(--text-muted)' }}>No logo</span>
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <Button type="button" intent="secondary" size="sm" loading={uploadingLogo} onClick={() => logoFileRef.current?.click()}>
+                UPLOAD LOGO
+              </Button>
+              {form.logo_url && (
+                <Button type="button" intent="ghost" size="sm" onClick={() => setForm(f => ({ ...f, logo_url: '' }))}>
+                  REMOVE
+                </Button>
+              )}
+            </div>
+          </div>
+          <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
         </PanelSection>
         <PanelSection>
           <p className="type-field-label mb-3" style={{ color: 'var(--text)' }}>Brand image</p>
