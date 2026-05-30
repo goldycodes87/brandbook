@@ -10,6 +10,7 @@ import { Panel } from '@/components/ui/Panel'
 import Badge from '@/components/ui/Badge'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { AddPeriodSheet } from './AddPeriodSheet'
+import { AddLeaseExpenseSheet, type LeaseExpense } from './AddLeaseExpenseSheet'
 import { apiPatch, apiDelete } from '@/lib/fetch'
 import type { Lease } from './LeaseSheet'
 
@@ -69,29 +70,46 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
   const [periods, setPeriods]   = useState<Period[]>([])
   const [summary, setSummary]   = useState<BillingSummary | null>(null)
   const [aumData, setAumData]   = useState<AumData | null>(null)
+  const [expenses, setExpenses] = useState<LeaseExpense[]>([])
   const [loading, setLoading]   = useState(true)
   const [addOpen, setAddOpen]   = useState(false)
   const [editTarget, setEditTarget] = useState<Period | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Period | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [markingPaid, setMarkingPaid] = useState<string | null>(null)
+  const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
+  const [editExpense, setEditExpense] = useState<LeaseExpense | null>(null)
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [billingRes, aumRes] = await Promise.all([
+      const [billingRes, aumRes, expRes] = await Promise.all([
         fetch(`/api/leases/${leaseId}/billing`),
         fetch(`/api/leases/${leaseId}/aum`),
+        fetch(`/api/leases/${leaseId}/expenses`),
       ])
       const billing = await billingRes.json()
       const aum     = await aumRes.json()
+      const exp     = await expRes.json()
       setPeriods(billing.periods ?? [])
       setSummary(billing.summary ?? null)
       if (!aum.error) setAumData(aum)
+      setExpenses(exp.data ?? [])
     } finally {
       setLoading(false)
     }
   }, [leaseId])
+
+  const handleDeleteExpense = async (id: string) => {
+    setDeletingExpenseId(id)
+    try {
+      await fetch(`/api/leases/${leaseId}/expenses/${id}`, { method: 'DELETE' })
+      load()
+    } finally {
+      setDeletingExpenseId(null)
+    }
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -365,6 +383,107 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
         )}
       </Panel>
 
+      {/* ── Shared expenses ───────────────────────────────────────────── */}
+      <Panel
+        title="SHARED EXPENSES"
+        subtitle="Costs split across all owners on this lease"
+        actions={
+          <Button intent="primary" size="sm" onClick={() => { setEditExpense(null); setExpenseSheetOpen(true) }}>
+            <Plus size={14} className="mr-1" />
+            ADD EXPENSE
+          </Button>
+        }
+        padding="none"
+      >
+        {expenses.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+              No shared expenses logged. Expenses added here are automatically split by owner % when generating invoices.
+            </p>
+            <Button intent="primary" size="sm" className="mt-3" onClick={() => setExpenseSheetOpen(true)}>
+              Add First Expense
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                    {['Date', 'Category', 'Description', 'Total Amount', ''].map(h => (
+                      <th key={h} className="text-left px-4 py-2 type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((exp, i) => (
+                    <tr key={exp.id} style={{ borderBottom: i < expenses.length - 1 ? '1px solid var(--border)' : undefined }}>
+                      <td className="px-4 py-3 type-helper" style={{ color: 'var(--text-muted)' }}>
+                        {exp.expense_date ? fmtDate(exp.expense_date) : '—'}
+                      </td>
+                      <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{exp.category_name}</td>
+                      <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{exp.description || '—'}</td>
+                      <td className="px-4 py-3 font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(exp.total_amount)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => { setEditExpense(exp); setExpenseSheetOpen(true) }}>
+                            <Pencil size={14} style={{ color: 'var(--text-muted)' }} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteExpense(exp.id)}
+                            disabled={deletingExpenseId === exp.id}
+                          >
+                            <Trash2 size={14} style={{ color: 'var(--danger-fg)', opacity: deletingExpenseId === exp.id ? 0.5 : 1 }} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="md:hidden flex flex-col">
+              {expenses.map((exp, i) => (
+                <div
+                  key={exp.id}
+                  className="px-4 py-4"
+                  style={{ borderBottom: i < expenses.length - 1 ? '1px solid var(--border)' : undefined }}
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{exp.category_name}</p>
+                      {exp.description && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{exp.description}</p>}
+                    </div>
+                    <span className="font-bold text-sm" style={{ color: 'var(--gold-fg)' }}>{fmt(exp.total_amount)}</span>
+                  </div>
+                  {exp.expense_date && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{fmtDate(exp.expense_date)}</p>}
+                  <div className="flex items-center gap-2 mt-2">
+                    <Button intent="ghost" size="sm" onClick={() => { setEditExpense(exp); setExpenseSheetOpen(true) }}>EDIT</Button>
+                    <button type="button" className="ml-auto" onClick={() => handleDeleteExpense(exp.id)}>
+                      <Trash2 size={16} style={{ color: 'var(--danger-fg)' }} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Total footer */}
+            <div
+              className="px-5 py-3 flex justify-between"
+              style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}
+            >
+              <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>TOTAL SHARED EXPENSES</span>
+              <span className="font-bold" style={{ color: 'var(--gold-fg)' }}>
+                {fmt(expenses.reduce((s, e) => s + e.total_amount, 0))}
+              </span>
+            </div>
+          </>
+        )}
+      </Panel>
+
       <AddPeriodSheet
         isOpen={addOpen}
         onClose={() => { setAddOpen(false); setEditTarget(null) }}
@@ -373,6 +492,15 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
         onSuccess={load}
         initialData={editTarget}
         mode={editTarget ? 'edit' : 'create'}
+      />
+
+      <AddLeaseExpenseSheet
+        isOpen={expenseSheetOpen}
+        onClose={() => { setExpenseSheetOpen(false); setEditExpense(null) }}
+        leaseId={leaseId}
+        onSuccess={load}
+        initialData={editExpense}
+        mode={editExpense ? 'edit' : 'create'}
       />
 
       <ConfirmDialog
