@@ -398,6 +398,20 @@ create table if not exists sire_import_batches (
 -- Link reproduction events to sire library
 alter table reproduction_events add column if not exists sire_library_id uuid references sire_library(id);
 
+-- Grazing periods (head count by date range for billing)
+create table if not exists grazing_periods (
+  id uuid primary key default gen_random_uuid(),
+  lease_id uuid references leases(id) on delete cascade not null,
+  start_date date not null,
+  end_date date not null,
+  head_count numeric not null,
+  notes text,
+  is_paid boolean default false,
+  paid_date date,
+  paid_amount numeric,
+  created_at timestamptz default now()
+);
+
 -- AUM tracking
 create table if not exists aum_records (
   id uuid primary key default gen_random_uuid(),

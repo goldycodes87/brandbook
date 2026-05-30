@@ -28,6 +28,8 @@ export interface Lease {
   start_date: string | null
   end_date: string | null
   rate_per_acre: number | null
+  rate_per_head: number | null
+  rate_per_aum: number | null
   flat_rate: number | null
   rate_type: string | null
   payment_frequency: string | null
@@ -55,8 +57,8 @@ const BLANK = {
   legal_description: '', parcel_ids_raw: '',
   county: '', state: 'CO',
   start_date: '', end_date: '',
-  rate_type: 'per_acre',
-  rate_per_acre: '', flat_rate: '',
+  rate_type: 'per_head',
+  rate_per_acre: '', rate_per_head: '', rate_per_aum: '', flat_rate: '',
   payment_frequency: 'annual',
   renewal_alert_days: '60',
   auto_renew: false,
@@ -74,7 +76,9 @@ const STATUS_OPTIONS = [
 
 const RATE_TYPE_OPTIONS = [
   { value: 'per_acre', label: '$/ACRE' },
-  { value: 'flat_rate', label: 'FLAT RATE' },
+  { value: 'per_head', label: '$/HEAD/MO' },
+  { value: 'per_aum',  label: 'PER AUM' },
+  { value: 'flat',     label: 'FLAT RATE' },
 ]
 
 const FREQ_OPTIONS = [
@@ -110,8 +114,10 @@ export function LeaseSheet({ isOpen, onClose, onSuccess, initialData, mode }: Le
           state:                  initialData.state ?? 'CO',
           start_date:             initialData.start_date ?? '',
           end_date:               initialData.end_date ?? '',
-          rate_type:              initialData.rate_type ?? 'per_acre',
+          rate_type:              initialData.rate_type ?? 'per_head',
           rate_per_acre:          initialData.rate_per_acre != null ? String(initialData.rate_per_acre) : '',
+          rate_per_head:          initialData.rate_per_head != null ? String(initialData.rate_per_head) : '',
+          rate_per_aum:           initialData.rate_per_aum != null ? String(initialData.rate_per_aum) : '',
           flat_rate:              initialData.flat_rate != null ? String(initialData.flat_rate) : '',
           payment_frequency:      initialData.payment_frequency ?? 'annual',
           renewal_alert_days:     initialData.renewal_alert_days != null ? String(initialData.renewal_alert_days) : '60',
@@ -147,9 +153,11 @@ export function LeaseSheet({ isOpen, onClose, onSuccess, initialData, mode }: Le
         state:                form.state || null,
         start_date:           form.start_date || null,
         end_date:             form.end_date || null,
-        rate_type:            form.rate_type,
-        rate_per_acre:        form.rate_type === 'per_acre' && form.rate_per_acre ? Number(form.rate_per_acre) : null,
-        flat_rate:            form.rate_type === 'flat_rate' && form.flat_rate ? Number(form.flat_rate) : null,
+        rate_type:     form.rate_type,
+        rate_per_acre: form.rate_type === 'per_acre' && form.rate_per_acre ? Number(form.rate_per_acre) : null,
+        rate_per_head: form.rate_type === 'per_head' && form.rate_per_head ? Number(form.rate_per_head) : null,
+        rate_per_aum:  form.rate_type === 'per_aum'  && form.rate_per_aum  ? Number(form.rate_per_aum)  : null,
+        flat_rate:     form.rate_type === 'flat'      && form.flat_rate     ? Number(form.flat_rate)     : null,
         payment_frequency:    form.payment_frequency,
         renewal_alert_days:   form.renewal_alert_days ? Number(form.renewal_alert_days) : 60,
         auto_renew:           form.auto_renew,
@@ -191,9 +199,12 @@ export function LeaseSheet({ isOpen, onClose, onSuccess, initialData, mode }: Le
   }
 
   const dateSummary = [form.start_date, form.end_date].filter(Boolean).join(' → ') || undefined
-  const financialSummary = form.rate_type === 'per_acre' && form.rate_per_acre
-    ? `$${form.rate_per_acre}/acre`
-    : form.flat_rate ? `$${form.flat_rate} flat` : undefined
+  const financialSummary =
+    form.rate_type === 'per_acre' && form.rate_per_acre ? `$${form.rate_per_acre}/acre/yr`
+    : form.rate_type === 'per_head' && form.rate_per_head ? `$${form.rate_per_head}/head/mo`
+    : form.rate_type === 'per_aum'  && form.rate_per_aum  ? `$${form.rate_per_aum}/AUM/mo`
+    : form.rate_type === 'flat'     && form.flat_rate      ? `$${form.flat_rate}/mo flat`
+    : undefined
 
   if (!isOpen) return null
 
@@ -293,12 +304,23 @@ export function LeaseSheet({ isOpen, onClose, onSuccess, initialData, mode }: Le
                   size="sm"
                 />
               </Field>
-              {form.rate_type === 'per_acre' ? (
-                <Field label="Rate ($/acre/year)">
+              {form.rate_type === 'per_acre' && (
+                <Field label="$/ACRE/YEAR">
                   <Input value={form.rate_per_acre} onChange={set('rate_per_acre')} type="number" step="0.01" min="0" placeholder="0.00" />
                 </Field>
-              ) : (
-                <Field label="Flat rate ($)">
+              )}
+              {form.rate_type === 'per_head' && (
+                <Field label="$/HEAD/MONTH" helper="Rate per animal per month">
+                  <Input value={form.rate_per_head} onChange={set('rate_per_head')} type="number" step="0.01" min="0" placeholder="e.g. 15.00" />
+                </Field>
+              )}
+              {form.rate_type === 'per_aum' && (
+                <Field label="$/AUM/MONTH">
+                  <Input value={form.rate_per_aum} onChange={set('rate_per_aum')} type="number" step="0.01" min="0" placeholder="0.00" />
+                </Field>
+              )}
+              {form.rate_type === 'flat' && (
+                <Field label="FLAT RATE/MONTH">
                   <Input value={form.flat_rate} onChange={set('flat_rate')} type="number" step="0.01" min="0" placeholder="0.00" />
                 </Field>
               )}

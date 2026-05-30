@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { MapPin, Calendar, AlertTriangle, Plus, RefreshCw } from 'lucide-react'
+import Link from 'next/link'
+import { MapPin, Calendar, AlertTriangle, Plus, RefreshCw, DollarSign } from 'lucide-react'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -30,12 +31,14 @@ function formatDate(d: string | null) {
 }
 
 function formatRate(lease: Lease) {
-  if (lease.rate_type === 'flat_rate' && lease.flat_rate != null) {
-    return `$${Number(lease.flat_rate).toLocaleString()} flat`
-  }
-  if (lease.rate_per_acre != null) {
-    return `$${Number(lease.rate_per_acre).toFixed(2)}/acre`
-  }
+  if (lease.rate_type === 'per_head' && lease.rate_per_head != null)
+    return `$${Number(lease.rate_per_head).toFixed(2)}/head/mo`
+  if (lease.rate_type === 'per_aum' && lease.rate_per_aum != null)
+    return `$${Number(lease.rate_per_aum).toFixed(2)}/AUM/mo`
+  if (lease.rate_type === 'flat' && lease.flat_rate != null)
+    return `$${Number(lease.flat_rate).toLocaleString()} flat/mo`
+  if (lease.rate_per_acre != null)
+    return `$${Number(lease.rate_per_acre).toFixed(2)}/acre/yr`
   return '—'
 }
 
@@ -49,22 +52,20 @@ function renewalWarning(lease: Lease) {
   const days = daysUntil(lease.end_date)
   if (days === null || lease.status !== 'active') return null
   const alertDays = lease.renewal_alert_days ?? 60
-  if (days < 0) return null
-  if (days <= alertDays) return days
-  return null
+  if (days < 0 || days > alertDays) return null
+  return days
 }
 
 // ─── Lease Card ──────────────────────────────────────────────────────────────
 
-function LeaseCard({ lease, onClick }: { lease: Lease; onClick: () => void }) {
-  const warn = renewalWarning(lease)
+function LeaseCard({ lease }: { lease: Lease }) {
+  const warn     = renewalWarning(lease)
   const location = [lease.county, lease.state].filter(Boolean).join(', ')
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left rounded-lg transition-colors"
+    <Link
+      href={`/leases/${lease.id}`}
+      className="block rounded-lg transition-colors hover:opacity-90"
       style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', padding: '16px' }}
     >
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -95,7 +96,7 @@ function LeaseCard({ lease, onClick }: { lease: Lease; onClick: () => void }) {
         </span>
       </div>
 
-      <div className="flex items-center justify-between mt-3">
+      <div className="flex items-center flex-wrap gap-3 mt-3">
         <span className="type-helper font-medium" style={{ color: 'var(--text)' }}>
           {formatRate(lease)}
           {lease.payment_frequency && (
@@ -104,20 +105,21 @@ function LeaseCard({ lease, onClick }: { lease: Lease; onClick: () => void }) {
             </span>
           )}
         </span>
+
         {warn !== null && (
           <span className="flex items-center gap-1 type-helper" style={{ color: 'var(--warning-fg, #f59e0b)' }}>
             <AlertTriangle size={12} />
             Renews in {warn}d
           </span>
         )}
-        {lease.auto_renew && (
+        {lease.auto_renew && warn === null && (
           <span className="flex items-center gap-1 type-helper" style={{ color: 'var(--text-muted)' }}>
             <RefreshCw size={12} />
             Auto-renew
           </span>
         )}
       </div>
-    </button>
+    </Link>
   )
 }
 
@@ -130,11 +132,10 @@ const TABS: TabItem[] = [
 ]
 
 export default function LeasesPage() {
-  const [leases, setLeases]         = useState<Lease[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [activeTab, setActiveTab]   = useState('active')
-  const [sheetOpen, setSheetOpen]   = useState(false)
-  const [editTarget, setEditTarget] = useState<Lease | null>(null)
+  const [leases, setLeases]       = useState<Lease[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [activeTab, setActiveTab] = useState('active')
+  const [addOpen, setAddOpen]     = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -149,15 +150,12 @@ export default function LeasesPage() {
 
   useEffect(() => { load() }, [load])
 
-  const openAdd  = () => { setEditTarget(null); setSheetOpen(true) }
-  const openEdit = (l: Lease) => { setEditTarget(l); setSheetOpen(true) }
-
   return (
     <PageContainer>
       <PageHeader
         title="Leases"
         actions={
-          <Button intent="primary" size="sm" onClick={openAdd}>
+          <Button intent="primary" size="sm" onClick={() => setAddOpen(true)}>
             <Plus size={16} className="mr-1" />
             ADD LEASE
           </Button>
@@ -177,22 +175,20 @@ export default function LeasesPage() {
           variant="neutral"
           title="No leases"
           body={activeTab === 'active' ? 'Add your first lease to get started.' : 'No leases in this category.'}
-          action={activeTab === 'active' ? <Button intent="primary" size="sm" onClick={openAdd}>Add Lease</Button> : undefined}
+          action={activeTab === 'active' ? <Button intent="primary" size="sm" onClick={() => setAddOpen(true)}>Add Lease</Button> : undefined}
         />
       ) : (
         <div className="flex flex-col gap-3">
-          {leases.map(l => (
-            <LeaseCard key={l.id} lease={l} onClick={() => openEdit(l)} />
-          ))}
+          {leases.map(l => <LeaseCard key={l.id} lease={l} />)}
         </div>
       )}
 
       <LeaseSheet
-        isOpen={sheetOpen}
-        onClose={() => setSheetOpen(false)}
+        isOpen={addOpen}
+        onClose={() => setAddOpen(false)}
         onSuccess={load}
-        initialData={editTarget}
-        mode={editTarget ? 'edit' : 'create'}
+        initialData={null}
+        mode="create"
       />
     </PageContainer>
   )

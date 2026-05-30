@@ -6,7 +6,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const ALLOWED = [
   'property_name', 'landowner_name', 'landowner_email', 'landowner_phone',
   'acreage', 'total_aum_capacity', 'legal_description', 'parcel_id', 'parcel_ids',
-  'county', 'state', 'start_date', 'end_date', 'rate_per_acre', 'flat_rate',
+  'county', 'state', 'start_date', 'end_date',
+  'rate_per_acre', 'rate_per_head', 'rate_per_aum', 'flat_rate',
   'rate_type', 'payment_frequency', 'renewal_alert_days', 'auto_renew',
   'status', 'notes', 'map_coordinates', 'landowner_portal_enabled',
 ]
