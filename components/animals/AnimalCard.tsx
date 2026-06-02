@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Chip, StatusChip } from '@/components/ui/Chip'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP } from '@/components/ui/tokens'
+import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue } from '@/components/ui/tokens'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
 
 interface LatestWeight {
@@ -28,6 +28,7 @@ export interface AnimalListItem {
   breeds?: { breed: string; pct: number }[] | null
   owner_id?: string | null
   owner_display_name?: string | null
+  calf_sex?: string | null
   photos: string[] | null
   owner: Owner | null
   latest_weight: LatestWeight | null
@@ -85,7 +86,7 @@ export function AnimalCard({ animal }: { animal: AnimalListItem }) {
         </div>
 
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-          {animal.sex && <StatusChip map={SEX_CHIP} value={animal.sex} size="sm" />}
+          {animal.sex && <StatusChip map={SEX_CHIP} value={getSexValue(animal.sex, animal.calf_sex)} size="sm" />}
           {age && <Chip tone="neutral" size="sm">{age}</Chip>}
           {animal.latest_weight && (
             <Chip tone="neutral" size="sm">{animal.latest_weight.weight_lbs} lb</Chip>

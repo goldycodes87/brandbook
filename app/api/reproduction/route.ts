@@ -112,7 +112,16 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     if (event_type === 'weaned' && weaned_calf_id) {
+      const { data: calfAnimal } = await supabase
+        .from('animals')
+        .select('calf_sex')
+        .eq('id', weaned_calf_id)
+        .single()
+      const newSex =
+        calfAnimal?.calf_sex === 'heifer_calf' ? 'heifer' :
+        calfAnimal?.calf_sex === 'bull_calf'   ? 'bull'   : 'steer'
       await supabase.from('animals').update({
+        sex:                newSex,
         weaning_date:       weaning_date || event_date,
         weaning_weight_lbs: weaning_weight_lbs ?? null,
       }).eq('id', weaned_calf_id)
@@ -130,23 +139,28 @@ export async function POST(req: NextRequest) {
 
   if (reproErr) return NextResponse.json({ error: reproErr.message }, { status: 500 })
 
-  // Create calf animal
-  const calfSex =
-    calf_data.sex === 'bull'   ? 'bull' :
-    calf_data.sex === 'heifer' ? 'heifer' : 'calf'
+  // Fetch dam to inherit owner
+  const { data: damRecord } = await supabase
+    .from('animals')
+    .select('owner_id')
+    .eq('id', animal_id)
+    .single()
 
+  // Create calf animal — sex always 'calf' at birth, calf_sex stores biological sex
   const { data: newCalf, error: calfErr } = await supabase
     .from('animals')
     .insert({
       tag_number:              calf_data.tag_number,
       ear_tag_color:           calf_data.ear_tag_color || null,
-      sex:                     calfSex,
+      sex:                     'calf',
+      calf_sex:                calf_data.calf_sex || null,
       status:                  'active',
       dob:                     calf_data.dob || event_date,
       birth_weight_lbs:        calf_data.birth_weight_lbs || null,
       birth_weight_estimated:  calf_data.birth_weight_estimated ?? true,
       breeds:                  calf_data.breeds || [],
       dam_id:                  animal_id,
+      owner_id:                damRecord?.owner_id || null,
       sire_id:                 calf_data.sire_id || null,
       sire_library_id:         calf_data.sire_library_id || null,
       donor_dam_id:            calf_data.donor_dam_id || null,

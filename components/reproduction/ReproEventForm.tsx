@@ -15,7 +15,7 @@ import { apiGet, apiPost } from '@/lib/fetch'
 type EventType = 'bred' | 'preg_check' | 'calved' | 'weaned' | 'flushed' | 'bse' | 'semen_collection'
 type ConceptionMethod = 'natural' | 'ai' | 'embryo'
 type PregCheckResult = 'confirmed' | 'open' | 'recheck'
-type CalfSex = 'bull' | 'heifer' | 'calf'
+type CalfSex = 'heifer_calf' | 'bull_calf' | 'calf'
 type BirthType = 'single' | 'twin_a' | 'twin_b'
 
 const COW_EVENTS: SegmentItem<EventType>[] = [
@@ -43,9 +43,9 @@ const PREG_RESULT_ITEMS: SegmentItem<PregCheckResult>[] = [
 ]
 
 const CALF_SEX_ITEMS: SegmentItem<CalfSex>[] = [
-  { value: 'bull',   label: 'BULL CALF' },
-  { value: 'heifer', label: 'HEIFER CALF' },
-  { value: 'calf',   label: 'UNKNOWN' },
+  { value: 'heifer_calf', label: 'HEIFER CALF' },
+  { value: 'bull_calf',   label: 'BULL CALF' },
+  { value: 'calf',        label: 'UNKNOWN' },
 ]
 
 const BIRTH_TYPE_ITEMS: SegmentItem<BirthType>[] = [
@@ -128,7 +128,7 @@ export function ReproEventForm({
   // Calf fields
   const [calfTag,        setCalfTag]        = useState('')
   const [calfColor,      setCalfColor]      = useState<string | null>(null)
-  const [calfSex,        setCalfSex]        = useState<CalfSex>('heifer')
+  const [calfSex,        setCalfSex]        = useState<CalfSex>('heifer_calf')
   const [calfDob,        setCalfDob]        = useState(new Date().toISOString().slice(0, 10))
   const [calfWeight,     setCalfWeight]     = useState('')
   const [calfEstWeight,  setCalfEstWeight]  = useState(true)
@@ -212,7 +212,8 @@ export function ReproEventForm({
           calf_data: {
             tag_number:              calfTag.trim(),
             ear_tag_color:           calfColor,
-            sex:                     calfSex,
+            sex:                     'calf',
+            calf_sex:                calfSex === 'calf' ? null : calfSex,
             dob:                     calfDob,
             birth_weight_lbs:        calfWeight ? Number(calfWeight) : null,
             birth_weight_estimated:  calfEstWeight,

@@ -12,13 +12,13 @@ import { ContextBanner } from '@/components/ui/ContextBanner'
 import { StatusChip } from '@/components/ui/Chip'
 import { EarTagColorPicker } from '@/components/reproduction/EarTagColorPicker'
 import { SireSelector } from '@/components/reproduction/SireSelector'
-import { SEX_CHIP } from '@/components/ui/tokens'
+import { SEX_CHIP, getSexValue } from '@/components/ui/tokens'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
 import Link from 'next/link'
 import { apiGet, apiPost } from '@/lib/fetch'
 import { calcCalfBreeds, type BreedEntry } from '@/lib/breed-calculator'
 
-type CalfSex = 'bull' | 'heifer' | 'calf'
+type CalfSex = 'heifer_calf' | 'bull_calf' | 'calf'
 type BirthType = 'single' | 'twin_a' | 'twin_b'
 type ConceptionMethod = 'natural' | 'ai' | 'embryo'
 
@@ -42,9 +42,9 @@ interface CalfRecord {
 }
 
 const CALF_SEX_ITEMS: SegmentItem<CalfSex>[] = [
-  { value: 'bull',   label: 'BULL' },
-  { value: 'heifer', label: 'HEIFER' },
-  { value: 'calf',   label: 'UNKNOWN' },
+  { value: 'heifer_calf', label: 'HEIFER CALF' },
+  { value: 'bull_calf',   label: 'BULL CALF' },
+  { value: 'calf',        label: 'UNKNOWN' },
 ]
 
 const BIRTH_TYPE_ITEMS: SegmentItem<BirthType>[] = [
@@ -93,7 +93,7 @@ function blankCalfState() {
   return {
     calfTag:          '',
     calfColor:        null as string | null,
-    calfSex:          'heifer' as CalfSex,
+    calfSex:          'heifer_calf' as CalfSex,
     calfDob:          new Date().toISOString().slice(0, 10),
     calfWeight:       '',
     calfEstWeight:    true,
@@ -189,7 +189,8 @@ export default function CalvingEntryPage() {
           calf_data: {
             tag_number:             calf.calfTag.trim(),
             ear_tag_color:          calf.calfColor,
-            sex:                    calf.calfSex,
+            sex:                    'calf',
+            calf_sex:               calf.calfSex === 'calf' ? null : calf.calfSex,
             dob:                    calf.calfDob,
             birth_weight_lbs:       calf.calfWeight ? Number(calf.calfWeight) : null,
             birth_weight_estimated: calf.calfEstWeight,
@@ -326,7 +327,7 @@ export default function CalvingEntryPage() {
                     style={{ border: '1px solid var(--border)' }}
                   >
                     <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>#{c.tag_number}</span>
-                    <StatusChip map={SEX_CHIP} value={c.sex} size="sm" />
+                    <StatusChip map={SEX_CHIP} value={getSexValue(c.sex, (c as { calf_sex?: string | null }).calf_sex)} size="sm" />
                     <span className="type-helper" style={{ color: 'var(--text-muted)' }}>← #{c.dam_tag}</span>
                   </Link>
                 ))}

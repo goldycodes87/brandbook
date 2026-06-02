@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { TR, TD } from '@/components/ui/Table'
 import { StatusChip } from '@/components/ui/Chip'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP } from '@/components/ui/tokens'
+import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue } from '@/components/ui/tokens'
 import type { AnimalListItem } from './AnimalCard'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
 
@@ -15,7 +15,7 @@ export function AnimalTableRow({ a }: { a: AnimalListItem }) {
         {a.tag_number}
       </TD>
       <TD>{a.name ?? '—'}</TD>
-      <TD>{a.sex ? <StatusChip map={SEX_CHIP} value={a.sex} size="sm" /> : '—'}</TD>
+      <TD>{a.sex ? <StatusChip map={SEX_CHIP} value={getSexValue(a.sex, a.calf_sex)} size="sm" /> : '—'}</TD>
       <TD><BreedDisplay breeds={a.breeds} breed={a.breed} breedPercentage={a.breed_percentage} /></TD>
       <TD><StatusChip map={ANIMAL_STATUS_CHIP} value={a.status} size="sm" /></TD>
       <TD>{a.latest_weight ? `${a.latest_weight.weight_lbs} lb` : '—'}</TD>

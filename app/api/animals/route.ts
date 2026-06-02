@@ -20,11 +20,19 @@ export async function GET(req: NextRequest) {
   const limitParam = searchParams.get('limit')
   const limit    = limitParam ? Math.min(Number(limitParam), 200) : 50
   const offset   = (page - 1) * limit
+  const sortCol  = searchParams.get('sort') ?? 'tag_number'
+  const sortDir  = searchParams.get('dir') === 'desc'
+
+  const sortMap: Record<string, string> = {
+    tag_number: 'tag_number', name: 'name', sex: 'sex',
+    breed: 'breed', status: 'status', created_at: 'created_at',
+  }
+  const sortColumn = sortMap[sortCol] ?? 'tag_number'
 
   let query = supabase
     .from('animals')
     .select(
-      `id, tag_number, name, sex,
+      `id, tag_number, name, sex, calf_sex,
        status, breed, breeds,
        ear_tag_color, ear_tag_number,
        photos, dob, created_at,
@@ -34,7 +42,7 @@ export async function GET(req: NextRequest) {
        purchase_date, notes`,
       { count: 'exact' }
     )
-    .order('tag_number', { ascending: true })
+    .order(sortColumn, { ascending: !sortDir, nullsFirst: false })
     .range(offset, offset + limit - 1)
 
   if (search)   query = query.or(`tag_number.ilike.%${search}%,name.ilike.%${search}%`)

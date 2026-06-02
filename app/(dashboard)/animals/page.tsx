@@ -6,14 +6,12 @@ import { ButtonLink } from '@/components/ui/Button'
 import { Toolbar } from '@/components/ui/Toolbar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { StatCard } from '@/components/ui/StatCard'
-import { Table, THead, TBody, TR, TH } from '@/components/ui/Table'
-import { AnimalCard } from '@/components/animals/AnimalCard'
 import { AnimalFilters } from '@/components/animals/AnimalFilters'
-import { AnimalTableRow } from '@/components/animals/AnimalTableRow'
+import { AnimalSortableTable } from '@/components/animals/AnimalSortableTable'
 import type { AnimalListItem } from '@/components/animals/AnimalCard'
 
 interface PageProps {
-  searchParams: Promise<{ search?: string; status?: string; sex?: string; page?: string }>
+  searchParams: Promise<{ search?: string; status?: string; sex?: string; page?: string; sort?: string; dir?: string }>
 }
 
 async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['searchParams']> }) {
@@ -22,18 +20,25 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
   const limit  = 50
   const offset = (page - 1) * limit
 
+  const sortMap: Record<string, string> = {
+    tag_number: 'tag_number', name: 'name', sex: 'sex',
+    breed: 'breed', status: 'status', created_at: 'created_at',
+  }
+  const sortCol = sortMap[searchParams.sort ?? ''] ?? 'tag_number'
+  const ascending = searchParams.dir !== 'desc'
+
   const [{ data: ranchData }, queryResult] = await Promise.all([
     supabase.from('ranch_settings').select('ranch_name').maybeSingle(),
     (() => {
       let q = supabase
         .from('animals')
         .select(
-          `id, tag_number, name, dob, sex, status, breed, breed_percentage, breeds, owner_id, photos,
+          `id, tag_number, name, dob, sex, calf_sex, status, breed, breed_percentage, breeds, owner_id, photos,
            owner:owner_id ( id, name ),
            weights ( weight_lbs, weighed_at )`,
           { count: 'exact' }
         )
-        .order('tag_number', { ascending: true })
+        .order(sortCol, { ascending, nullsFirst: false })
         .order('weighed_at', { referencedTable: 'weights', ascending: false })
         .range(offset, offset + limit - 1)
       if (searchParams.search) q = q.or(`tag_number.ilike.%${searchParams.search}%,name.ilike.%${searchParams.search}%`)
@@ -74,34 +79,13 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
     )
   }
 
+  const currentSort = sortMap[searchParams.sort ?? ''] ? (searchParams.sort ?? 'tag_number') : 'tag_number'
+  const currentDir: 'asc' | 'desc' = searchParams.dir === 'desc' ? 'desc' : 'asc'
+
   return (
     <>
       <p className="type-data-sm mb-3" style={{ color: 'var(--text-muted)' }}>{count ?? animals.length} animals</p>
-
-      {/* Mobile: card grid */}
-      <div className="flex flex-col gap-2 md:hidden">
-        {animals.map(a => <AnimalCard key={a.id} animal={a} />)}
-      </div>
-
-      {/* Desktop: table */}
-      <div className="hidden md:block">
-        <Table>
-          <THead>
-            <TR>
-              <TH>Tag</TH>
-              <TH>Name</TH>
-              <TH>Sex</TH>
-              <TH>Breed</TH>
-              <TH>Status</TH>
-              <TH>Last Weight</TH>
-              <TH>Owner</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {animals.map(a => <AnimalTableRow key={a.id} a={a} />)}
-          </TBody>
-        </Table>
-      </div>
+      <AnimalSortableTable animals={animals} currentSort={currentSort} currentDir={currentDir} />
     </>
   )
 }

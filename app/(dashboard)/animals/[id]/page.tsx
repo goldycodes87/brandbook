@@ -12,7 +12,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP } from '@/components/ui/tokens'
+import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP, getSexValue } from '@/components/ui/tokens'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
@@ -38,6 +38,7 @@ interface Animal {
   breed: string | null
   breed_percentage: number | null
   breeds: { breed: string; pct: number }[] | null
+  calf_sex: string | null
   birth_weight_lbs: number | null
   purchase_price: number | null
   purchase_date: string | null
@@ -162,7 +163,7 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
           { label: 'Age',    value: calcAge(animal.dob) },
           { label: 'Weight', value: latestWeight ? `${latestWeight.weight_lbs} lb` : '—' },
           { label: 'Breed',  value: <BreedDisplay breeds={animal.breeds} breed={animal.breed} breedPercentage={animal.breed_percentage} /> },
-          { label: 'Sex',    value: animal.sex ? <StatusChip map={SEX_CHIP} value={animal.sex} /> : '—' },
+          { label: 'Sex',    value: animal.sex ? <StatusChip map={SEX_CHIP} value={getSexValue(animal.sex, animal.calf_sex)} /> : '—' },
         ].map(s => (
           <div key={s.label} className="rounded-[var(--radius-lg)] p-3" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
             <p className="type-section-label mb-1" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
@@ -471,7 +472,7 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
                   <p className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>#{c.tag_number}</p>
                   {c.name && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{c.name}</p>}
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {c.sex && <StatusChip map={SEX_CHIP} value={c.sex} size="sm" />}
+                    {c.sex && <StatusChip map={SEX_CHIP} value={getSexValue(c.sex, (c as { calf_sex?: string | null }).calf_sex)} size="sm" />}
                   </div>
                   {c.dob && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>DOB: {fmtDate(c.dob)}</p>}
                 </div>
@@ -740,7 +741,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
         actions={
           <>
             <StatusChip map={ANIMAL_STATUS_CHIP} value={animal.status} />
-            {animal.sex && <StatusChip map={SEX_CHIP} value={animal.sex} />}
+            {animal.sex && <StatusChip map={SEX_CHIP} value={getSexValue(animal.sex, animal.calf_sex)} />}
             <ButtonLink href={`/animals/${id}/edit`} intent="secondary" size="sm">EDIT</ButtonLink>
           </>
         }

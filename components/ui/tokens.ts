@@ -17,12 +17,23 @@ export const ANIMAL_STATUS_CHIP: Record<string, ChipPreset> = {
 };
 
 export const SEX_CHIP: Record<string, ChipPreset> = {
-  bull:   { label: "BULL",   tone: "accent" },
-  cow:    { label: "COW",    tone: "success" },
-  heifer: { label: "HEIFER", tone: "gold" },
-  steer:  { label: "STEER",  tone: "neutral" },
-  calf:   { label: "CALF",   tone: "purple" },
+  bull:         { label: "BULL",        tone: "accent" },
+  cow:          { label: "COW",         tone: "success" },
+  heifer:       { label: "HEIFER",      tone: "gold" },
+  steer:        { label: "STEER",       tone: "neutral" },
+  calf:         { label: "CALF",        tone: "purple" },
+  heifer_calf:  { label: "HEIFER CALF", tone: "gold" },
+  bull_calf:    { label: "BULL CALF",   tone: "accent" },
 };
+
+/** Returns the SEX_CHIP key that accounts for calf_sex for newborns. */
+export function getSexValue(
+  sex: string | null | undefined,
+  calfSex?: string | null
+): string {
+  if (sex === "calf" && calfSex) return calfSex;
+  return sex ?? "calf";
+}
 
 export const HEALTH_EVENT_CHIP: Record<string, ChipPreset> = {
   treatment: { label: "TREATMENT", tone: "info" },
