@@ -146,7 +146,11 @@ export async function POST(req: NextRequest) {
   // Calving path: create event + calf animal + link back
   const { data: reproEvent, error: reproErr } = await supabase
     .from('reproduction_events')
-    .insert({ ...eventRow, event_type: 'calved' })
+    .insert({
+      ...eventRow,
+      event_type:      'calved',
+      sire_library_id: calf_data?.sire_library_id || eventRow.sire_library_id || null,
+    })
     .select()
     .single()
 
@@ -192,6 +196,20 @@ export async function POST(req: NextRequest) {
     .from('reproduction_events')
     .update({ calf_id: newCalf.id })
     .eq('id', reproEvent.id)
+
+  // Increment use_count on sire library entry
+  const usedSireLibraryId = calf_data?.sire_library_id || null
+  if (usedSireLibraryId) {
+    const { data: currentSire } = await supabase
+      .from('sire_library')
+      .select('use_count')
+      .eq('id', usedSireLibraryId)
+      .single()
+    await supabase
+      .from('sire_library')
+      .update({ use_count: (currentSire?.use_count || 0) + 1 })
+      .eq('id', usedSireLibraryId)
+  }
 
   // Promote heifer to cow on first calving
   if (damRecord?.sex === 'heifer') {

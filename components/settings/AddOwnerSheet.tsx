@@ -10,6 +10,8 @@ import { AccordionSection } from '@/components/ui/Accordion'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
 import { apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
+const normalizeColor = (c: string) => c ? c.charAt(0).toUpperCase() + c.slice(1).toLowerCase() : c
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const EAR_TAG_COLORS = [
@@ -262,7 +264,7 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
                       key={c.name}
                       type="button"
                       title={c.name}
-                      onClick={() => setForm(f => ({ ...f, default_ear_tag_color: f.default_ear_tag_color === c.name ? '' : c.name }))}
+                      onClick={() => setForm(f => ({ ...f, default_ear_tag_color: f.default_ear_tag_color === c.name ? '' : normalizeColor(c.name) }))}
                       className="relative w-9 h-9 rounded-full transition-transform duration-100 active:scale-90"
                       style={{
                         backgroundColor: c.hex,

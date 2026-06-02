@@ -19,6 +19,10 @@ import Link from 'next/link'
 import { apiGet, apiPost } from '@/lib/fetch'
 import { calcCalfBreeds, type BreedEntry } from '@/lib/breed-calculator'
 
+function normalizeColor(c: string): string {
+  return c ? c.charAt(0).toUpperCase() + c.slice(1).toLowerCase() : c
+}
+
 function getDamBreeds(dam: Dam | null): BreedEntry[] {
   if (!dam) return []
   console.log('[BREED DEBUG] getDamBreeds — id:', dam.id, 'breeds:', JSON.stringify(dam.breeds), 'breed:', dam.breed)
@@ -376,7 +380,7 @@ export default function CalvingEntryPage() {
                 </div>
 
                 <Field label="Ear tag color">
-                  <EarTagColorPicker value={calf.calfColor} onChange={v => updateCalf('calfColor', v)} />
+                  <EarTagColorPicker value={calf.calfColor} onChange={v => updateCalf('calfColor', v ? normalizeColor(v) : null)} />
                 </Field>
 
                 <Field label="Sex" required>

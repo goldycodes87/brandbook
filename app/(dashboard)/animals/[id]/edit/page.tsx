@@ -42,7 +42,7 @@ function EarTagColorPicker({ value, onChange, invalid }: { value: string; onChan
             key={c.name}
             type="button"
             title={c.name}
-            onClick={() => onChange(c.name.toLowerCase())}
+            onClick={() => onChange(c.name)}
             className="relative w-8 h-8 rounded-full transition-transform duration-100 active:scale-90"
             style={{
               backgroundColor: c.hex,
