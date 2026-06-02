@@ -8,12 +8,13 @@ import { StatusChip } from '@/components/ui/Chip'
 import { Button } from '@/components/ui/Button'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { REPRO_CHIP, SEX_CHIP } from '@/components/ui/tokens'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
 import { SearchField } from '@/components/ui/Field'
 import type { TabItem } from '@/components/ui/Tabs'
 import { apiGet } from '@/lib/fetch'
 
-interface AnimalResult { id: string; tag_number: string; name: string | null; sex: string | null }
+interface AnimalResult { id: string; tag_number: string; name: string | null; sex: string | null; ear_tag_color?: string | null }
 
 type TabType = 'all' | 'bred' | 'preg_check' | 'calved' | 'weaned'
 
@@ -46,21 +47,6 @@ function fmtDate(d: string | null | undefined): string {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-const EAR_TAG_COLOR_HEX: Record<string, string> = {
-  yellow: '#EAB308', orange: '#F97316', red: '#EF4444',
-  green: '#22C55E', blue: '#3B82F6', white: '#F1F5F9',
-  pink: '#EC4899', purple: '#A855F7', black: '#1E293B',
-}
-
-function ColorDot({ color }: { color: string | null }) {
-  if (!color) return null
-  return (
-    <span
-      className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 flex-shrink-0"
-      style={{ backgroundColor: EAR_TAG_COLOR_HEX[color] ?? '#888', border: '1px solid var(--border)' }}
-    />
-  )
-}
 
 function eventDetail(ev: ReproEvent): string {
   if (ev.event_type === 'bred') {
@@ -171,7 +157,7 @@ export function ReproListClient({ defaultTab }: { defaultTab: string }) {
                 <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {animal && <ColorDot color={animal.ear_tag_color} />}
+                      {animal && <EarTagDot color={animal.ear_tag_color} size="sm" />}
                       {animal && (
                         <Link href={`/animals/${animal.id}`} className="type-data-sm font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
                           #{animal.tag_number}
@@ -218,7 +204,7 @@ export function ReproListClient({ defaultTab }: { defaultTab: string }) {
                       <TD>
                         {animal ? (
                           <div className="flex items-center gap-1.5">
-                            <ColorDot color={animal.ear_tag_color} />
+                            <EarTagDot color={animal.ear_tag_color} size="sm" />
                             <Link href={`/animals/${animal.id}`} className="type-data-sm font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
                               #{animal.tag_number}
                             </Link>
@@ -283,9 +269,12 @@ export function ReproListClient({ defaultTab }: { defaultTab: string }) {
                         className="w-full text-left px-4 py-3 transition-colors" style={{ borderTop: '1px solid var(--border)' }}
                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--surface-2)')}
                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-                        <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>#{a.tag_number}</span>
-                        {a.name && <span className="type-helper ml-2" style={{ color: 'var(--text-muted)' }}>{a.name}</span>}
-                        {a.sex  && <span className="type-helper ml-2 capitalize" style={{ color: 'var(--text-muted)' }}>{a.sex}</span>}
+                        <div className="flex items-center gap-2">
+                          <EarTagDot color={a.ear_tag_color} size="md" />
+                          <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono, monospace)' }}>{a.tag_number}</span>
+                          {a.name && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{a.name}</span>}
+                          {a.sex  && <span className="type-helper ml-auto capitalize" style={{ color: 'var(--text-muted)' }}>{a.sex}</span>}
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -295,10 +284,11 @@ export function ReproListClient({ defaultTab }: { defaultTab: string }) {
             ) : (
               <>
                 <p className="type-panel-title mb-1">Log Reproduction Event</p>
-                <p className="type-helper mb-4" style={{ color: 'var(--text-muted)' }}>
-                  Animal: <strong style={{ color: 'var(--text)' }}>#{logAnimal.tag_number}{logAnimal.name ? ` — ${logAnimal.name}` : ''}</strong>
-                  <button type="button" className="ml-2" style={{ color: 'var(--accent)' }} onClick={() => setLogAnimal(null)}>change</button>
-                </p>
+                <div className="flex items-center gap-2 mb-4">
+                  <EarTagDot color={logAnimal.ear_tag_color} size="md" />
+                  <strong style={{ color: 'var(--text)' }}>{logAnimal.tag_number}{logAnimal.name ? ` — ${logAnimal.name}` : ''}</strong>
+                  <button type="button" className="type-helper ml-1" style={{ color: 'var(--accent)' }} onClick={() => setLogAnimal(null)}>change</button>
+                </div>
                 <ReproEventForm
                   animalId={logAnimal.id}
                   animalSex={logAnimal.sex ?? 'cow'}

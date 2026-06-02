@@ -5,21 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { SearchField } from '@/components/ui/Field'
 import { Chip } from '@/components/ui/Chip'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 import { WeightForm } from '@/components/animals/WeightForm'
 import { apiGet } from '@/lib/fetch'
-
-const COLOR_MAP: Record<string, string> = {
-  Yellow:  '#F5C518',
-  Orange:  '#F97316',
-  White:   '#F3F4F6',
-  Green:   '#22C55E',
-  Blue:    '#3B82F6',
-  Red:     '#EF4444',
-  Pink:    '#EC4899',
-  Purple:  '#A855F7',
-  Silver:  '#9CA3AF',
-  Black:   '#1F2937',
-}
 
 interface AnimalResult {
   id: string
@@ -111,12 +99,7 @@ export function WeightLogSheet() {
                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
                         onClick={() => { setSelectedAnimal(a); setStep(2) }}
                       >
-                        {a.ear_tag_color && (
-                          <div
-                            className="w-3 h-3 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: COLOR_MAP[a.ear_tag_color] ?? '#888' }}
-                          />
-                        )}
+                        <EarTagDot color={a.ear_tag_color} size="md" />
                         <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono, monospace)' }}>
                           {a.tag_number}
                         </span>
@@ -139,15 +122,15 @@ export function WeightLogSheet() {
             ) : (
               <>
                 <p className="type-panel-title mb-1">Record Weight</p>
-                <p className="type-helper mb-4" style={{ color: 'var(--text-muted)' }}>
-                  Animal:{' '}
+                <div className="flex items-center gap-2 mb-4">
+                  <EarTagDot color={selectedAnimal!.ear_tag_color} size="md" />
                   <strong style={{ color: 'var(--text)' }}>
-                    #{selectedAnimal!.tag_number}{selectedAnimal!.name ? ` — ${selectedAnimal!.name}` : ''}
+                    {selectedAnimal!.tag_number}{selectedAnimal!.name ? ` — ${selectedAnimal!.name}` : ''}
                   </strong>
-                  <button type="button" className="ml-2" style={{ color: 'var(--accent)' }} onClick={() => setStep(1)}>
+                  <button type="button" className="ml-2 type-helper" style={{ color: 'var(--accent)' }} onClick={() => setStep(1)}>
                     change
                   </button>
-                </p>
+                </div>
                 <WeightForm
                   animalId={selectedAnimal!.id}
                   onSuccess={handleSuccess}

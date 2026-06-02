@@ -12,7 +12,8 @@ import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP, getSexValue, EAR_TAG_COLOR_HEX } from '@/components/ui/tokens'
+import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP, getSexValue } from '@/components/ui/tokens'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
@@ -24,7 +25,7 @@ import { apiGet, apiDelete } from '@/lib/fetch'
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
 type ReproEvent    = { id: string; event_type: string; event_date: string; breed_method?: string; conception_method?: string; sire_name_text?: string; expected_calving_date?: string; calving_ease_score?: number; preg_check_result?: string; preg_check_method?: string; days_bred?: number; weaning_date?: string; weaning_weight_lbs?: number; ai_technician?: string; notes?: string; sire_id?: string; sire_library_id?: string; sire?: { id: string; tag_number: string; name?: string }; sire_library?: { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; bull_type: string }; calf?: { id: string; tag_number: string; name?: string; sex?: string; calf_sex?: string; dob?: string; birth_weight_lbs?: number } }
-type AnimalRef      = { id: string; tag_number: string; name?: string | null; breed?: string | null; sex?: string | null; status?: string | null; dob?: string | null }
+type AnimalRef      = { id: string; tag_number: string; name?: string | null; breed?: string | null; sex?: string | null; status?: string | null; dob?: string | null; ear_tag_color?: string | null }
 type OwnerRef       = { id: string; name: string; email?: string; phone?: string }
 type SireLibraryRef = { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; stud?: string | null; bull_type: string }
 
@@ -186,14 +187,9 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
             {[
               { k: 'Tag number',   v: (
                   <div className="flex items-center gap-1.5">
-                    {animal.ear_tag_color && (
-                      <span
-                        className="inline-block w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: EAR_TAG_COLOR_HEX[animal.ear_tag_color] ?? '#888', border: '1px solid var(--border)' }}
-                      />
-                    )}
+                    <EarTagDot color={animal.ear_tag_color} size="md" />
                     {animal.tag_number}
-                    {animal.ear_tag_color && <span className="type-helper" style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>{animal.ear_tag_color}</span>}
+                    {animal.ear_tag_color && <span className="type-helper capitalize" style={{ color: 'var(--text-muted)' }}>{animal.ear_tag_color}</span>}
                   </div>
                 ) },
               { k: 'Date of birth',v: animal.dob_estimated
@@ -238,16 +234,22 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
               <div>
                 <p className="type-section-label mb-2" style={{ color: 'var(--text-muted)' }}>DAM</p>
                 {animal.dam ? (
-                  <Link href={`/animals/${animal.dam.id}`} className="type-data-sm hover:underline" style={{ color: 'var(--accent)' }}>
-                    {animal.dam.tag_number}{animal.dam.name ? ` — ${animal.dam.name}` : ''}
+                  <Link href={`/animals/${animal.dam.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
+                    <div className="flex items-center gap-1.5 type-data-sm">
+                      <EarTagDot color={animal.dam.ear_tag_color} size="sm" />
+                      {animal.dam.tag_number}{animal.dam.name ? ` — ${animal.dam.name}` : ''}
+                    </div>
                   </Link>
                 ) : <span className="type-data-sm" style={{ color: 'var(--text-muted)' }}>Unknown</span>}
               </div>
               <div>
                 <p className="type-section-label mb-2" style={{ color: 'var(--text-muted)' }}>SIRE</p>
                 {animal.sire ? (
-                  <Link href={`/animals/${animal.sire.id}`} className="type-data-sm hover:underline" style={{ color: 'var(--accent)' }}>
-                    {animal.sire.tag_number}{animal.sire.name ? ` — ${animal.sire.name}` : ''}
+                  <Link href={`/animals/${animal.sire.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
+                    <div className="flex items-center gap-1.5 type-data-sm">
+                      <EarTagDot color={animal.sire.ear_tag_color} size="sm" />
+                      {animal.sire.tag_number}{animal.sire.name ? ` — ${animal.sire.name}` : ''}
+                    </div>
                   </Link>
                 ) : animal.sire_library ? (
                   <div>
@@ -266,8 +268,11 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
                 {animal.calves?.length > 0 ? (
                   <div className="flex flex-col gap-1">
                     {animal.calves.map(c => (
-                      <Link key={c.id} href={`/animals/${c.id}`} className="type-data-sm hover:underline" style={{ color: 'var(--accent)' }}>
-                        {c.tag_number}{c.name ? ` — ${c.name}` : ''}
+                      <Link key={c.id} href={`/animals/${c.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
+                        <div className="flex items-center gap-1.5 type-data-sm">
+                          <EarTagDot color={c.ear_tag_color} size="sm" />
+                          {c.tag_number}{c.name ? ` — ${c.name}` : ''}
+                        </div>
                       </Link>
                     ))}
                   </div>
@@ -791,7 +796,12 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
     <PageContainer>
       <PageHeader
         eyebrow={<Link href="/animals" style={{ color: 'var(--text-muted)' }}>Animals</Link>}
-        title={`${animal.tag_number}${animal.name ? ` — ${animal.name}` : ''}`}
+        title={
+          <div className="flex items-center gap-2.5">
+            <EarTagDot color={animal.ear_tag_color} size="lg" />
+            <span>{animal.tag_number}{animal.name ? ` — ${animal.name}` : ''}</span>
+          </div>
+        }
         subtitle={animal.breed ?? undefined}
         actions={
           <>
@@ -894,7 +904,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
       <SellAnimalSheet
         isOpen={sellOpen}
         onClose={() => setSellOpen(false)}
-        animal={{ id, tag_number: animal.tag_number, name: animal.name, sex: animal.sex }}
+        animal={{ id, tag_number: animal.tag_number, name: animal.name, sex: animal.sex, ear_tag_color: animal.ear_tag_color }}
         onSuccess={() => { setSellOpen(false); fetchAnimal() }}
       />
     </PageContainer>

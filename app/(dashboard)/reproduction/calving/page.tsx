@@ -13,6 +13,7 @@ import { StatusChip } from '@/components/ui/Chip'
 import { EarTagColorPicker } from '@/components/reproduction/EarTagColorPicker'
 import { SireSelector } from '@/components/reproduction/SireSelector'
 import { SEX_CHIP, getSexValue } from '@/components/ui/tokens'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
 import Link from 'next/link'
 import { apiGet, apiPost } from '@/lib/fetch'
@@ -89,21 +90,6 @@ const VIGOR_ITEMS: SegmentItem<string>[] = [
   { value: '3', label: '3 STRONG' },
 ]
 
-const EAR_TAG_COLOR_HEX: Record<string, string> = {
-  yellow: '#EAB308', orange: '#F97316', red: '#EF4444',
-  green: '#22C55E', blue: '#3B82F6', white: '#F1F5F9',
-  pink: '#EC4899', purple: '#A855F7', black: '#1E293B',
-}
-
-function ColorDot({ color }: { color: string | null }) {
-  if (!color) return null
-  return (
-    <span
-      className="inline-block w-3 h-3 rounded-full flex-shrink-0"
-      style={{ backgroundColor: EAR_TAG_COLOR_HEX[color] ?? '#888', border: '1px solid var(--border)' }}
-    />
-  )
-}
 
 function blankCalfState() {
   return {
@@ -292,7 +278,7 @@ export default function CalvingEntryPage() {
               <div className="flex flex-col gap-2">
                 <ContextBanner tone="success" eyebrow="DAM SELECTED">
                   <div className="flex items-center gap-2">
-                    <ColorDot color={dam.ear_tag_color} />
+                    <EarTagDot color={dam.ear_tag_color} size="md" />
                     <span className="font-semibold">#{dam.tag_number}{dam.name ? ` — ${dam.name}` : ''}</span>
                   </div>
                   {dam.breed && <p className="type-helper" style={{ color: 'var(--success-fg)' }}>{dam.breed}</p>}
@@ -330,7 +316,7 @@ export default function CalvingEntryPage() {
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
                     >
                       <div className="flex items-center gap-2">
-                        <ColorDot color={d.ear_tag_color} />
+                        <EarTagDot color={d.ear_tag_color} size="md" />
                         <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>#{d.tag_number}</span>
                         {d.name && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{d.name}</span>}
                       </div>

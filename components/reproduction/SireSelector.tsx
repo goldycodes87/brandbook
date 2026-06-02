@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { SearchField, Field, Input } from '@/components/ui/Field'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 import { apiGet } from '@/lib/fetch'
 
 export interface SireResult {
@@ -10,6 +11,7 @@ export interface SireResult {
   tag_number: string
   name: string | null
   breed: string | null
+  ear_tag_color?: string | null
 }
 
 export interface SireLibraryResult {
@@ -135,8 +137,9 @@ export function SireSelector({
         <div>
           {selectedSystem ? (
             <SelectedPill
-              label={`#${selectedSystem.tag_number}${selectedSystem.name ? ` · ${selectedSystem.name}` : ''}`}
+              label={`${selectedSystem.tag_number}${selectedSystem.name ? ` · ${selectedSystem.name}` : ''}`}
               sub={selectedSystem.breed ?? undefined}
+              earTagColor={selectedSystem.ear_tag_color}
               onClear={clearAll}
             />
           ) : (
@@ -150,9 +153,12 @@ export function SireSelector({
                 const s = r as SireResult
                 return (
                   <button type="button" onClick={() => selectSystem(s)} className="w-full text-left px-3 py-2 transition-colors" style={{ borderTop: '1px solid var(--border)' }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--surface-2)')} onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-                    <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>#{s.tag_number}</span>
-                    {s.name && <span className="type-helper ml-2" style={{ color: 'var(--text-muted)' }}>{s.name}</span>}
-                    {s.breed && <span className="type-helper ml-1" style={{ color: 'var(--text-muted)' }}>· {s.breed}</span>}
+                    <div className="flex items-center gap-2">
+                      <EarTagDot color={s.ear_tag_color} size="md" />
+                      <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono, monospace)' }}>{s.tag_number}</span>
+                      {s.name && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{s.name}</span>}
+                      {s.breed && <span className="type-helper ml-auto" style={{ color: 'var(--text-muted)' }}>{s.breed}</span>}
+                    </div>
                   </button>
                 )
               }}
@@ -209,18 +215,20 @@ export function SireSelector({
 interface SelectedPillProps {
   label: string
   sub?: string
+  earTagColor?: string | null
   onClear: () => void
 }
 
-function SelectedPill({ label, sub, onClear }: SelectedPillProps) {
+function SelectedPill({ label, sub, earTagColor, onClear }: SelectedPillProps) {
   return (
     <div
       className="flex items-center justify-between gap-2 px-3 py-2 rounded-[var(--radius-md)]"
       style={{ backgroundColor: 'var(--accent-bg)', border: '1px solid var(--accent)' }}
     >
-      <div>
-        <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>{label}</span>
-        {sub && <span className="type-helper ml-2" style={{ color: 'var(--text-muted)' }}>{sub}</span>}
+      <div className="flex items-center gap-2">
+        <EarTagDot color={earTagColor} size="md" />
+        <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono, monospace)' }}>{label}</span>
+        {sub && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{sub}</span>}
       </div>
       <button type="button" className="type-helper" style={{ color: 'var(--accent)' }} onClick={onClear}>change</button>
     </div>

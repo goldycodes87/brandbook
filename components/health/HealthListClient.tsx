@@ -7,6 +7,7 @@ import { StatusChip } from '@/components/ui/Chip'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP } from '@/components/ui/tokens'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 import { HealthEventForm, type HealthEventData } from '@/components/health/HealthEventForm'
 import { apiGet } from '@/lib/fetch'
 
@@ -17,7 +18,7 @@ function fmtDate(d: string | null): string {
 
 interface HealthEvent extends HealthEventData {
   id: string
-  animal: { id: string; tag_number: string; name: string | null } | null
+  animal: { id: string; tag_number: string; name: string | null; ear_tag_color?: string | null } | null
 }
 
 export function HealthListClient() {
@@ -83,9 +84,12 @@ export function HealthListClient() {
                 <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{fmtDate(ev.event_date)}</span>
               </div>
               {animal && (
-                <p className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>
-                  #{animal.tag_number}{animal.name ? ` — ${animal.name}` : ''}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <EarTagDot color={animal.ear_tag_color} size="sm" />
+                  <p className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>
+                    #{animal.tag_number}{animal.name ? ` — ${animal.name}` : ''}
+                  </p>
+                </div>
               )}
               {ev.drug_name && <p className="type-helper mt-1" style={{ color: 'var(--text-secondary)' }}>{ev.drug_name}</p>}
             </div>
@@ -119,12 +123,13 @@ export function HealthListClient() {
                 >
                   <TD>
                     {animal ? (
-                      <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}
-                        onClick={e => { e.stopPropagation() }}>
-                        <Link href={`/animals/${animal.id}`} className="hover:underline">
+                      <div className="flex items-center gap-1.5" onClick={e => { e.stopPropagation() }}>
+                        <EarTagDot color={animal.ear_tag_color} size="sm" />
+                        <Link href={`/animals/${animal.id}`} className="type-data-sm font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
                           #{animal.tag_number}
                         </Link>
-                      </span>
+                        {animal.name && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{animal.name}</span>}
+                      </div>
                     ) : '—'}
                   </TD>
                   <TD>{fmtDate(ev.event_date)}</TD>

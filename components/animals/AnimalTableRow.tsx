@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { TR, TD } from '@/components/ui/Table'
 import { StatusChip } from '@/components/ui/Chip'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue, EAR_TAG_COLOR_HEX } from '@/components/ui/tokens'
+import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue } from '@/components/ui/tokens'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 import type { AnimalListItem } from './AnimalCard'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
 
@@ -13,12 +14,7 @@ export function AnimalTableRow({ a }: { a: AnimalListItem }) {
     <TR interactive onClick={() => router.push(`/animals/${a.id}`)}>
       <TD style={{ fontFamily: 'var(--font-display)', color: 'var(--accent)', fontWeight: 600 }}>
         <div className="flex items-center gap-1.5">
-          {a.ear_tag_color && (
-            <span
-              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: EAR_TAG_COLOR_HEX[a.ear_tag_color] ?? '#888', border: '1px solid var(--border)' }}
-            />
-          )}
+          <EarTagDot color={a.ear_tag_color} size="sm" />
           {a.tag_number}
         </div>
       </TD>

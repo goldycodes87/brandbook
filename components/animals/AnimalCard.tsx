@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Chip, StatusChip } from '@/components/ui/Chip'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue, EAR_TAG_COLOR_HEX } from '@/components/ui/tokens'
+import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue } from '@/components/ui/tokens'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
 
 interface LatestWeight {
@@ -72,12 +73,7 @@ export function AnimalCard({ animal }: { animal: AnimalListItem }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              {animal.ear_tag_color && (
-                <span
-                  className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: EAR_TAG_COLOR_HEX[animal.ear_tag_color] ?? '#888', border: '1px solid var(--border)' }}
-                />
-              )}
+              <EarTagDot color={animal.ear_tag_color} size="sm" />
               <p
                 className="truncate"
                 style={{ fontFamily: 'var(--font-display)', fontSize: '0.9375rem', fontWeight: 600, letterSpacing: '0.03em', color: 'var(--text)' }}

@@ -6,11 +6,12 @@ import { Field, Input, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiPost } from '@/lib/fetch'
+import { EarTagDot } from '@/components/ui/EarTagDot'
 
 interface SellAnimalSheetProps {
   isOpen: boolean
   onClose: () => void
-  animal: { id: string; tag_number: string; name: string | null; sex: string | null }
+  animal: { id: string; tag_number: string; name: string | null; sex: string | null; ear_tag_color?: string | null }
   onSuccess: () => void
 }
 
@@ -87,7 +88,7 @@ export function SellAnimalSheet({ isOpen, onClose, animal, onSuccess }: SellAnim
 
   if (!isOpen) return null
 
-  const tagLabel = `#${animal.tag_number}${animal.name ? ` · ${animal.name}` : ''}`
+  const tagLabel = `${animal.tag_number}${animal.name ? ` · ${animal.name}` : ''}`
 
   return (
     <div
@@ -107,7 +108,10 @@ export function SellAnimalSheet({ isOpen, onClose, animal, onSuccess }: SellAnim
         {/* Header */}
         <div className="px-4 pb-2 flex-shrink-0">
           <h2 className="type-heading">SELL ANIMAL</h2>
-          <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>{tagLabel}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <EarTagDot color={animal.ear_tag_color} size="sm" />
+            <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{tagLabel}</p>
+          </div>
         </div>
 
         {/* Scrollable content */}

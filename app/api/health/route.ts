@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     .from('health_events')
     .select(`
       *,
-      animal:animal_id ( id, tag_number, name )
+      animal:animal_id ( id, tag_number, name, ear_tag_color )
     `)
     .order('event_date', { ascending: false })
 

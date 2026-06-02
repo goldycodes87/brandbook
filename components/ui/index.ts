@@ -44,3 +44,6 @@ export { ActionFooter } from './ActionFooter'
 export { ContextBanner } from './ContextBanner'
 export { Toggle } from './Toggle'
 export { ConfirmDialog } from './ConfirmDialog'
+
+// Animal identification
+export { EarTagDot } from './EarTagDot'

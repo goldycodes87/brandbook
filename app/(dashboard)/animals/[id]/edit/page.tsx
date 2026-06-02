@@ -42,15 +42,15 @@ function EarTagColorPicker({ value, onChange, invalid }: { value: string; onChan
             key={c.name}
             type="button"
             title={c.name}
-            onClick={() => onChange(c.name)}
+            onClick={() => onChange(c.name.toLowerCase())}
             className="relative w-8 h-8 rounded-full transition-transform duration-100 active:scale-90"
             style={{
               backgroundColor: c.hex,
-              border: value === c.name ? '3px solid var(--accent)' : '2px solid var(--border)',
-              boxShadow: value === c.name ? '0 0 0 1px var(--accent)' : undefined,
+              border: value?.toLowerCase() === c.name.toLowerCase() ? '3px solid var(--accent)' : '2px solid var(--border)',
+              boxShadow: value?.toLowerCase() === c.name.toLowerCase() ? '0 0 0 1px var(--accent)' : undefined,
             }}
           >
-            {value === c.name && (
+            {value?.toLowerCase() === c.name.toLowerCase() && (
               <Check
                 size={14}
                 className="absolute inset-0 m-auto"
