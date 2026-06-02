@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Field, Input, Select, Textarea, SearchField } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -11,6 +11,7 @@ import { SireSelector } from '@/components/reproduction/SireSelector'
 import { EarTagColorPicker } from '@/components/reproduction/EarTagColorPicker'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
 import { apiGet, apiPost } from '@/lib/fetch'
+import { calcCalfBreeds, type BreedEntry } from '@/lib/breed-calculator'
 
 type EventType = 'bred' | 'preg_check' | 'calved' | 'weaned' | 'flushed' | 'bse' | 'semen_collection'
 type ConceptionMethod = 'natural' | 'ai' | 'embryo'
@@ -67,6 +68,9 @@ const VIGOR_ITEMS: SegmentItem<string>[] = [
   { value: '2', label: '2 NORMAL' },
   { value: '3', label: '3 STRONG' },
 ]
+
+const normalizeColor = (c: string | null) =>
+  c ? c.charAt(0).toUpperCase() + c.slice(1).toLowerCase() : null
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr)
@@ -135,10 +139,28 @@ export function ReproEventForm({
   const [birthType,      setBirthType]      = useState<BirthType>('single')
   const [vigor,          setVigor]          = useState('2')
   const [calfConception, setCalfConception] = useState<ConceptionMethod>('natural')
-  const [calfSireId,     setCalfSireId]     = useState<string | null>(null)
-  const [calfSireName,   setCalfSireName]   = useState<string | null>(null)
-  const [calfSireKnown,  setCalfSireKnown]  = useState(true)
-  const [calfNotes,      setCalfNotes]      = useState('')
+  const [calfSireId,        setCalfSireId]        = useState<string | null>(null)
+  const [calfSireName,      setCalfSireName]      = useState<string | null>(null)
+  const [calfSireLibraryId, setCalfSireLibraryId] = useState<string | null>(null)
+  const [calfSireBreeds,    setCalfSireBreeds]    = useState<BreedEntry[]>([])
+  const [calfSireKnown,     setCalfSireKnown]     = useState(true)
+  const [calfBreeds,        setCalfBreeds]        = useState<BreedEntry[]>([])
+  const [damBreeds,         setDamBreeds]         = useState<BreedEntry[]>([])
+  const [calfNotes,         setCalfNotes]         = useState('')
+
+  // Fetch dam breeds for calf breed calculation
+  useEffect(() => {
+    apiGet(`/api/animals/${animalId}`).then(r => r.json()).then(d => {
+      if (d.breeds?.length) setDamBreeds(d.breeds)
+      else if (d.breed) setDamBreeds([{ breed: d.breed, pct: 100 }])
+    }).catch(() => {})
+  }, [animalId])
+
+  // Recalculate calf breeds when dam or sire changes
+  useEffect(() => {
+    if (!damBreeds.length && !calfSireBreeds.length) { setCalfBreeds([]); return }
+    setCalfBreeds(calcCalfBreeds(damBreeds, calfSireBreeds))
+  }, [damBreeds, calfSireBreeds])
 
   // Flushed fields
   const [embryosRecovered, setEmbryosRecovered] = useState('')
@@ -222,6 +244,8 @@ export function ReproEventForm({
             conception_method:       calfConception,
             sire_id:                 calfSireKnown ? calfSireId : null,
             sire_name_text:          calfSireKnown ? calfSireName : null,
+            sire_library_id:         calfSireKnown ? calfSireLibraryId : null,
+            breeds:                  calfBreeds,
             donor_dam_id:            null,
             notes:                   calfNotes || null,
           },
@@ -384,7 +408,7 @@ export function ReproEventForm({
               </Field>
 
               <Field label="Ear tag color">
-                <EarTagColorPicker value={calfColor} onChange={setCalfColor} />
+                <EarTagColorPicker value={calfColor} onChange={v => setCalfColor(normalizeColor(v))} />
               </Field>
 
               <Field label="Sex" required>
@@ -461,8 +485,12 @@ export function ReproEventForm({
                   <SireSelector
                     sireId={calfSireId}
                     sireName={calfSireName}
+                    sireLibraryId={calfSireLibraryId}
                     onChangeSireId={setCalfSireId}
                     onChangeSireName={setCalfSireName}
+                    onChangeSireLibraryId={setCalfSireLibraryId}
+                    onChangeSireBreed={breed => setCalfSireBreeds(breed ? [{ breed, pct: 100 }] : [])}
+                    onClearSire={() => { setCalfSireLibraryId(null); setCalfSireBreeds([]) }}
                   />
                 )}
               </div>
