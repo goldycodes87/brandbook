@@ -15,6 +15,7 @@ import { ActionFooter } from '@/components/ui/ActionFooter'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
 import { ContextBanner } from '@/components/ui/ContextBanner'
+import { SireSelector, type SireResult, type SireLibraryResult } from '@/components/reproduction/SireSelector'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
 
 // ── Ear tag color picker ──────────────────────────────────────────────────────
@@ -81,6 +82,7 @@ const schema = z.object({
   vendor:              z.string().optional(),
   dam_id:              z.string().optional(),
   sire_id:             z.string().optional(),
+  sire_library_id:     z.string().optional(),
   owner_id:            z.string().optional(),
   notes:               z.string().optional(),
   registration_numbers: z.array(z.object({
@@ -147,6 +149,9 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
   const [notFound, setNotFound]             = useState(false)
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
+  const [initialSire, setInitialSire]       = useState<SireResult | null>(null)
+  const [initialLibrarySire, setInitialLibrarySire] = useState<SireLibraryResult | null>(null)
+  const [sireLibraryId, setSireLibraryId]   = useState<string | null>(null)
   const [recording, setRecording]           = useState<RecordingState>('idle')
   const [voiceResult, setVoiceResult]       = useState<VoiceResult | null>(null)
   const [showVoiceModal, setShowVoiceModal] = useState(false)
@@ -207,6 +212,14 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
         }
         setPhotoUrls(animal.photos ?? [])
         initialOwnerRef.current = animal.owner_id ?? null
+        // Pre-populate sire selector
+        if (animal.sire) {
+          setInitialSire({ id: animal.sire.id, tag_number: animal.sire.tag_number, name: animal.sire.name ?? null, breed: animal.sire.breed ?? null })
+        } else if (animal.sire_library) {
+          const sl = animal.sire_library
+          setInitialLibrarySire({ id: sl.id, bull_name: sl.bull_name, breed: sl.breed ?? null, naab_code: sl.naab_code ?? null, stud: sl.stud ?? null, bull_type: sl.bull_type, epd_dollar_b: null, epd_bw: null, epd_ww: null })
+          setSireLibraryId(sl.id)
+        }
         setLoading(false)
       })
       .catch(() => { setNotFound(true); setLoading(false) })
@@ -335,6 +348,7 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
         owner_id:         toUuid(values.owner_id),
         dam_id:           toUuid(values.dam_id),
         sire_id:          toUuid(values.sire_id),
+        sire_library_id:  sireLibraryId || null,
         breeds:           breeds.length > 0 ? breeds : null,
         photos:           photoUrls,
       })
@@ -552,12 +566,21 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
         {/* Panel 5 — Lineage */}
         <Panel title="LINEAGE">
           <PanelSection>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Dam ID" helper="UUID of dam record">
+            <div className="flex flex-col gap-4">
+              <Field label="Dam ID" helper="Paste the dam's UUID to link">
                 <Input {...register('dam_id')} placeholder="Optional" />
               </Field>
-              <Field label="Sire ID" helper="UUID of sire record">
-                <Input {...register('sire_id')} placeholder="Optional" />
+              <Field label="Sire">
+                <SireSelector
+                  sireId={watch('sire_id') || null}
+                  sireName={null}
+                  sireLibraryId={sireLibraryId}
+                  initialSystem={initialSire}
+                  initialLibrary={initialLibrarySire}
+                  onChangeSireId={id => setValue('sire_id', id || '', { shouldDirty: true })}
+                  onChangeSireName={() => {}}
+                  onChangeSireLibraryId={id => { setSireLibraryId(id); setValue('sire_library_id', id || '', { shouldDirty: true }) }}
+                />
               </Field>
             </div>
           </PanelSection>

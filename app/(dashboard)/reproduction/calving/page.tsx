@@ -16,6 +16,7 @@ import { SEX_CHIP } from '@/components/ui/tokens'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
 import Link from 'next/link'
 import { apiGet, apiPost } from '@/lib/fetch'
+import { calcCalfBreeds, type BreedEntry } from '@/lib/breed-calculator'
 
 type CalfSex = 'bull' | 'heifer' | 'calf'
 type BirthType = 'single' | 'twin_a' | 'twin_b'
@@ -26,6 +27,7 @@ interface Dam {
   tag_number: string
   name: string | null
   breed: string | null
+  breeds?: BreedEntry[] | null
   ear_tag_color: string | null
   sex: string | null
   last_bred?: string | null
@@ -89,20 +91,21 @@ function ColorDot({ color }: { color: string | null }) {
 
 function blankCalfState() {
   return {
-    calfTag:        '',
-    calfColor:      null as string | null,
-    calfSex:        'heifer' as CalfSex,
-    calfDob:        new Date().toISOString().slice(0, 10),
-    calfWeight:     '',
-    calfEstWeight:  true,
-    birthType:      'single' as BirthType,
-    vigor:          '2',
-    conception:     'natural' as ConceptionMethod,
-    calveEase:      '1',
-    sireId:         null as string | null,
-    sireName:       null as string | null,
-    sireKnown:      true,
-    calfNotes:      '',
+    calfTag:          '',
+    calfColor:        null as string | null,
+    calfSex:          'heifer' as CalfSex,
+    calfDob:          new Date().toISOString().slice(0, 10),
+    calfWeight:       '',
+    calfEstWeight:    true,
+    birthType:        'single' as BirthType,
+    vigor:            '2',
+    conception:       'natural' as ConceptionMethod,
+    calveEase:        '1',
+    sireId:           null as string | null,
+    sireName:         null as string | null,
+    sireLibraryId:    null as string | null,
+    sireKnown:        true,
+    calfNotes:        '',
   }
 }
 
@@ -120,6 +123,8 @@ export default function CalvingEntryPage() {
   const [error, setError]           = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const [session, setSession]       = useState<CalfRecord[]>([])
+  const [sireBreed, setSireBreed]   = useState<string | null>(null)
+  const submittingRef               = useRef(false)
 
   // Load recent cows/heifers on mount
   useEffect(() => {
@@ -157,10 +162,23 @@ export default function CalvingEntryPage() {
   }
 
   const doSave = async () => {
+    if (submittingRef.current) return
     if (!dam) { setError('Select a dam first'); return }
     if (!calf.calfTag.trim()) { setError('Calf tag number is required'); return }
+    submittingRef.current = true
     setSaving(true)
     setError('')
+
+    const damBreeds: BreedEntry[] =
+      dam.breeds && dam.breeds.length > 0
+        ? dam.breeds
+        : dam.breed ? [{ breed: dam.breed, pct: 100 }] : []
+    const sireBreeds: BreedEntry[] =
+      sireBreed ? [{ breed: sireBreed, pct: 100 }] : []
+    const autoBreeds = calf.sireKnown
+      ? calcCalfBreeds(damBreeds, sireBreeds)
+      : damBreeds.map(b => ({ breed: b.breed, pct: b.pct }))
+
     try {
       const res = await apiPost('/api/reproduction', {
           animal_id:          dam.id,
@@ -175,10 +193,12 @@ export default function CalvingEntryPage() {
             dob:                    calf.calfDob,
             birth_weight_lbs:       calf.calfWeight ? Number(calf.calfWeight) : null,
             birth_weight_estimated: calf.calfEstWeight,
+            breeds:                 autoBreeds,
             birth_type:             calf.birthType,
             vigor_score:            Number(calf.vigor),
             conception_method:      calf.conception,
             sire_id:                calf.sireKnown ? calf.sireId : null,
+            sire_library_id:        calf.sireKnown ? calf.sireLibraryId : null,
             sire_name_text:         calf.sireKnown ? calf.sireName : null,
             donor_dam_id:           null,
             notes:                  calf.calfNotes || null,
@@ -198,10 +218,11 @@ export default function CalvingEntryPage() {
       return null
     } finally {
       setSaving(false)
+      submittingRef.current = false
     }
   }
 
-  const clearCalf = () => setCalf(blankCalfState())
+  const clearCalf = () => { setCalf(blankCalfState()); setSireBreed(null) }
 
   const handleSaveAndNext = async () => {
     const result = await doSave()
@@ -393,11 +414,28 @@ export default function CalvingEntryPage() {
                     <SireSelector
                       sireId={calf.sireId}
                       sireName={calf.sireName}
+                      sireLibraryId={calf.sireLibraryId}
                       onChangeSireId={v => updateCalf('sireId', v)}
                       onChangeSireName={v => updateCalf('sireName', v)}
+                      onChangeSireLibraryId={v => updateCalf('sireLibraryId', v)}
+                      onChangeSireBreed={setSireBreed}
                     />
                   )}
                 </div>
+
+                {/* Breed preview */}
+                {dam && (dam.breed || (dam.breeds && dam.breeds.length > 0)) && (
+                  <ContextBanner tone="info" eyebrow="ESTIMATED BREED">
+                    {(() => {
+                      const damB: BreedEntry[] = dam.breeds?.length ? dam.breeds : dam.breed ? [{ breed: dam.breed, pct: 100 }] : []
+                      const sireB: BreedEntry[] = sireBreed ? [{ breed: sireBreed, pct: 100 }] : []
+                      const calc = calf.sireKnown ? calcCalfBreeds(damB, sireB) : damB
+                      return calc.map((b, i) => (
+                        <span key={b.breed}>{i > 0 ? ' / ' : ''}{b.pct < 100 ? `${b.pct}% ` : ''}{b.breed}</span>
+                      ))
+                    })()}
+                  </ContextBanner>
+                )}
 
                 <Field label="Notes">
                   <Textarea value={calf.calfNotes} onChange={e => updateCalf('calfNotes', e.target.value)} rows={2} placeholder="Observations…" />

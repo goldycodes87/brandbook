@@ -166,11 +166,23 @@ export async function GET(
     owner = data
   }
 
+  // Separate query for sire library
+  let sire_library = null
+  if (animal.sire_library_id) {
+    const { data } = await supabase
+      .from('sire_library')
+      .select('id, bull_name, breed, naab_code, stud, bull_type')
+      .eq('id', animal.sire_library_id)
+      .maybeSingle()
+    sire_library = data
+  }
+
   return NextResponse.json({
     data: {
       ...animal,
       dam,
       sire,
+      sire_library,
       donor_dam,
       calves: calves || [],
       owner,
@@ -203,6 +215,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     owner_id:             body.owner_id || null,
     dam_id:               body.dam_id || null,
     sire_id:              body.sire_id || null,
+    sire_library_id:      body.sire_library_id || null,
     registration_numbers: body.registration_numbers ?? [],
     notes:                body.notes || null,
     photos:               body.photos ?? [],

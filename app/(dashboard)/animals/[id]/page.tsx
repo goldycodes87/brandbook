@@ -18,13 +18,15 @@ import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
 import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
 import { SellAnimalSheet } from '@/components/animals/SellAnimalSheet'
+import { BreedDisplay } from '@/components/animals/BreedDisplay'
 import { apiGet, apiDelete } from '@/lib/fetch'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
 type ReproEvent    = { id: string; event_type: string; event_date: string; breed_method?: string; conception_method?: string; sire_name_text?: string; expected_calving_date?: string; calving_ease_score?: number; preg_check_result?: string; preg_check_method?: string; weaning_date?: string; weaning_weight_lbs?: number; ai_technician?: string; notes?: string; sire?: { id: string; tag_number: string; name?: string }; calf?: { id: string; tag_number: string; name?: string; sex?: string; dob?: string } }
-type AnimalRef     = { id: string; tag_number: string; name?: string | null; breed?: string | null; sex?: string | null; status?: string | null; dob?: string | null }
-type OwnerRef      = { id: string; name: string; email?: string; phone?: string }
+type AnimalRef      = { id: string; tag_number: string; name?: string | null; breed?: string | null; sex?: string | null; status?: string | null; dob?: string | null }
+type OwnerRef       = { id: string; name: string; email?: string; phone?: string }
+type SireLibraryRef = { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; stud?: string | null; bull_type: string }
 
 interface Animal {
   id: string
@@ -35,6 +37,7 @@ interface Animal {
   status: string | null
   breed: string | null
   breed_percentage: number | null
+  breeds: { breed: string; pct: number }[] | null
   birth_weight_lbs: number | null
   purchase_price: number | null
   purchase_date: string | null
@@ -44,9 +47,12 @@ interface Animal {
   notes: string | null
   registration_numbers: { registry: string; number: string }[] | null
   created_at: string
+  owner_id: string | null
   owner: OwnerRef | null
   dam: AnimalRef | null
   sire: AnimalRef | null
+  sire_library_id: string | null
+  sire_library: SireLibraryRef | null
   calves: AnimalRef[]
   weights: WeightRow[]
   health_events: HealthEvent[]
@@ -116,7 +122,7 @@ function WeightSparkline({ weights }: { weights: WeightRow[] }) {
   )
 }
 
-function OverviewTab({ animal, onDelete }: { animal: Animal; onDelete: () => void }) {
+function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete: () => void; ranchName?: string }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
 
@@ -130,12 +136,6 @@ function OverviewTab({ animal, onDelete }: { animal: Animal; onDelete: () => voi
       setConfirmDelete(false)
     }
   }
-
-  const breed = animal.breed
-    ? animal.breed_percentage && animal.breed_percentage < 100
-      ? `${animal.breed_percentage}% ${animal.breed}`
-      : animal.breed
-    : '—'
 
   const latestWeight = animal.weights.length
     ? [...animal.weights].sort((a, b) => new Date(b.weighed_at).getTime() - new Date(a.weighed_at).getTime())[0]
@@ -161,7 +161,7 @@ function OverviewTab({ animal, onDelete }: { animal: Animal; onDelete: () => voi
         {[
           { label: 'Age',    value: calcAge(animal.dob) },
           { label: 'Weight', value: latestWeight ? `${latestWeight.weight_lbs} lb` : '—' },
-          { label: 'Breed',  value: breed },
+          { label: 'Breed',  value: <BreedDisplay breeds={animal.breeds} breed={animal.breed} breedPercentage={animal.breed_percentage} /> },
           { label: 'Sex',    value: animal.sex ? <StatusChip map={SEX_CHIP} value={animal.sex} /> : '—' },
         ].map(s => (
           <div key={s.label} className="rounded-[var(--radius-lg)] p-3" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
@@ -182,7 +182,7 @@ function OverviewTab({ animal, onDelete }: { animal: Animal; onDelete: () => voi
               { k: 'Purchase date',v: fmtDate(animal.purchase_date) },
               { k: 'Purchase price',v: animal.purchase_price != null ? `$${animal.purchase_price.toLocaleString()}` : '—' },
               { k: 'Vendor',       v: animal.vendor ?? '—' },
-              { k: 'Owner',        v: animal.owner?.name ?? '—' },
+              { k: 'Owner',        v: animal.owner?.name ?? ranchName ?? '—' },
             ].map(({ k, v }) => (
               <div key={k}>
                 <dt className="type-field-label mb-0.5" style={{ color: 'var(--text-muted)' }}>{k}</dt>
@@ -208,7 +208,7 @@ function OverviewTab({ animal, onDelete }: { animal: Animal; onDelete: () => voi
       )}
 
       {/* Family tree */}
-      {(animal.dam || animal.sire || animal.calves?.length > 0) && (
+      {(animal.dam || animal.sire || animal.sire_library || animal.calves?.length > 0) && (
         <Panel title="LINEAGE">
           <PanelSection>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -226,6 +226,16 @@ function OverviewTab({ animal, onDelete }: { animal: Animal; onDelete: () => voi
                   <Link href={`/animals/${animal.sire.id}`} className="type-data-sm hover:underline" style={{ color: 'var(--accent)' }}>
                     {animal.sire.tag_number}{animal.sire.name ? ` — ${animal.sire.name}` : ''}
                   </Link>
+                ) : animal.sire_library ? (
+                  <div>
+                    <Link href={`/genetics/sires/${animal.sire_library.id}`} className="type-data-sm hover:underline" style={{ color: 'var(--accent)' }}>
+                      {animal.sire_library.bull_name}
+                    </Link>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="type-helper px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '10px' }}>AI SIRE</span>
+                      {animal.sire_library.naab_code && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{animal.sire_library.naab_code}</span>}
+                    </div>
+                  </div>
                 ) : <span className="type-data-sm" style={{ color: 'var(--text-muted)' }}>Unknown</span>}
               </div>
               <div>
@@ -676,6 +686,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   const [weightOpen, setWeightOpen]   = useState(false)
   const [reproOpen, setReproOpen]     = useState(false)
   const [sellOpen, setSellOpen]       = useState(false)
+  const [ranchName, setRanchName]     = useState<string | undefined>(undefined)
 
   const fetchAnimal = useCallback(() => {
     apiGet(`/api/animals/${id}`)
@@ -689,6 +700,13 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   }, [id])
 
   useEffect(() => { fetchAnimal() }, [fetchAnimal])
+
+  useEffect(() => {
+    apiGet('/api/settings/ranch')
+      .then(r => r.json())
+      .then(d => { const s = d.data ?? d; if (s.ranch_name) setRanchName(s.ranch_name) })
+      .catch(() => {})
+  }, [])
 
   if (loading) {
     return (
@@ -750,7 +768,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
 
       <Tabs value={tab} onChange={setTab} items={TABS} className="mb-5" />
 
-      {tab === 'overview'      && <OverviewTab  animal={animal} onDelete={() => router.push('/animals')} />}
+      {tab === 'overview'      && <OverviewTab  animal={animal} onDelete={() => router.push('/animals')} ranchName={ranchName} />}
       {tab === 'health'        && <HealthTab    animal={animal} onLogEvent={() => setLogOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} onRefresh={fetchAnimal} />}

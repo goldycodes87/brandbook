@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Chip, StatusChip } from '@/components/ui/Chip'
 import { ANIMAL_STATUS_CHIP, SEX_CHIP } from '@/components/ui/tokens'
+import { BreedDisplay } from '@/components/animals/BreedDisplay'
 
 interface LatestWeight {
   weight_lbs: number
@@ -24,6 +25,7 @@ export interface AnimalListItem {
   status: string | null
   breed: string | null
   breed_percentage: number | null
+  breeds?: { breed: string; pct: number }[] | null
   photos: string[] | null
   owner: Owner | null
   latest_weight: LatestWeight | null
@@ -41,11 +43,7 @@ function calcAge(dob: string | null): string {
 export function AnimalCard({ animal }: { animal: AnimalListItem }) {
   const thumb = animal.photos?.[0]
   const age   = calcAge(animal.dob)
-  const breed = animal.breed
-    ? animal.breed_percentage && animal.breed_percentage < 100
-      ? `${animal.breed_percentage}% ${animal.breed}`
-      : animal.breed
-    : null
+  const hasBreed = (animal.breeds && animal.breeds.length > 0) || animal.breed
 
   return (
     <Link
@@ -75,8 +73,10 @@ export function AnimalCard({ animal }: { animal: AnimalListItem }) {
             >
               {animal.tag_number}{animal.name ? ` — ${animal.name}` : ''}
             </p>
-            {breed && (
-              <p className="type-data-sm truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>{breed}</p>
+            {hasBreed && (
+              <p className="type-data-sm truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                <BreedDisplay breeds={animal.breeds} breed={animal.breed} breedPercentage={animal.breed_percentage} />
+              </p>
             )}
           </div>
           <StatusChip map={ANIMAL_STATUS_CHIP} value={animal.status} size="sm" />

@@ -33,18 +33,22 @@ interface SireSelectorProps {
   onChangeSireId: (id: string | null) => void
   onChangeSireName: (name: string | null) => void
   onChangeSireLibraryId?: (id: string | null) => void
+  onChangeSireBreed?: (breed: string | null) => void
+  initialSystem?: SireResult | null
+  initialLibrary?: SireLibraryResult | null
 }
 
 export function SireSelector({
   sireId, sireName, sireLibraryId,
-  onChangeSireId, onChangeSireName, onChangeSireLibraryId,
+  onChangeSireId, onChangeSireName, onChangeSireLibraryId, onChangeSireBreed,
+  initialSystem, initialLibrary,
 }: SireSelectorProps) {
   const initMode: Mode = sireId ? 'system' : sireLibraryId ? 'library' : 'external'
   const [mode, setMode]             = useState<Mode>(initMode)
   const [query, setQuery]           = useState('')
   const [results, setResults]       = useState<(SireResult | SireLibraryResult)[]>([])
-  const [selectedSystem, setSelectedSystem]   = useState<SireResult | null>(null)
-  const [selectedLibrary, setSelectedLibrary] = useState<SireLibraryResult | null>(null)
+  const [selectedSystem, setSelectedSystem]   = useState<SireResult | null>(initialSystem ?? null)
+  const [selectedLibrary, setSelectedLibrary] = useState<SireLibraryResult | null>(initialLibrary ?? null)
   const [searching, setSearching]   = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -85,6 +89,7 @@ export function SireSelector({
     onChangeSireId(null)
     onChangeSireName(null)
     onChangeSireLibraryId?.(null)
+    onChangeSireBreed?.(null)
   }
 
   const switchMode = (m: Mode) => {
@@ -99,6 +104,7 @@ export function SireSelector({
     onChangeSireId(s.id)
     onChangeSireName(null)
     onChangeSireLibraryId?.(null)
+    onChangeSireBreed?.(s.breed ?? null)
   }
 
   const selectLibrary = (s: SireLibraryResult) => {
@@ -108,6 +114,7 @@ export function SireSelector({
     onChangeSireId(null)
     onChangeSireName(s.bull_name)
     onChangeSireLibraryId?.(s.id)
+    onChangeSireBreed?.(s.breed ?? null)
   }
 
   return (
