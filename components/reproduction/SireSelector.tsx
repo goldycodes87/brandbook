@@ -36,6 +36,9 @@ interface SireSelectorProps {
   onChangeSireName: (name: string | null) => void
   onChangeSireLibraryId?: (id: string | null) => void
   onChangeSireBreed?: (breed: string | null) => void
+  onSelectLibrary?: (sire: SireLibraryResult) => void
+  onSelectSystem?: (sire: SireResult) => void
+  onClearSire?: () => void
   initialSystem?: SireResult | null
   initialLibrary?: SireLibraryResult | null
 }
@@ -43,6 +46,7 @@ interface SireSelectorProps {
 export function SireSelector({
   sireId, sireName, sireLibraryId,
   onChangeSireId, onChangeSireName, onChangeSireLibraryId, onChangeSireBreed,
+  onSelectLibrary, onSelectSystem, onClearSire,
   initialSystem, initialLibrary,
 }: SireSelectorProps) {
   const initMode: Mode = sireId ? 'system' : sireLibraryId ? 'library' : 'external'
@@ -92,6 +96,7 @@ export function SireSelector({
     onChangeSireName(null)
     onChangeSireLibraryId?.(null)
     onChangeSireBreed?.(null)
+    onClearSire?.()
   }
 
   const switchMode = (m: Mode) => {
@@ -107,6 +112,7 @@ export function SireSelector({
     onChangeSireName(null)
     onChangeSireLibraryId?.(null)
     onChangeSireBreed?.(s.breed ?? null)
+    onSelectSystem?.(s)
   }
 
   const selectLibrary = (s: SireLibraryResult) => {
@@ -117,6 +123,7 @@ export function SireSelector({
     onChangeSireName(s.bull_name)
     onChangeSireLibraryId?.(s.id)
     onChangeSireBreed?.(s.breed ?? null)
+    onSelectLibrary?.(s)
   }
 
   return (

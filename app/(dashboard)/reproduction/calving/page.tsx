@@ -11,7 +11,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { StatusChip } from '@/components/ui/Chip'
 import { EarTagColorPicker } from '@/components/reproduction/EarTagColorPicker'
-import { SireSelector } from '@/components/reproduction/SireSelector'
+import { SireSelector, type SireLibraryResult, type SireResult } from '@/components/reproduction/SireSelector'
 import { SEX_CHIP, getSexValue } from '@/components/ui/tokens'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
@@ -130,6 +130,8 @@ export default function CalvingEntryPage() {
   const [successMsg, setSuccessMsg] = useState('')
   const [session, setSession]       = useState<CalfRecord[]>([])
   const [sireBreed, setSireBreed]   = useState<string | null>(null)
+  const [selectedSire, setSelectedSire] = useState<SireLibraryResult | SireResult | null>(null)
+  const [sireSource, setSireSource]     = useState<'library' | 'herd' | 'external' | null>(null)
   const submittingRef               = useRef(false)
 
   // Load recent cows/heifers on mount
@@ -142,19 +144,36 @@ export default function CalvingEntryPage() {
 
   // Preview breed whenever dam or sire changes
   useEffect(() => {
-    const damBreeds = getDamBreeds(dam)
-    const sireBreeds = getSireBreeds(sireBreed)
-    console.log('[BREED DEBUG] preview — dam:', dam?.id ?? 'none', 'sireBreed:', sireBreed)
-    console.log('[BREED DEBUG] damBreeds:', JSON.stringify(damBreeds), 'sireBreeds:', JSON.stringify(sireBreeds))
     console.log('[breed TRIGGER] dam:', dam?.tag_number, 'breeds:', JSON.stringify(dam?.breeds), 'breed:', dam?.breed)
-    console.log('[breed TRIGGER] sire source:', calf.sireKnown ? (calf.sireLibraryId ? 'library' : calf.sireId ? 'herd' : 'name-only') : 'unknown')
-    console.log('[breed TRIGGER] sireBreed:', sireBreed)
-    if (damBreeds.length > 0 || sireBreeds.length > 0) {
-      const preview = calf.sireKnown ? calcCalfBreeds(damBreeds, sireBreeds) : damBreeds
-      console.log('[BREED DEBUG] preview result:', JSON.stringify(preview))
-      console.log('[breed TRIGGER] calcCalfBreeds result:', JSON.stringify(preview))
+    console.log('[breed TRIGGER] sire source:', sireSource, '| sireBreed:', sireBreed, '| selectedSire:', JSON.stringify(selectedSire))
+
+    if (!dam || !selectedSire) {
+      console.log('[breed] missing dam or sire, skipping')
+      return
     }
-  }, [dam, sireBreed, calf.sireKnown])
+
+    const damBreeds = getDamBreeds(dam)
+
+    let sireBreeds: BreedEntry[] = []
+    if (sireSource === 'library') {
+      const lb = selectedSire as SireLibraryResult
+      sireBreeds = lb.breed ? [{ breed: lb.breed, pct: 100 }] : []
+    } else if (sireSource === 'herd') {
+      const sb = selectedSire as SireResult
+      sireBreeds = sb.breed ? [{ breed: sb.breed, pct: 100 }] : []
+    }
+
+    console.log('[breed] damBreeds:', JSON.stringify(damBreeds))
+    console.log('[breed] sireBreeds:', JSON.stringify(sireBreeds))
+
+    if (!damBreeds.length && !sireBreeds.length) {
+      console.log('[breed] no breed data available')
+      return
+    }
+
+    const result = calcCalfBreeds(damBreeds, sireBreeds)
+    console.log('[breed] result:', JSON.stringify(result))
+  }, [dam, selectedSire, sireSource])
 
   const searchDams = async (q: string) => {
     setSearch(q)
@@ -192,18 +211,29 @@ export default function CalvingEntryPage() {
     setSaving(true)
     setError('')
 
-    const damBreeds  = getDamBreeds(dam)
-    const sireBreeds = getSireBreeds(sireBreed)
-    console.log('[BREED DEBUG] doSave — damBreeds:', JSON.stringify(damBreeds), 'sireBreeds:', JSON.stringify(sireBreeds))
+    const damBreeds = getDamBreeds(dam)
+
+    let sireBreeds: BreedEntry[] = []
+    if (calf.sireKnown && selectedSire) {
+      if (sireSource === 'library') {
+        const lb = selectedSire as SireLibraryResult
+        sireBreeds = lb.breed ? [{ breed: lb.breed, pct: 100 }] : []
+      } else if (sireSource === 'herd') {
+        const sb = selectedSire as SireResult
+        sireBreeds = sb.breed ? [{ breed: sb.breed, pct: 100 }] : []
+      }
+    } else if (calf.sireKnown && sireBreed) {
+      sireBreeds = [{ breed: sireBreed, pct: 100 }]
+    }
+
     console.log('[breed TRIGGER] dam:', dam?.tag_number, 'breeds:', JSON.stringify(dam?.breeds), 'breed:', dam?.breed)
-    console.log('[breed TRIGGER] sire source:', calf.sireKnown ? (calf.sireLibraryId ? 'library' : calf.sireId ? 'herd' : 'name-only') : 'unknown')
-    console.log('[breed TRIGGER] sireBreed:', sireBreed)
+    console.log('[breed TRIGGER] sire source:', sireSource, '| sireBreed:', sireBreed)
+    console.log('[breed TRIGGER] sireBreeds:', JSON.stringify(sireBreeds))
     const autoBreeds = calf.sireKnown
       ? calcCalfBreeds(damBreeds, sireBreeds)
       : damBreeds.map(b => ({ breed: b.breed, pct: b.pct }))
     console.log('[breed TRIGGER] calcCalfBreeds result:', JSON.stringify(autoBreeds))
     console.log('[breed TRIGGER] setting calf_data.breeds to:', JSON.stringify(autoBreeds))
-    console.log('[BREED DEBUG] doSave — autoBreeds applied:', JSON.stringify(autoBreeds))
 
     try {
       const submitPayload = {
@@ -214,6 +244,8 @@ export default function CalvingEntryPage() {
         sire_library_id: calf.sireKnown ? calf.sireLibraryId : null,
       }
       console.log('[calving FORM] submitting calf_data:', JSON.stringify(submitPayload, null, 2))
+      console.log('[FORM SUBMIT] sire_library_id:', calf.sireKnown ? calf.sireLibraryId : null)
+      console.log('[FORM SUBMIT] sireSource:', sireSource, '| selectedSire id:', (selectedSire as SireLibraryResult)?.id ?? (selectedSire as SireResult)?.id ?? null)
 
       const res = await apiPost('/api/reproduction', {
           animal_id:          dam.id,
@@ -258,7 +290,7 @@ export default function CalvingEntryPage() {
     }
   }
 
-  const clearCalf = () => { setCalf(blankCalfState()); setSireBreed(null) }
+  const clearCalf = () => { setCalf(blankCalfState()); setSireBreed(null); setSelectedSire(null); setSireSource(null) }
 
   const handleSaveAndNext = async () => {
     const result = await doSave()
@@ -455,6 +487,9 @@ export default function CalvingEntryPage() {
                       onChangeSireName={v => updateCalf('sireName', v)}
                       onChangeSireLibraryId={v => updateCalf('sireLibraryId', v)}
                       onChangeSireBreed={setSireBreed}
+                      onSelectLibrary={s => { setSelectedSire(s); setSireSource('library') }}
+                      onSelectSystem={s => { setSelectedSire(s); setSireSource('herd') }}
+                      onClearSire={() => { setSelectedSire(null); setSireSource(null) }}
                     />
                   )}
                 </div>

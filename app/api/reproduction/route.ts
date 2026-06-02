@@ -145,12 +145,33 @@ export async function POST(req: NextRequest) {
   }
 
   // Calving path: create event + calf animal + link back
+  const {
+    tag_number:             cd_tag_number,
+    ear_tag_color:          cd_ear_tag_color,
+    sex:                    cd_sex,
+    calf_sex:               cd_calf_sex,
+    dob:                    cd_dob,
+    birth_weight_lbs:       cd_birth_weight_lbs,
+    birth_weight_estimated: cd_birth_weight_estimated,
+    breeds:                 cd_breeds,
+    sire_id:                cd_sire_id,
+    sire_library_id:        cd_sire_library_id,
+    sire_name_text:         cd_sire_name_text,
+    donor_dam_id:           cd_donor_dam_id,
+    conception_method:      cd_conception_method,
+    birth_type:             cd_birth_type,
+    vigor_score:            cd_vigor_score,
+    notes:                  cd_notes,
+  } = calf_data || {}
+
+  console.log('[calving POST] calf_data destructured — sire_library_id:', cd_sire_library_id, '| sire_id:', cd_sire_id, '| breeds:', JSON.stringify(cd_breeds))
+
   const { data: reproEvent, error: reproErr } = await supabase
     .from('reproduction_events')
     .insert({
       ...eventRow,
       event_type:      'calved',
-      sire_library_id: calf_data?.sire_library_id || eventRow.sire_library_id || null,
+      sire_library_id: cd_sire_library_id || eventRow.sire_library_id || null,
     })
     .select()
     .single()
@@ -168,24 +189,24 @@ export async function POST(req: NextRequest) {
   const { data: newCalf, error: calfErr } = await supabase
     .from('animals')
     .insert({
-      tag_number:              calf_data.tag_number,
-      ear_tag_color:           calf_data.ear_tag_color || null,
+      tag_number:              cd_tag_number,
+      ear_tag_color:           cd_ear_tag_color || null,
       sex:                     'calf',
-      calf_sex:                calf_data.calf_sex || null,
+      calf_sex:                cd_calf_sex || null,
       status:                  'active',
-      dob:                     calf_data.dob || event_date,
-      birth_weight_lbs:        calf_data.birth_weight_lbs || null,
-      birth_weight_estimated:  calf_data.birth_weight_estimated ?? true,
-      breeds:                  calf_data.breeds || [],
+      dob:                     cd_dob || event_date,
+      birth_weight_lbs:        cd_birth_weight_lbs || null,
+      birth_weight_estimated:  cd_birth_weight_estimated ?? true,
+      breeds:                  cd_breeds || [],
       dam_id:                  animal_id,
       owner_id:                damRecord?.owner_id || null,
-      sire_id:                 calf_data.sire_id || null,
-      sire_library_id:         calf_data.sire_library_id || null,
-      donor_dam_id:            calf_data.donor_dam_id || null,
-      conception_method:       calf_data.conception_method || null,
-      birth_type:              calf_data.birth_type || 'single',
-      vigor_score:             calf_data.vigor_score ?? null,
-      notes:                   calf_data.notes || null,
+      sire_id:                 cd_sire_id || null,
+      sire_library_id:         cd_sire_library_id || null,
+      donor_dam_id:            cd_donor_dam_id || null,
+      conception_method:       cd_conception_method || null,
+      birth_type:              cd_birth_type || 'single',
+      vigor_score:             cd_vigor_score ?? null,
+      notes:                   cd_notes || null,
     })
     .select()
     .single()
@@ -206,7 +227,7 @@ export async function POST(req: NextRequest) {
     .eq('id', reproEvent.id)
 
   // Increment use_count on sire library entry
-  const usedSireLibraryId = calf_data?.sire_library_id || null
+  const usedSireLibraryId = cd_sire_library_id || null
   if (usedSireLibraryId) {
     const { data: currentSire } = await supabase
       .from('sire_library')
