@@ -612,6 +612,85 @@ function UsersTab() {
   )
 }
 
+// ─── Data Cleanup Panel ───────────────────────────────────────────────────────
+
+interface MismatchedAnimal {
+  id: string
+  tag_number: string
+  name: string | null
+  sex: string | null
+  calf_sex: string | null
+}
+
+function DataCleanupPanel() {
+  const [animals, setAnimals]     = useState<MismatchedAnimal[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [fixing, setFixing]       = useState(false)
+  const [result, setResult]       = useState<string | null>(null)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    apiGet('/api/settings/data-cleanup')
+      .then(r => r.json())
+      .then(d => { setAnimals(Array.isArray(d.data) ? d.data : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const handleFixAll = async () => {
+    if (!confirm(`Fix ${animals.length} animal${animals.length !== 1 ? 's' : ''}? This will update their sex to match their recorded calf_sex.`)) return
+    setFixing(true); setResult(null)
+    try {
+      const res  = await apiPost('/api/settings/data-cleanup', { auto_fix: true })
+      const json = await res.json()
+      setResult(`Fixed ${json.updated} animal${json.updated !== 1 ? 's' : ''}.`)
+      load()
+    } catch { setResult('Error — please try again') }
+    finally { setFixing(false) }
+  }
+
+  return (
+    <Panel title="DATA CLEANUP" subtitle="Animals with inconsistent sex vs. calf sex records">
+      <PanelSection>
+        {loading ? (
+          <p className="type-body" style={{ color: 'var(--text-muted)' }}>Scanning…</p>
+        ) : animals.length === 0 ? (
+          <ContextBanner tone="success">No sex mismatches found — data looks clean.</ContextBanner>
+        ) : (
+          <>
+            <ContextBanner tone="warning" eyebrow={`${animals.length} MISMATCH${animals.length !== 1 ? 'ES' : ''}`}>
+              These animals have a <strong>calf_sex</strong> that doesn't match their current <strong>sex</strong>. "Fix All" sets sex to match calf_sex (heifer_calf → heifer, bull_calf → bull).
+            </ContextBanner>
+            <div className="mt-3 flex flex-col gap-1.5">
+              {animals.map(a => (
+                <div key={a.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-[var(--radius-md)]"
+                  style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                  <div>
+                    <span className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>#{a.tag_number}</span>
+                    {a.name && <span className="type-helper ml-2" style={{ color: 'var(--text-muted)' }}>{a.name}</span>}
+                    <span className="type-helper ml-2" style={{ color: 'var(--text-muted)' }}>
+                      sex: <strong>{a.sex}</strong> · calf_sex: <strong>{a.calf_sex}</strong>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button intent="primary" size="sm" loading={fixing} onClick={handleFixAll}>
+                FIX ALL ({animals.length})
+              </Button>
+            </div>
+          </>
+        )}
+        {result && (
+          <p className="type-helper mt-2" style={{ color: 'var(--success-fg)' }}>{result}</p>
+        )}
+      </PanelSection>
+    </Panel>
+  )
+}
+
 // ─── Data Tab ─────────────────────────────────────────────────────────────────
 
 function DataTab() {
@@ -740,6 +819,8 @@ function DataTab() {
           </div>
         </PanelSection>
       </Panel>
+
+      <DataCleanupPanel />
     </div>
   )
 }

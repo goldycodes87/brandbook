@@ -81,3 +81,10 @@ export function resolveChip(
   if (!key) return fallback;
   return map[key] ?? { ...fallback, label: key.toUpperCase().replace(/_/g, " ") };
 }
+
+export const EAR_TAG_COLOR_HEX: Record<string, string> = {
+  yellow: '#EAB308', orange: '#F97316', red: '#EF4444',
+  green:  '#22C55E', blue:   '#3B82F6', white:  '#F1F5F9',
+  pink:   '#EC4899', purple: '#A855F7', black:  '#1E293B',
+  silver: '#9CA3AF',
+};

@@ -21,8 +21,7 @@ const COLS = [
   { key: 'sex',        label: 'Sex' },
   { key: 'breed',      label: 'Breed' },
   { key: 'status',     label: 'Status' },
-  { key: '',           label: 'Last Weight' },
-  { key: '',           label: 'Owner' },
+  { key: 'owner',      label: 'Owner' },
 ]
 
 export function AnimalSortableTable({ animals, currentSort, currentDir }: Props) {
@@ -65,6 +64,10 @@ export function AnimalSortableTable({ animals, currentSort, currentDir }: Props)
           <option value="name-asc">Name (A→Z)</option>
           <option value="name-desc">Name (Z→A)</option>
           <option value="sex-asc">Sex</option>
+          <option value="breed-asc">Breed (A→Z)</option>
+          <option value="breed-desc">Breed (Z→A)</option>
+          <option value="owner-asc">Owner (A→Z)</option>
+          <option value="owner-desc">Owner (Z→A)</option>
           <option value="status-asc">Status</option>
           <option value="created_at-desc">Newest First</option>
           <option value="created_at-asc">Oldest First</option>

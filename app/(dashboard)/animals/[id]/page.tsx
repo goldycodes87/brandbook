@@ -12,7 +12,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP, getSexValue } from '@/components/ui/tokens'
+import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP, getSexValue, EAR_TAG_COLOR_HEX } from '@/components/ui/tokens'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
@@ -41,7 +41,9 @@ interface Animal {
   breed_percentage: number | null
   breeds: { breed: string; pct: number }[] | null
   calf_sex: string | null
+  ear_tag_color: string | null
   birth_weight_lbs: number | null
+  birth_weight_estimated: boolean | null
   purchase_price: number | null
   purchase_date: string | null
   vendor: string | null
@@ -165,7 +167,7 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
       {/* Stats strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Age',    value: calcAge(animal.dob) },
+          { label: 'Age',    value: animal.dob ? calcAge(animal.dob) : (animal.approximate_age ? `~${animal.approximate_age}` : '—') },
           { label: 'Weight', value: latestWeight ? `${latestWeight.weight_lbs} lb` : '—' },
           { label: 'Breed',  value: <BreedDisplay breeds={animal.breeds} breed={animal.breed} breedPercentage={animal.breed_percentage} /> },
           { label: 'Sex',    value: animal.sex ? <StatusChip map={SEX_CHIP} value={getSexValue(animal.sex, animal.calf_sex)} /> : '—' },
@@ -182,13 +184,24 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
         <PanelSection>
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
             {[
-              { k: 'Tag number',   v: animal.tag_number },
+              { k: 'Tag number',   v: (
+                  <div className="flex items-center gap-1.5">
+                    {animal.ear_tag_color && (
+                      <span
+                        className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: EAR_TAG_COLOR_HEX[animal.ear_tag_color] ?? '#888', border: '1px solid var(--border)' }}
+                      />
+                    )}
+                    {animal.tag_number}
+                    {animal.ear_tag_color && <span className="type-helper" style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>{animal.ear_tag_color}</span>}
+                  </div>
+                ) },
               { k: 'Date of birth',v: animal.dob_estimated
                   ? (animal.approximate_age
                       ? `~${animal.approximate_age} (est.)`
                       : `~${fmtDate(animal.dob)} (est.)`)
                   : fmtDate(animal.dob) },
-              { k: 'Birth weight', v: fmt(animal.birth_weight_lbs, 'lb') },
+              { k: 'Birth weight', v: animal.birth_weight_lbs != null ? `${animal.birth_weight_lbs} lb${animal.birth_weight_estimated ? ' (est.)' : ''}` : '—' },
               { k: 'Purchase date',v: fmtDate(animal.purchase_date) },
               { k: 'Purchase price',v: animal.purchase_price != null ? `$${animal.purchase_price.toLocaleString()}` : '—' },
               { k: 'Vendor',       v: animal.vendor ?? '—' },

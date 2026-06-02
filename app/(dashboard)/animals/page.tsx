@@ -20,11 +20,12 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
   const limit  = 50
   const offset = (page - 1) * limit
 
+  const isJsSort = searchParams.sort === 'owner' || searchParams.sort === 'breed'
   const sortMap: Record<string, string> = {
     tag_number: 'tag_number', name: 'name', sex: 'sex',
     breed: 'breed', status: 'status', created_at: 'created_at',
   }
-  const sortCol = sortMap[searchParams.sort ?? ''] ?? 'tag_number'
+  const sortCol = isJsSort ? 'tag_number' : (sortMap[searchParams.sort ?? ''] ?? 'tag_number')
   const ascending = searchParams.dir !== 'desc'
 
   const [{ data: ranchData }, queryResult] = await Promise.all([
@@ -33,14 +34,12 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
       let q = supabase
         .from('animals')
         .select(
-          `id, tag_number, name, dob, sex, calf_sex, status, breed, breed_percentage, breeds, owner_id, photos,
-           owner:owner_id ( id, name ),
-           weights ( weight_lbs, weighed_at )`,
+          `id, tag_number, name, dob, sex, calf_sex, status, breed, breed_percentage, breeds, owner_id, ear_tag_color, photos,
+           owner:owner_id ( id, name )`,
           { count: 'exact' }
         )
         .order(sortCol, { ascending, nullsFirst: false })
-        .order('weighed_at', { referencedTable: 'weights', ascending: false })
-        .range(offset, offset + limit - 1)
+      if (!isJsSort) q = q.range(offset, offset + limit - 1)
       if (searchParams.search) q = q.or(`tag_number.ilike.%${searchParams.search}%,name.ilike.%${searchParams.search}%`)
       if (searchParams.status) q = q.eq('status', searchParams.status)
       if (searchParams.sex)    q = q.eq('sex', searchParams.sex)
@@ -55,14 +54,27 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
     return <p className="type-body" style={{ color: 'var(--danger-fg)' }}>{error.message}</p>
   }
 
-  const animals: AnimalListItem[] = (data ?? []).map(a => {
-    const sorted = [...(a.weights ?? [])].sort(
-      (x, y) => new Date(y.weighed_at).getTime() - new Date(x.weighed_at).getTime()
-    )
-    const { weights: _, ...rest } = a as typeof a & { weights: unknown }
-    const ownerDisplayName = (rest as { owner?: { name?: string } | null }).owner?.name ?? ranchName
-    return { ...rest, latest_weight: sorted[0] ?? null, owner_display_name: ownerDisplayName } as unknown as AnimalListItem
+  let animals: AnimalListItem[] = (data ?? []).map(a => {
+    const ownerDisplayName = (a as { owner?: { name?: string } | null }).owner?.name ?? ranchName
+    return { ...a, latest_weight: null, owner_display_name: ownerDisplayName } as unknown as AnimalListItem
   })
+
+  if (isJsSort) {
+    if (searchParams.sort === 'owner') {
+      animals.sort((a, b) => {
+        const an = (a.owner_display_name ?? '').toLowerCase()
+        const bn = (b.owner_display_name ?? '').toLowerCase()
+        return ascending ? an.localeCompare(bn) : bn.localeCompare(an)
+      })
+    } else if (searchParams.sort === 'breed') {
+      animals.sort((a, b) => {
+        const an = (a.breeds?.[0]?.breed ?? a.breed ?? '').toLowerCase()
+        const bn = (b.breeds?.[0]?.breed ?? b.breed ?? '').toLowerCase()
+        return ascending ? an.localeCompare(bn) : bn.localeCompare(an)
+      })
+    }
+    animals = animals.slice(offset, offset + limit)
+  }
 
   if (!animals.length) {
     return (

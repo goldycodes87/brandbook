@@ -18,6 +18,22 @@ import Link from 'next/link'
 import { apiGet, apiPost } from '@/lib/fetch'
 import { calcCalfBreeds, type BreedEntry } from '@/lib/breed-calculator'
 
+function getDamBreeds(dam: Dam | null): BreedEntry[] {
+  if (!dam) return []
+  console.log('[BREED DEBUG] getDamBreeds — id:', dam.id, 'breeds:', JSON.stringify(dam.breeds), 'breed:', dam.breed)
+  if (dam.breeds && dam.breeds.length > 0) return dam.breeds
+  if (dam.breed) return [{ breed: dam.breed, pct: 100 }]
+  console.log('[BREED DEBUG] getDamBreeds: no breeds found')
+  return []
+}
+
+function getSireBreeds(sireBreed: string | null): BreedEntry[] {
+  console.log('[BREED DEBUG] getSireBreeds — sireBreed:', sireBreed)
+  if (sireBreed) return [{ breed: sireBreed, pct: 100 }]
+  console.log('[BREED DEBUG] getSireBreeds: no sire breed')
+  return []
+}
+
 type CalfSex = 'heifer_calf' | 'bull_calf' | 'calf'
 type BirthType = 'single' | 'twin_a' | 'twin_b'
 type ConceptionMethod = 'natural' | 'ai' | 'embryo'
@@ -134,6 +150,18 @@ export default function CalvingEntryPage() {
       .catch(() => {})
   }, [])
 
+  // Preview breed whenever dam or sire changes
+  useEffect(() => {
+    const damBreeds = getDamBreeds(dam)
+    const sireBreeds = getSireBreeds(sireBreed)
+    console.log('[BREED DEBUG] preview — dam:', dam?.id ?? 'none', 'sireBreed:', sireBreed)
+    console.log('[BREED DEBUG] damBreeds:', JSON.stringify(damBreeds), 'sireBreeds:', JSON.stringify(sireBreeds))
+    if (damBreeds.length > 0 || sireBreeds.length > 0) {
+      const preview = calf.sireKnown ? calcCalfBreeds(damBreeds, sireBreeds) : damBreeds
+      console.log('[BREED DEBUG] preview result:', JSON.stringify(preview))
+    }
+  }, [dam, sireBreed, calf.sireKnown])
+
   const searchDams = async (q: string) => {
     setSearch(q)
     if (!q.trim()) { setDams([]); return }
@@ -148,6 +176,7 @@ export default function CalvingEntryPage() {
   }
 
   const selectDam = (d: Dam) => {
+    console.log('[BREED DEBUG] dam selected:', d.id, 'tag:', d.tag_number, 'breed:', d.breed, 'breeds:', JSON.stringify(d.breeds))
     setDam(d)
     setSearch('')
     setDams([])
@@ -169,18 +198,13 @@ export default function CalvingEntryPage() {
     setSaving(true)
     setError('')
 
-    const damBreeds: BreedEntry[] =
-      dam.breeds && dam.breeds.length > 0
-        ? dam.breeds
-        : dam.breed ? [{ breed: dam.breed, pct: 100 }] : []
-    const sireBreeds: BreedEntry[] =
-      sireBreed ? [{ breed: sireBreed, pct: 100 }] : []
-    console.log('[breed] dam:', dam.id, 'breeds:', JSON.stringify(damBreeds))
-    console.log('[breed] sire breed string:', sireBreed, 'sireBreeds:', JSON.stringify(sireBreeds))
+    const damBreeds  = getDamBreeds(dam)
+    const sireBreeds = getSireBreeds(sireBreed)
+    console.log('[BREED DEBUG] doSave — damBreeds:', JSON.stringify(damBreeds), 'sireBreeds:', JSON.stringify(sireBreeds))
     const autoBreeds = calf.sireKnown
       ? calcCalfBreeds(damBreeds, sireBreeds)
       : damBreeds.map(b => ({ breed: b.breed, pct: b.pct }))
-    console.log('[breed] applied:', JSON.stringify(autoBreeds))
+    console.log('[BREED DEBUG] doSave — autoBreeds applied:', JSON.stringify(autoBreeds))
 
     try {
       const res = await apiPost('/api/reproduction', {

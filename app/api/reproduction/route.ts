@@ -75,6 +75,11 @@ export async function POST(req: NextRequest) {
   if (!event_type) return NextResponse.json({ error: 'event_type is required' }, { status: 400 })
   if (!event_date) return NextResponse.json({ error: 'event_date is required' }, { status: 400 })
 
+  if (event_type === 'calved' && calf_data) {
+    console.log('[BREED DEBUG] received breeds:', JSON.stringify(calf_data?.breeds))
+    console.log('[BREED DEBUG] sire_id:', calf_data?.sire_id, 'sire_library_id:', calf_data?.sire_library_id)
+  }
+
   const supabase = createAdminClient()
 
   // Auto-calculate expected_calving_date when breeding event
