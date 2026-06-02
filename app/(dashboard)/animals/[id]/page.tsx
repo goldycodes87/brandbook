@@ -12,20 +12,22 @@ import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, REPRO_CHIP, getSexValue } from '@/components/ui/tokens'
+import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, getSexValue } from '@/components/ui/tokens'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
 import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
+import { PregnancyCard, OpenPregnancyCard } from '@/components/animals/PregnancyCard'
+import type { ReproEventShape, CalfRecord } from '@/components/animals/PregnancyCard'
 import { SellAnimalSheet } from '@/components/animals/SellAnimalSheet'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
 import { apiGet, apiDelete } from '@/lib/fetch'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
-type ReproEvent    = { id: string; event_type: string; event_date: string; breed_method?: string; conception_method?: string; sire_name_text?: string; expected_calving_date?: string; calving_ease_score?: number; preg_check_result?: string; preg_check_method?: string; days_bred?: number; weaning_date?: string; weaning_weight_lbs?: number; ai_technician?: string; notes?: string; sire_id?: string; sire_library_id?: string; sire?: { id: string; tag_number: string; name?: string }; sire_library?: { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; bull_type: string }; calf?: { id: string; tag_number: string; name?: string; sex?: string; calf_sex?: string; dob?: string; birth_weight_lbs?: number } }
-type AnimalRef      = { id: string; tag_number: string; name?: string | null; breed?: string | null; sex?: string | null; status?: string | null; dob?: string | null; ear_tag_color?: string | null }
+type ReproEvent    = { id: string; event_type: string; event_date: string; calf_id?: string | null; breed_method?: string; conception_method?: string; sire_name_text?: string; expected_calving_date?: string; calving_ease_score?: number; preg_check_result?: string; preg_check_method?: string; days_bred?: number; weaning_date?: string; weaning_weight_lbs?: number; ai_technician?: string; notes?: string; sire_id?: string; sire_library_id?: string; sire?: { id: string; tag_number: string; name?: string } | null; sire_library?: { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; stud?: string | null; bull_type: string } | null; calf?: { id: string; tag_number: string; name?: string; sex?: string; calf_sex?: string; dob?: string; birth_weight_lbs?: number; ear_tag_color?: string | null } | null }
+type AnimalRef      = { id: string; tag_number: string; name?: string | null; breed?: string | null; sex?: string | null; calf_sex?: string | null; status?: string | null; dob?: string | null; ear_tag_color?: string | null; weaning_date?: string | null; weaning_weight_lbs?: number | null; birth_weight_lbs?: number | null; breeds?: { breed: string; pct: number }[] | null; sire_library_id?: string | null }
 type OwnerRef       = { id: string; name: string; email?: string; phone?: string }
 type SireLibraryRef = { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; stud?: string | null; bull_type: string }
 
@@ -434,42 +436,100 @@ function HealthTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEve
   )
 }
 
-function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void }) {
-  const [confirmReproId, setConfirmReproId] = useState<string | null>(null)
-  const [deletingReproId, setDeletingReproId] = useState<string | null>(null)
+interface PregnancyGroup {
+  calfEvent:       ReproEvent
+  calfRecord:      AnimalRef | null
+  bredEvent:       ReproEvent | null
+  pregCheckEvents: ReproEvent[]
+  weaningEvent:    ReproEvent | null
+}
 
-  const handleDeleteRepro = async () => {
-    if (!confirmReproId) return
-    setDeletingReproId(confirmReproId)
-    try {
-      await apiDelete(`/api/reproduction/${confirmReproId}`)
-      onRefresh()
-    } finally {
-      setDeletingReproId(null)
-      setConfirmReproId(null)
-    }
+interface OpenPregnancyGroup {
+  bredEvent:       ReproEvent
+  pregCheckEvents: ReproEvent[]
+}
+
+function groupReproEvents(
+  events: ReproEvent[],
+  calves: AnimalRef[],
+): { pregnancies: PregnancyGroup[]; openPregnancies: OpenPregnancyGroup[] } {
+  // Process oldest → newest so each calved event claims the nearest preceding bred event
+  const calvedEvents = events
+    .filter(e => e.event_type === 'calved')
+    .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+
+  const bredPool    = [...events.filter(e => e.event_type === 'bred')]
+  const pregPool    = [...events.filter(e => e.event_type === 'preg_check')]
+  const weanedPool  = [...events.filter(e => e.event_type === 'weaned')]
+
+  const claimedBred   = new Set<string>()
+  const claimedPreg   = new Set<string>()
+  const claimedWeaned = new Set<string>()
+
+  const pregnancies: PregnancyGroup[] = []
+
+  for (const calfEvent of calvedEvents) {
+    const calfDate    = new Date(calfEvent.event_date).getTime()
+    const calfRecord  = calves.find(c => c.id === calfEvent.calf?.id) ?? null
+
+    // Most recent unclaimed bred event before this calved event
+    const bredEvent = bredPool
+      .filter(b => !claimedBred.has(b.id) && new Date(b.event_date).getTime() < calfDate)
+      .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())[0] ?? null
+    if (bredEvent) claimedBred.add(bredEvent.id)
+
+    const windowStart = bredEvent ? new Date(bredEvent.event_date).getTime() : 0
+
+    const pregCheckEvents = pregPool.filter(pc =>
+      !claimedPreg.has(pc.id) &&
+      new Date(pc.event_date).getTime() >= windowStart &&
+      new Date(pc.event_date).getTime() <= calfDate
+    )
+    pregCheckEvents.forEach(pc => claimedPreg.add(pc.id))
+
+    // First unclaimed weaned event after calved
+    const weaningEvent = weanedPool
+      .filter(w => !claimedWeaned.has(w.id) && new Date(w.event_date).getTime() > calfDate)
+      .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())[0] ?? null
+    if (weaningEvent) claimedWeaned.add(weaningEvent.id)
+
+    pregnancies.push({ calfEvent, calfRecord, bredEvent, pregCheckEvents, weaningEvent })
   }
 
-  const events = [...(animal.reproduction_events ?? [])].sort(
-    (a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
-  )
+  // Remaining unclaimed bred events → open pregnancy cards
+  const openPregnancies: OpenPregnancyGroup[] = bredPool
+    .filter(b => !claimedBred.has(b.id))
+    .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
+    .map(bredEvent => {
+      const bredDate = new Date(bredEvent.event_date).getTime()
+      const pregCheckEvents = pregPool.filter(pc =>
+        !claimedPreg.has(pc.id) && new Date(pc.event_date).getTime() >= bredDate
+      )
+      pregCheckEvents.forEach(pc => claimedPreg.add(pc.id))
+      return { bredEvent, pregCheckEvents }
+    })
 
+  return { pregnancies, openPregnancies }
+}
+
+function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void }) {
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+
+  const events   = animal.reproduction_events ?? []
   const isFemale = animal.sex === 'cow' || animal.sex === 'heifer'
-  const isCalf   = animal.sex === 'calf' || animal.sex === 'bull' || animal.sex === 'steer'
 
-  // Determine current pregnancy status for cows/heifers
+  // Current pregnancy status banner
   let pregnancyBanner: React.ReactNode = null
   if (isFemale && events.length > 0) {
-    const lastBred    = events.find(e => e.event_type === 'bred')
-    const lastCalved  = events.find(e => e.event_type === 'calved')
-    const lastPreg    = events.find(e => e.event_type === 'preg_check')
-
+    const sorted      = [...events].sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
+    const lastBred    = sorted.find(e => e.event_type === 'bred')
+    const lastCalved  = sorted.find(e => e.event_type === 'calved')
+    const lastPreg    = sorted.find(e => e.event_type === 'preg_check')
     const bredAfterCalved = lastBred && (!lastCalved || new Date(lastBred.event_date) > new Date(lastCalved.event_date))
 
     if (bredAfterCalved && lastBred) {
-      const daysBred = Math.floor((Date.now() - new Date(lastBred.event_date).getTime()) / 86400000)
+      const daysBred   = Math.floor((Date.now() - new Date(lastBred.event_date).getTime()) / 86400000)
       const estCalving = lastBred.expected_calving_date
-
       if (lastPreg?.preg_check_result === 'confirmed') {
         pregnancyBanner = (
           <ContextBanner tone="success" eyebrow="CONFIRMED PREGNANT">
@@ -477,11 +537,7 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
           </ContextBanner>
         )
       } else if (lastPreg?.preg_check_result === 'open') {
-        pregnancyBanner = (
-          <ContextBanner tone="warning" eyebrow="OPEN">
-            Preg check negative — consider re-breeding
-          </ContextBanner>
-        )
+        pregnancyBanner = <ContextBanner tone="warning" eyebrow="OPEN">Preg check negative — consider re-breeding</ContextBanner>
       } else {
         pregnancyBanner = (
           <ContextBanner tone="info" eyebrow="BRED">
@@ -492,6 +548,10 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
     }
   }
 
+  const { pregnancies, openPregnancies } = groupReproEvents(events, animal.calves ?? [])
+  const sortedPregnancies = sortDir === 'desc' ? [...pregnancies].reverse() : pregnancies
+  const hasHistory = pregnancies.length > 0 || openPregnancies.length > 0
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
@@ -500,30 +560,7 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
 
       {pregnancyBanner}
 
-      {/* Calves grid for cows/heifers */}
-      {isFemale && animal.calves && animal.calves.length > 0 && (
-        <Panel title="CALVES">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {animal.calves.map(c => (
-              <Link key={c.id} href={`/animals/${c.id}`}>
-                <div
-                  className="rounded-[var(--radius-lg)] p-3 hover:opacity-80 transition-opacity"
-                  style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
-                >
-                  <p className="type-data-sm font-semibold" style={{ color: 'var(--accent)' }}>#{c.tag_number}</p>
-                  {c.name && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{c.name}</p>}
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {c.sex && <StatusChip map={SEX_CHIP} value={getSexValue(c.sex, (c as { calf_sex?: string | null }).calf_sex)} size="sm" />}
-                  </div>
-                  {c.dob && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>DOB: {fmtDate(c.dob)}</p>}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </Panel>
-      )}
-
-      {/* Dam/sire/donor for calves */}
+      {/* Parentage panel for calves */}
       {animal.sex === 'calf' && (animal.dam || animal.sire) && (
         <Panel title="PARENTAGE">
           <PanelSection>
@@ -549,104 +586,64 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
         </Panel>
       )}
 
-      {/* Event history */}
-      {!events.length ? (
-        <div className="py-8 text-center type-body" style={{ color: 'var(--text-muted)' }}>
-          No reproduction events recorded.
+      {/* Empty state */}
+      {!hasHistory ? (
+        <div className="py-8 text-center">
+          <p className="type-body mb-1" style={{ color: 'var(--text)' }}>No reproductive history</p>
+          <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+            Log a calving or breeding event to start tracking this cow&apos;s reproductive history.
+          </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {events.map(ev => {
-            const displayDate = ev.event_type === 'calved' && ev.calf?.dob
-              ? ev.calf.dob
-              : ev.event_date
+        <>
+          {/* Sort control */}
+          {pregnancies.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="type-helper" style={{ color: 'var(--text-muted)' }}>Sort:</span>
+              <button
+                type="button"
+                className="type-helper"
+                style={{ color: sortDir === 'desc' ? 'var(--accent)' : 'var(--text-muted)', textDecoration: sortDir === 'desc' ? 'underline' : 'none' }}
+                onClick={() => setSortDir('desc')}
+              >
+                Newest First
+              </button>
+              <span className="type-helper" style={{ color: 'var(--border)' }}>/</span>
+              <button
+                type="button"
+                className="type-helper"
+                style={{ color: sortDir === 'asc' ? 'var(--accent)' : 'var(--text-muted)', textDecoration: sortDir === 'asc' ? 'underline' : 'none' }}
+                onClick={() => setSortDir('asc')}
+              >
+                Oldest First
+              </button>
+            </div>
+          )}
 
-            let detail: React.ReactNode = null
-            if (ev.event_type === 'calved' && ev.calf) {
-              const sexLabel = ev.calf.calf_sex === 'heifer_calf' ? 'Heifer' : ev.calf.calf_sex === 'bull_calf' ? 'Bull' : ''
-              detail = `${sexLabel ? sexLabel + ' Calf ' : 'Calf '}#${ev.calf.tag_number}${ev.calf.birth_weight_lbs ? ` · ${ev.calf.birth_weight_lbs} lbs` : ' · wt unknown'}`
-            } else if (ev.event_type === 'bred') {
-              const method = ev.breed_method === 'ai' ? 'AI' : ev.conception_method === 'ai' ? 'AI' : 'Natural Service'
-              detail = `${method}${ev.expected_calving_date ? ` · Est. calving: ${fmtDate(ev.expected_calving_date)}` : ''}`
-            } else if (ev.event_type === 'preg_check') {
-              detail = `${(ev.preg_check_result ?? 'Unknown').toUpperCase()}${ev.days_bred ? ` · ${ev.days_bred} days bred` : ''}`
-            } else if (ev.event_type === 'weaned') {
-              detail = `Weaned at ${ev.weaning_weight_lbs ? `${ev.weaning_weight_lbs} lbs` : 'unknown weight'}`
-            }
+          {/* Open pregnancy cards (always on top) */}
+          {openPregnancies.map(op => (
+            <OpenPregnancyCard
+              key={op.bredEvent.id}
+              bredEvent={op.bredEvent as ReproEventShape}
+              pregCheckEvents={op.pregCheckEvents as ReproEventShape[]}
+            />
+          ))}
 
-            return (
-              <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <StatusChip map={REPRO_CHIP} value={ev.event_type} size="sm" />
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="type-data-sm" style={{ color: 'var(--text-muted)' }}>{fmtDate(displayDate)}</span>
-                    <Button
-                      type="button"
-                      intent="ghost"
-                      size="sm"
-                      onClick={() => setConfirmReproId(ev.id)}
-                      style={{ color: 'var(--danger-fg)', padding: '2px 6px' }}
-                    >
-                      ✕
-                    </Button>
-                  </div>
-                </div>
-
-                {detail && (
-                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>{detail}</p>
-                )}
-
-                {/* Sire display */}
-                {ev.sire_library ? (
-                  <p className="type-data-sm mb-1">
-                    Sire:{' '}
-                    <Link href={`/genetics/sires/${ev.sire_library.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
-                      {ev.sire_library.bull_name}
-                    </Link>
-                    <span className="ml-1.5 px-1.5 py-0.5 rounded type-helper" style={{ backgroundColor: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '10px' }}>AI</span>
-                    {ev.sire_library.naab_code && <span className="type-helper ml-1" style={{ color: 'var(--text-muted)' }}>{ev.sire_library.naab_code}</span>}
-                  </p>
-                ) : ev.sire ? (
-                  <p className="type-data-sm mb-1">
-                    Sire: <Link href={`/animals/${ev.sire.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
-                      #{ev.sire.tag_number}{ev.sire.name ? ` — ${ev.sire.name}` : ''}
-                    </Link>
-                  </p>
-                ) : ev.sire_name_text ? (
-                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Sire: {ev.sire_name_text}</p>
-                ) : null}
-
-                {/* Calf link for calved events */}
-                {ev.calf && (
-                  <p className="type-data-sm mb-1">
-                    <Link href={`/animals/${ev.calf.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
-                      View calf #{ev.calf.tag_number} →
-                    </Link>
-                  </p>
-                )}
-
-                {ev.calving_ease_score != null && (
-                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Ease score: {ev.calving_ease_score}</p>
-                )}
-                {ev.ai_technician && (
-                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Technician: {ev.ai_technician}</p>
-                )}
-                {ev.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{ev.notes}</p>}
-              </div>
-            )
-          })}
-        </div>
+          {/* Completed pregnancy cards */}
+          <div className="flex flex-col gap-4">
+            {sortedPregnancies.map(pg => (
+              <PregnancyCard
+                key={pg.calfEvent.id}
+                calfEvent={pg.calfEvent as ReproEventShape}
+                calfRecord={pg.calfRecord as CalfRecord | null}
+                bredEvent={pg.bredEvent as ReproEventShape | null}
+                pregCheckEvents={pg.pregCheckEvents as ReproEventShape[]}
+                weaningEvent={pg.weaningEvent as ReproEventShape | null}
+              />
+            ))}
+          </div>
+        </>
       )}
-
-      <ConfirmDialog
-        isOpen={!!confirmReproId}
-        onClose={() => setConfirmReproId(null)}
-        onConfirm={handleDeleteRepro}
-        title="Delete reproduction event?"
-        message="This reproduction event will be permanently deleted. This cannot be undone."
-        confirmLabel="DELETE EVENT"
-        loading={!!deletingReproId}
-      />
     </div>
   )
 }

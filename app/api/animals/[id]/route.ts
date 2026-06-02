@@ -61,8 +61,8 @@ export async function GET(
           notes,
           created_at,
           sire:sire_id ( id, tag_number, name ),
-          sire_library:sire_library_id ( id, bull_name, breed, naab_code, bull_type ),
-          calf:calf_id ( id, tag_number, name, sex, calf_sex, dob, birth_weight_lbs )
+          sire_library:sire_library_id ( id, bull_name, breed, naab_code, stud, bull_type ),
+          calf:calf_id ( id, tag_number, name, sex, calf_sex, dob, birth_weight_lbs, ear_tag_color )
         ),
         grazing_assignments (
           id, start_date, end_date
@@ -145,15 +145,14 @@ export async function GET(
         conception_method,
         birth_weight_lbs,
         weaning_date,
-        weaning_weight_lbs
+        weaning_weight_lbs,
+        breeds,
+        sire_library_id
       `)
-      .or(
-        `dam_id.eq.${id},` +
-        `sire_id.eq.${id}`
-      )
-      .eq('status', 'active')
+      .eq('dam_id', id)
       .order('dob', {
-        ascending: false
+        ascending: false,
+        nullsFirst: false,
       })
 
   // Separate query for owner
