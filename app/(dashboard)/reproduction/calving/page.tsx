@@ -175,9 +175,12 @@ export default function CalvingEntryPage() {
         : dam.breed ? [{ breed: dam.breed, pct: 100 }] : []
     const sireBreeds: BreedEntry[] =
       sireBreed ? [{ breed: sireBreed, pct: 100 }] : []
+    console.log('[breed] dam:', dam.id, 'breeds:', JSON.stringify(damBreeds))
+    console.log('[breed] sire breed string:', sireBreed, 'sireBreeds:', JSON.stringify(sireBreeds))
     const autoBreeds = calf.sireKnown
       ? calcCalfBreeds(damBreeds, sireBreeds)
       : damBreeds.map(b => ({ breed: b.breed, pct: b.pct }))
+    console.log('[breed] applied:', JSON.stringify(autoBreeds))
 
     try {
       const res = await apiPost('/api/reproduction', {

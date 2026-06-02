@@ -111,6 +111,14 @@ export async function POST(req: NextRequest) {
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+    if (event_type === 'calved') {
+      const { data: dam } = await supabase.from('animals').select('sex').eq('id', animal_id).single()
+      if (dam?.sex === 'heifer') {
+        await supabase.from('animals').update({ sex: 'cow' }).eq('id', animal_id)
+        console.log('[repro] heifer promoted to cow:', animal_id)
+      }
+    }
+
     if (event_type === 'weaned' && weaned_calf_id) {
       const { data: calfAnimal } = await supabase
         .from('animals')
@@ -139,10 +147,10 @@ export async function POST(req: NextRequest) {
 
   if (reproErr) return NextResponse.json({ error: reproErr.message }, { status: 500 })
 
-  // Fetch dam to inherit owner
+  // Fetch dam to inherit owner_id and check if heifer
   const { data: damRecord } = await supabase
     .from('animals')
-    .select('owner_id')
+    .select('owner_id, sex')
     .eq('id', animal_id)
     .single()
 
@@ -179,6 +187,12 @@ export async function POST(req: NextRequest) {
     .from('reproduction_events')
     .update({ calf_id: newCalf.id })
     .eq('id', reproEvent.id)
+
+  // Promote heifer to cow on first calving
+  if (damRecord?.sex === 'heifer') {
+    await supabase.from('animals').update({ sex: 'cow' }).eq('id', animal_id)
+    console.log('[repro] heifer promoted to cow:', animal_id)
+  }
 
   return NextResponse.json(
     { repro_event: { ...reproEvent, calf_id: newCalf.id }, calf: newCalf },

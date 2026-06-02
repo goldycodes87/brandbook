@@ -23,7 +23,7 @@ import { apiGet, apiDelete } from '@/lib/fetch'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
-type ReproEvent    = { id: string; event_type: string; event_date: string; breed_method?: string; conception_method?: string; sire_name_text?: string; expected_calving_date?: string; calving_ease_score?: number; preg_check_result?: string; preg_check_method?: string; weaning_date?: string; weaning_weight_lbs?: number; ai_technician?: string; notes?: string; sire?: { id: string; tag_number: string; name?: string }; calf?: { id: string; tag_number: string; name?: string; sex?: string; dob?: string } }
+type ReproEvent    = { id: string; event_type: string; event_date: string; breed_method?: string; conception_method?: string; sire_name_text?: string; expected_calving_date?: string; calving_ease_score?: number; preg_check_result?: string; preg_check_method?: string; days_bred?: number; weaning_date?: string; weaning_weight_lbs?: number; ai_technician?: string; notes?: string; sire_id?: string; sire_library_id?: string; sire?: { id: string; tag_number: string; name?: string }; sire_library?: { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; bull_type: string }; calf?: { id: string; tag_number: string; name?: string; sex?: string; calf_sex?: string; dob?: string; birth_weight_lbs?: number } }
 type AnimalRef      = { id: string; tag_number: string; name?: string | null; breed?: string | null; sex?: string | null; status?: string | null; dob?: string | null }
 type OwnerRef       = { id: string; name: string; email?: string; phone?: string }
 type SireLibraryRef = { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; stud?: string | null; bull_type: string }
@@ -33,6 +33,8 @@ interface Animal {
   tag_number: string
   name: string | null
   dob: string | null
+  dob_estimated: boolean | null
+  approximate_age: string | null
   sex: string | null
   status: string | null
   breed: string | null
@@ -54,6 +56,9 @@ interface Animal {
   sire: AnimalRef | null
   sire_library_id: string | null
   sire_library: SireLibraryRef | null
+  purchased_as_pair: boolean | null
+  pair_animal_id: string | null
+  pair_animal: AnimalRef | null
   calves: AnimalRef[]
   weights: WeightRow[]
   health_events: HealthEvent[]
@@ -178,7 +183,11 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
             {[
               { k: 'Tag number',   v: animal.tag_number },
-              { k: 'Date of birth',v: fmtDate(animal.dob) },
+              { k: 'Date of birth',v: animal.dob_estimated
+                  ? (animal.approximate_age
+                      ? `~${animal.approximate_age} (est.)`
+                      : `~${fmtDate(animal.dob)} (est.)`)
+                  : fmtDate(animal.dob) },
               { k: 'Birth weight', v: fmt(animal.birth_weight_lbs, 'lb') },
               { k: 'Purchase date',v: fmtDate(animal.purchase_date) },
               { k: 'Purchase price',v: animal.purchase_price != null ? `$${animal.purchase_price.toLocaleString()}` : '—' },
@@ -252,6 +261,20 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
                 ) : <span className="type-data-sm" style={{ color: 'var(--text-muted)' }}>None on record</span>}
               </div>
             </div>
+          </PanelSection>
+        </Panel>
+      )}
+
+      {/* Pair animal */}
+      {animal.purchased_as_pair && animal.pair_animal && (
+        <Panel title="PURCHASED AS PAIR">
+          <PanelSection>
+            <p className="type-helper mb-2" style={{ color: 'var(--text-muted)' }}>
+              {animal.sex === 'calf' || animal.sex === 'heifer_calf' || animal.sex === 'bull_calf' ? 'Purchased with cow:' : 'Pair calf:'}
+            </p>
+            <Link href={`/animals/${animal.pair_animal.id}`} className="type-data-sm hover:underline" style={{ color: 'var(--accent)' }}>
+              #{animal.pair_animal.tag_number}{animal.pair_animal.name ? ` — ${animal.pair_animal.name}` : ''}
+            </Link>
           </PanelSection>
         </Panel>
       )}
@@ -515,66 +538,85 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {events.map(ev => (
-            <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <StatusChip map={REPRO_CHIP} value={ev.event_type} size="sm" />
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="type-data-sm" style={{ color: 'var(--text-muted)' }}>{fmtDate(ev.event_date)}</span>
-                  <Button
-                    type="button"
-                    intent="ghost"
-                    size="sm"
-                    onClick={() => setConfirmReproId(ev.id)}
-                    style={{ color: 'var(--danger-fg)', padding: '2px 6px' }}
-                  >
-                    ✕
-                  </Button>
+          {events.map(ev => {
+            const displayDate = ev.event_type === 'calved' && ev.calf?.dob
+              ? ev.calf.dob
+              : ev.event_date
+
+            let detail: React.ReactNode = null
+            if (ev.event_type === 'calved' && ev.calf) {
+              const sexLabel = ev.calf.calf_sex === 'heifer_calf' ? 'Heifer' : ev.calf.calf_sex === 'bull_calf' ? 'Bull' : ''
+              detail = `${sexLabel ? sexLabel + ' Calf ' : 'Calf '}#${ev.calf.tag_number}${ev.calf.birth_weight_lbs ? ` · ${ev.calf.birth_weight_lbs} lbs` : ' · wt unknown'}`
+            } else if (ev.event_type === 'bred') {
+              const method = ev.breed_method === 'ai' ? 'AI' : ev.conception_method === 'ai' ? 'AI' : 'Natural Service'
+              detail = `${method}${ev.expected_calving_date ? ` · Est. calving: ${fmtDate(ev.expected_calving_date)}` : ''}`
+            } else if (ev.event_type === 'preg_check') {
+              detail = `${(ev.preg_check_result ?? 'Unknown').toUpperCase()}${ev.days_bred ? ` · ${ev.days_bred} days bred` : ''}`
+            } else if (ev.event_type === 'weaned') {
+              detail = `Weaned at ${ev.weaning_weight_lbs ? `${ev.weaning_weight_lbs} lbs` : 'unknown weight'}`
+            }
+
+            return (
+              <div key={ev.id} className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <StatusChip map={REPRO_CHIP} value={ev.event_type} size="sm" />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="type-data-sm" style={{ color: 'var(--text-muted)' }}>{fmtDate(displayDate)}</span>
+                    <Button
+                      type="button"
+                      intent="ghost"
+                      size="sm"
+                      onClick={() => setConfirmReproId(ev.id)}
+                      style={{ color: 'var(--danger-fg)', padding: '2px 6px' }}
+                    >
+                      ✕
+                    </Button>
+                  </div>
                 </div>
+
+                {detail && (
+                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>{detail}</p>
+                )}
+
+                {/* Sire display */}
+                {ev.sire_library ? (
+                  <p className="type-data-sm mb-1">
+                    Sire:{' '}
+                    <Link href={`/genetics/sires/${ev.sire_library.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
+                      {ev.sire_library.bull_name}
+                    </Link>
+                    <span className="ml-1.5 px-1.5 py-0.5 rounded type-helper" style={{ backgroundColor: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '10px' }}>AI</span>
+                    {ev.sire_library.naab_code && <span className="type-helper ml-1" style={{ color: 'var(--text-muted)' }}>{ev.sire_library.naab_code}</span>}
+                  </p>
+                ) : ev.sire ? (
+                  <p className="type-data-sm mb-1">
+                    Sire: <Link href={`/animals/${ev.sire.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
+                      #{ev.sire.tag_number}{ev.sire.name ? ` — ${ev.sire.name}` : ''}
+                    </Link>
+                  </p>
+                ) : ev.sire_name_text ? (
+                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Sire: {ev.sire_name_text}</p>
+                ) : null}
+
+                {/* Calf link for calved events */}
+                {ev.calf && (
+                  <p className="type-data-sm mb-1">
+                    <Link href={`/animals/${ev.calf.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
+                      View calf #{ev.calf.tag_number} →
+                    </Link>
+                  </p>
+                )}
+
+                {ev.calving_ease_score != null && (
+                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Ease score: {ev.calving_ease_score}</p>
+                )}
+                {ev.ai_technician && (
+                  <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Technician: {ev.ai_technician}</p>
+                )}
+                {ev.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{ev.notes}</p>}
               </div>
-              {(ev.breed_method || ev.conception_method) && (
-                <p className="type-data-sm mb-1 capitalize" style={{ color: 'var(--text-secondary)' }}>
-                  Method: {ev.conception_method ?? ev.breed_method}
-                </p>
-              )}
-              {ev.expected_calving_date && (
-                <p className="type-data-sm mb-1">Expected calving: {fmtDate(ev.expected_calving_date)}</p>
-              )}
-              {ev.preg_check_result && (
-                <p className="type-data-sm mb-1 capitalize" style={{ color: 'var(--text-secondary)' }}>
-                  Preg check: {ev.preg_check_result}
-                  {ev.preg_check_method ? ` (${ev.preg_check_method.replace('_', ' ')})` : ''}
-                </p>
-              )}
-              {ev.sire ? (
-                <p className="type-data-sm mb-1">
-                  Sire: <Link href={`/animals/${ev.sire.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
-                    #{ev.sire.tag_number}{ev.sire.name ? ` — ${ev.sire.name}` : ''}
-                  </Link>
-                </p>
-              ) : ev.sire_name_text ? (
-                <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Sire: {ev.sire_name_text}</p>
-              ) : null}
-              {ev.calf && (
-                <p className="type-data-sm mb-1">
-                  Calf: <Link href={`/animals/${ev.calf.id}`} className="hover:underline" style={{ color: 'var(--accent)' }}>
-                    #{ev.calf.tag_number}{ev.calf.name ? ` — ${ev.calf.name}` : ''}
-                  </Link>
-                  {ev.calf.sex ? <span className="type-helper ml-1 capitalize" style={{ color: 'var(--text-muted)' }}>({ev.calf.sex})</span> : null}
-                </p>
-              )}
-              {ev.calving_ease_score != null && (
-                <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Ease score: {ev.calving_ease_score}</p>
-              )}
-              {ev.weaning_date && (
-                <p className="type-data-sm mb-1">Weaned: {fmtDate(ev.weaning_date)}{ev.weaning_weight_lbs ? ` @ ${ev.weaning_weight_lbs} lb` : ''}</p>
-              )}
-              {ev.ai_technician && (
-                <p className="type-data-sm mb-1" style={{ color: 'var(--text-secondary)' }}>Technician: {ev.ai_technician}</p>
-              )}
-              {ev.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{ev.notes}</p>}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

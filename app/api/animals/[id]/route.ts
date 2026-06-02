@@ -51,13 +51,18 @@ export async function GET(
           ai_technician,
           conception_method,
           sire_name_text,
+          sire_id,
+          sire_library_id,
           days_bred,
           donor_dam_id,
           calf_id,
           weaning_date,
           weaning_weight_lbs,
           notes,
-          created_at
+          created_at,
+          sire:sire_id ( id, tag_number, name ),
+          sire_library:sire_library_id ( id, bull_name, breed, naab_code, bull_type ),
+          calf:calf_id ( id, tag_number, name, sex, calf_sex, dob, birth_weight_lbs )
         ),
         grazing_assignments (
           id, start_date, end_date
@@ -135,7 +140,7 @@ export async function GET(
       .from('animals')
       .select(`
         id, tag_number, name,
-        sex, dob, photos,
+        sex, calf_sex, dob, photos,
         ear_tag_color, status,
         conception_method,
         birth_weight_lbs,
@@ -177,6 +182,17 @@ export async function GET(
     sire_library = data
   }
 
+  // Separate query for pair animal
+  let pair_animal = null
+  if (animal.pair_animal_id) {
+    const { data } = await supabase
+      .from('animals')
+      .select('id, tag_number, name, sex, calf_sex, status, ear_tag_color')
+      .eq('id', animal.pair_animal_id)
+      .maybeSingle()
+    pair_animal = data
+  }
+
   return NextResponse.json({
     data: {
       ...animal,
@@ -186,6 +202,7 @@ export async function GET(
       donor_dam,
       calves: calves || [],
       owner,
+      pair_animal,
     }
   })
 }
@@ -203,6 +220,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     sex:                  body.sex,
     status:               body.status ?? 'active',
     dob:                  body.dob || null,
+    dob_estimated:        body.dob_estimated ?? null,
+    approximate_age:      body.approximate_age || null,
     breed:                firstBreed?.breed || body.breed || null,
     breed_percentage:     firstBreed?.pct   || body.breed_percentage || null,
     breeds:               body.breeds ?? [],

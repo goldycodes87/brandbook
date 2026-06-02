@@ -72,23 +72,54 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
   const body = await req.json()
 
+  const { calf_data, purchased_as_pair, ...rest } = body
+
   const clean = Object.fromEntries(
-    Object.entries(body).map(([k, v]) => [k, v === '' ? null : v])
+    Object.entries(rest).map(([k, v]) => [k, v === '' ? null : v])
   )
 
   const sanitized = {
     ...clean,
-    owner_id: toUuid(clean.owner_id),
-    dam_id:   toUuid(clean.dam_id),
-    sire_id:  toUuid(clean.sire_id),
+    owner_id:         toUuid(clean.owner_id),
+    dam_id:           toUuid(clean.dam_id),
+    sire_id:          toUuid(clean.sire_id),
+    purchased_as_pair: purchased_as_pair ?? false,
   }
 
-  const { data, error } = await supabase
+  const { data: cow, error } = await supabase
     .from('animals')
     .insert(sanitized)
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json(data, { status: 201 })
+
+  if (purchased_as_pair && calf_data?.tag_number) {
+    const { data: calf, error: calfErr } = await supabase
+      .from('animals')
+      .insert({
+        tag_number:       calf_data.tag_number,
+        sex:              'calf',
+        calf_sex:         calf_data.calf_sex || null,
+        ear_tag_color:    calf_data.ear_tag_color || cow.ear_tag_color || null,
+        dob:              calf_data.dob || null,
+        dob_estimated:    calf_data.dob_estimated ?? true,
+        birth_weight_lbs: calf_data.birth_weight_lbs || null,
+        dam_id:           cow.id,
+        owner_id:         cow.owner_id,
+        purchase_date:    cow.purchase_date,
+        purchased_as_pair: true,
+        pair_animal_id:   cow.id,
+        status:           'active',
+      })
+      .select()
+      .single()
+
+    if (!calfErr && calf) {
+      await supabase.from('animals').update({ pair_animal_id: calf.id }).eq('id', cow.id)
+      return NextResponse.json({ data: cow, calf }, { status: 201 })
+    }
+  }
+
+  return NextResponse.json({ data: cow }, { status: 201 })
 }

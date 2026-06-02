@@ -13,6 +13,8 @@ import { Panel, PanelSection } from '@/components/ui/Panel'
 import { Field, Input, Textarea, Select } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ActionFooter } from '@/components/ui/ActionFooter'
+import { Toggle } from '@/components/ui/Toggle'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
@@ -74,6 +76,8 @@ const schema = z.object({
   sex:                 z.string().min(1, 'Sex is required'),
   name:                z.string().optional(),
   dob:                 z.string().optional(),
+  dob_estimated:       z.boolean().optional(),
+  approximate_age:     z.string().optional(),
   status:              z.string().optional(),
   birth_weight_lbs:    z.string().optional(),
   purchase_price:      z.string().optional(),
@@ -142,6 +146,19 @@ interface GrazingOwner {
 
 interface RanchDefaults { default_ear_tag_color?: string; default_breed?: string }
 
+type PairCalfSex = 'heifer_calf' | 'bull_calf' | 'calf'
+
+function blankPairCalf() {
+  return {
+    tag_number:       '',
+    calf_sex:         'heifer_calf' as PairCalfSex,
+    ear_tag_color:    '',
+    dob:              '',
+    dob_estimated:    true,
+    birth_weight_lbs: '',
+  }
+}
+
 export default function NewAnimalPage() {
   const router = useRouter()
   const [saving, setSaving]                 = useState(false)
@@ -156,6 +173,8 @@ export default function NewAnimalPage() {
   const [breeds, setBreeds]                 = useState<BreedEntry[]>([])
   const [breedError, setBreedError]         = useState('')
   const [defaultsApplied, setDefaultsApplied] = useState<string | null>(null)
+  const [isPair, setIsPair]                 = useState(false)
+  const [pairCalf, setPairCalf]             = useState(blankPairCalf())
   const mediaRef    = useRef<MediaRecorder | null>(null)
   const chunksRef   = useRef<Blob[]>([])
   const pendingIdRef = useRef<string | null>(null)
@@ -165,7 +184,8 @@ export default function NewAnimalPage() {
     defaultValues: { status: 'active', registration_numbers: [] },
   })
 
-  const earTagColor = watch('ear_tag_color') ?? ''
+  const earTagColor    = watch('ear_tag_color') ?? ''
+  const dobEstimated   = watch('dob_estimated') ?? false
 
   useEffect(() => {
     apiGet('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
@@ -341,7 +361,23 @@ export default function NewAnimalPage() {
         sire_id:          toUuid(values.sire_id),
         breeds:           breeds.length > 0 ? breeds : null,
         photos:           photoUrls,
+        dob_estimated:    values.dob_estimated ?? false,
+        approximate_age:  values.approximate_age || null,
       })
+
+      if (isPair && pairCalf.tag_number.trim()) {
+        raw.purchased_as_pair = true
+        raw.calf_data = {
+          tag_number:       pairCalf.tag_number.trim(),
+          sex:              'calf',
+          calf_sex:         pairCalf.calf_sex === 'calf' ? null : pairCalf.calf_sex,
+          ear_tag_color:    pairCalf.ear_tag_color || values.ear_tag_color || null,
+          dob:              pairCalf.dob || null,
+          dob_estimated:    pairCalf.dob_estimated,
+          birth_weight_lbs: pairCalf.birth_weight_lbs ? toNum(pairCalf.birth_weight_lbs) : null,
+          status:           'active',
+        }
+      }
 
       let res: Response
       if (pendingIdRef.current) {
@@ -352,7 +388,7 @@ export default function NewAnimalPage() {
 
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Save failed'); return }
-      router.push(`/animals/${data.id}`)
+      router.push(`/animals/${data.id ?? data.data?.id}`)
     } catch {
       setError('Connection error — please try again')
     } finally {
@@ -487,12 +523,25 @@ export default function NewAnimalPage() {
                   <option value="transferred">Transferred</option>
                 </Select>
               </Field>
-              <Field label="Date of birth">
-                <Input {...register('dob')} type="date" />
-              </Field>
+              <div>
+                <Field label="Date of birth">
+                  <Input {...register('dob')} type="date" />
+                </Field>
+                <div className="flex items-center gap-2 mt-1">
+                  <input type="checkbox" id="dob_estimated" {...register('dob_estimated')} className="rounded" />
+                  <label htmlFor="dob_estimated" className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                    Date is estimated
+                  </label>
+                </div>
+              </div>
               <Field label="Birth weight (lbs)">
                 <Input {...register('birth_weight_lbs')} type="number" step="0.1" placeholder="0.0" />
               </Field>
+              {dobEstimated && (
+                <Field label="Approximate age" helper="e.g. '3 years old' or 'Spring 2023 calf'" className="sm:col-span-2">
+                  <Input placeholder="e.g. 3 years" {...register('approximate_age')} />
+                </Field>
+              )}
             </div>
 
             {/* Ear tag color */}
@@ -518,7 +567,13 @@ export default function NewAnimalPage() {
         {/* Panel 3 — Purchase */}
         <Panel title="PURCHASE">
           <PanelSection>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Toggle
+              checked={isPair}
+              onChange={setIsPair}
+              label="PURCHASED AS PAIR"
+              description="This animal came with a calf. Create a linked calf record."
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
               <Field label="Purchase price ($)">
                 <Input {...register('purchase_price')} type="number" step="0.01" placeholder="0.00" />
               </Field>
@@ -531,6 +586,76 @@ export default function NewAnimalPage() {
             </div>
           </PanelSection>
         </Panel>
+
+        {/* Panel 3b — Pair Calf */}
+        {isPair && (
+          <Panel title="PAIR CALF" subtitle="Calf purchased with this animal">
+            <PanelSection>
+              <ContextBanner tone="info">
+                Calf will be linked to this cow as dam. Owner will transfer automatically.
+              </ContextBanner>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <Field label="Calf tag number" required>
+                  <Input
+                    value={pairCalf.tag_number}
+                    onChange={e => setPairCalf(p => ({ ...p, tag_number: e.target.value }))}
+                    placeholder="e.g. 2501"
+                  />
+                </Field>
+                <Field label="Calf sex" required>
+                  <SegmentedControl
+                    value={pairCalf.calf_sex}
+                    onChange={v => setPairCalf(p => ({ ...p, calf_sex: v as PairCalfSex }))}
+                    items={[
+                      { value: 'heifer_calf', label: 'HEIFER' },
+                      { value: 'bull_calf',   label: 'BULL' },
+                      { value: 'calf',        label: 'UNKNOWN' },
+                    ]}
+                    block size="sm"
+                  />
+                </Field>
+                <div>
+                  <Field label="Calf DOB">
+                    <Input
+                      type="date"
+                      value={pairCalf.dob}
+                      onChange={e => setPairCalf(p => ({ ...p, dob: e.target.value }))}
+                    />
+                  </Field>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="checkbox"
+                      id="pair_dob_est"
+                      checked={pairCalf.dob_estimated}
+                      onChange={e => setPairCalf(p => ({ ...p, dob_estimated: e.target.checked }))}
+                      className="rounded"
+                    />
+                    <label htmlFor="pair_dob_est" className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                      DOB is estimated
+                    </label>
+                  </div>
+                </div>
+                <Field label="Calf birth weight (lbs)">
+                  <Input
+                    type="number" step="0.1"
+                    value={pairCalf.birth_weight_lbs}
+                    onChange={e => setPairCalf(p => ({ ...p, birth_weight_lbs: e.target.value }))}
+                    placeholder="Optional"
+                  />
+                </Field>
+              </div>
+              <div className="mt-4">
+                <Field label="Calf ear tag color">
+                  <EarTagColorPicker
+                    value={pairCalf.ear_tag_color || earTagColor}
+                    onChange={v => setPairCalf(p => ({ ...p, ear_tag_color: v }))}
+                    invalid={false}
+                  />
+                </Field>
+              </div>
+            </PanelSection>
+          </Panel>
+        )}
 
         {/* Panel 4 — Registration */}
         <Panel title="REGISTRATION NUMBERS">

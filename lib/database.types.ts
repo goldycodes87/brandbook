@@ -41,16 +41,20 @@ export type Database = {
       animals: {
         Row: {
           age_class: string | null
+          approximate_age: string | null
           birth_type: string | null
+          birth_weight_estimated: boolean | null
           birth_weight_lbs: number | null
           brand_photo: string | null
           breed: string | null
           breed_percentage: number | null
           breeds: Json | null
+          calf_sex: string | null
           conception_method: string | null
           created_at: string | null
           dam_id: string | null
           dob: string | null
+          dob_estimated: boolean | null
           donor_dam_id: string | null
           ear_tag_color: string | null
           ear_tag_number: string | null
@@ -58,9 +62,11 @@ export type Database = {
           name: string | null
           notes: string | null
           owner_id: string | null
+          pair_animal_id: string | null
           photos: string[] | null
           purchase_date: string | null
           purchase_price: number | null
+          purchased_as_pair: boolean | null
           ranch_id: string | null
           registration_numbers: Json | null
           sex: Database["public"]["Enums"]["animal_sex"] | null
@@ -76,16 +82,20 @@ export type Database = {
         }
         Insert: {
           age_class?: string | null
+          approximate_age?: string | null
           birth_type?: string | null
+          birth_weight_estimated?: boolean | null
           birth_weight_lbs?: number | null
           brand_photo?: string | null
           breed?: string | null
           breed_percentage?: number | null
           breeds?: Json | null
+          calf_sex?: string | null
           conception_method?: string | null
           created_at?: string | null
           dam_id?: string | null
           dob?: string | null
+          dob_estimated?: boolean | null
           donor_dam_id?: string | null
           ear_tag_color?: string | null
           ear_tag_number?: string | null
@@ -93,9 +103,11 @@ export type Database = {
           name?: string | null
           notes?: string | null
           owner_id?: string | null
+          pair_animal_id?: string | null
           photos?: string[] | null
           purchase_date?: string | null
           purchase_price?: number | null
+          purchased_as_pair?: boolean | null
           ranch_id?: string | null
           registration_numbers?: Json | null
           sex?: Database["public"]["Enums"]["animal_sex"] | null
@@ -111,16 +123,20 @@ export type Database = {
         }
         Update: {
           age_class?: string | null
+          approximate_age?: string | null
           birth_type?: string | null
+          birth_weight_estimated?: boolean | null
           birth_weight_lbs?: number | null
           brand_photo?: string | null
           breed?: string | null
           breed_percentage?: number | null
           breeds?: Json | null
+          calf_sex?: string | null
           conception_method?: string | null
           created_at?: string | null
           dam_id?: string | null
           dob?: string | null
+          dob_estimated?: boolean | null
           donor_dam_id?: string | null
           ear_tag_color?: string | null
           ear_tag_number?: string | null
@@ -128,9 +144,11 @@ export type Database = {
           name?: string | null
           notes?: string | null
           owner_id?: string | null
+          pair_animal_id?: string | null
           photos?: string[] | null
           purchase_date?: string | null
           purchase_price?: number | null
+          purchased_as_pair?: boolean | null
           ranch_id?: string | null
           registration_numbers?: Json | null
           sex?: Database["public"]["Enums"]["animal_sex"] | null
@@ -167,6 +185,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "animals_pair_animal_id_fkey"
+            columns: ["pair_animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "animals_sire_id_fkey"
             columns: ["sire_id"]
             isOneToOne: false
@@ -178,6 +203,64 @@ export type Database = {
             columns: ["sire_library_id"]
             isOneToOne: false
             referencedRelation: "sire_library"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aum_records: {
+        Row: {
+          animal_id: string
+          assignment_id: string | null
+          aum_value: number | null
+          created_at: string | null
+          id: string
+          lease_id: string
+          notes: string | null
+          recorded_date: string
+          weight_lbs: number | null
+        }
+        Insert: {
+          animal_id: string
+          assignment_id?: string | null
+          aum_value?: number | null
+          created_at?: string | null
+          id?: string
+          lease_id: string
+          notes?: string | null
+          recorded_date?: string
+          weight_lbs?: number | null
+        }
+        Update: {
+          animal_id?: string
+          assignment_id?: string | null
+          aum_value?: number | null
+          created_at?: string | null
+          id?: string
+          lease_id?: string
+          notes?: string | null
+          recorded_date?: string
+          weight_lbs?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aum_records_animal_id_fkey"
+            columns: ["animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aum_records_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aum_records_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
             referencedColumns: ["id"]
           },
         ]
@@ -446,6 +529,33 @@ export type Database = {
           },
         ]
       }
+      expense_categories: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: []
+      }
       expense_items: {
         Row: {
           amount: number | null
@@ -489,6 +599,8 @@ export type Database = {
           end_date: string | null
           id: string
           lease_id: string
+          moved_from_lease_id: string | null
+          notes: string | null
           start_date: string
         }
         Insert: {
@@ -497,6 +609,8 @@ export type Database = {
           end_date?: string | null
           id?: string
           lease_id: string
+          moved_from_lease_id?: string | null
+          notes?: string | null
           start_date: string
         }
         Update: {
@@ -505,6 +619,8 @@ export type Database = {
           end_date?: string | null
           id?: string
           lease_id?: string
+          moved_from_lease_id?: string | null
+          notes?: string | null
           start_date?: string
         }
         Relationships: [
@@ -522,6 +638,13 @@ export type Database = {
             referencedRelation: "leases"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "grazing_assignments_moved_from_lease_id_fkey"
+            columns: ["moved_from_lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
         ]
       }
       grazing_owners: {
@@ -534,6 +657,7 @@ export type Database = {
           brand_photo: string | null
           brand_photo_url: string | null
           city: string | null
+          company_name: string | null
           created_at: string | null
           default_breed: string | null
           default_ear_tag_color: string | null
@@ -542,7 +666,9 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          owner_name: string | null
           phone: string | null
+          portal_token: string | null
           profile_id: string | null
           state: string | null
           stripe_customer_id: string | null
@@ -557,6 +683,7 @@ export type Database = {
           brand_photo?: string | null
           brand_photo_url?: string | null
           city?: string | null
+          company_name?: string | null
           created_at?: string | null
           default_breed?: string | null
           default_ear_tag_color?: string | null
@@ -565,7 +692,9 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          owner_name?: string | null
           phone?: string | null
+          portal_token?: string | null
           profile_id?: string | null
           state?: string | null
           stripe_customer_id?: string | null
@@ -580,6 +709,7 @@ export type Database = {
           brand_photo?: string | null
           brand_photo_url?: string | null
           city?: string | null
+          company_name?: string | null
           created_at?: string | null
           default_breed?: string | null
           default_ear_tag_color?: string | null
@@ -588,7 +718,9 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          owner_name?: string | null
           phone?: string | null
+          portal_token?: string | null
           profile_id?: string | null
           state?: string | null
           stripe_customer_id?: string | null
@@ -600,6 +732,53 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grazing_periods: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          head_count: number
+          id: string
+          is_paid: boolean | null
+          lease_id: string
+          notes: string | null
+          paid_amount: number | null
+          paid_date: string | null
+          start_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          head_count: number
+          id?: string
+          is_paid?: boolean | null
+          lease_id: string
+          notes?: string | null
+          paid_amount?: number | null
+          paid_date?: string | null
+          start_date: string
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          head_count?: number
+          id?: string
+          is_paid?: boolean | null
+          lease_id?: string
+          notes?: string | null
+          paid_amount?: number | null
+          paid_date?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grazing_periods_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
             referencedColumns: ["id"]
           },
         ]
@@ -722,48 +901,135 @@ export type Database = {
           },
         ]
       }
+      invoice_expenses: {
+        Row: {
+          category_id: string | null
+          category_name: string
+          created_at: string | null
+          description: string | null
+          expense_date: string | null
+          id: string
+          invoice_id: string
+          owner_amount: number | null
+          receipt_url: string | null
+          split_type: string
+          split_value: number
+          total_amount: number
+        }
+        Insert: {
+          category_id?: string | null
+          category_name: string
+          created_at?: string | null
+          description?: string | null
+          expense_date?: string | null
+          id?: string
+          invoice_id: string
+          owner_amount?: number | null
+          receipt_url?: string | null
+          split_type?: string
+          split_value: number
+          total_amount: number
+        }
+        Update: {
+          category_id?: string | null
+          category_name?: string
+          created_at?: string | null
+          description?: string | null
+          expense_date?: string | null
+          id?: string
+          invoice_id?: string
+          owner_amount?: number | null
+          receipt_url?: string | null
+          split_type?: string
+          split_value?: number
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_expenses_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           created_at: string | null
+          due_date: string | null
+          email_sent_at: string | null
           expense_splits: Json | null
           id: string
+          invoice_number: string | null
           line_items: Json | null
+          notes: string | null
           owner_id: string
           paid_at: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          pdf_url: string | null
           period_end: string | null
           period_start: string | null
           sent_at: string | null
+          square_payment_link: string | null
           status: Database["public"]["Enums"]["invoice_status"] | null
           stripe_invoice_id: string | null
           total_amount: number | null
+          viewed_at: string | null
         }
         Insert: {
           created_at?: string | null
+          due_date?: string | null
+          email_sent_at?: string | null
           expense_splits?: Json | null
           id?: string
+          invoice_number?: string | null
           line_items?: Json | null
+          notes?: string | null
           owner_id: string
           paid_at?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          pdf_url?: string | null
           period_end?: string | null
           period_start?: string | null
           sent_at?: string | null
+          square_payment_link?: string | null
           status?: Database["public"]["Enums"]["invoice_status"] | null
           stripe_invoice_id?: string | null
           total_amount?: number | null
+          viewed_at?: string | null
         }
         Update: {
           created_at?: string | null
+          due_date?: string | null
+          email_sent_at?: string | null
           expense_splits?: Json | null
           id?: string
+          invoice_number?: string | null
           line_items?: Json | null
+          notes?: string | null
           owner_id?: string
           paid_at?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          pdf_url?: string | null
           period_end?: string | null
           period_start?: string | null
           sent_at?: string | null
+          square_payment_link?: string | null
           status?: Database["public"]["Enums"]["invoice_status"] | null
           stripe_invoice_id?: string | null
           total_amount?: number | null
+          viewed_at?: string | null
         }
         Relationships: [
           {
@@ -775,57 +1041,149 @@ export type Database = {
           },
         ]
       }
+      lease_expenses: {
+        Row: {
+          category_name: string
+          created_at: string | null
+          description: string | null
+          expense_date: string | null
+          id: string
+          lease_id: string
+          period_end: string | null
+          period_start: string | null
+          receipt_url: string | null
+          total_amount: number
+        }
+        Insert: {
+          category_name: string
+          created_at?: string | null
+          description?: string | null
+          expense_date?: string | null
+          id?: string
+          lease_id: string
+          period_end?: string | null
+          period_start?: string | null
+          receipt_url?: string | null
+          total_amount: number
+        }
+        Update: {
+          category_name?: string
+          created_at?: string | null
+          description?: string | null
+          expense_date?: string | null
+          id?: string
+          lease_id?: string
+          period_end?: string | null
+          period_start?: string | null
+          receipt_url?: string | null
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_expenses_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leases: {
         Row: {
           acreage: number | null
+          auto_renew: boolean | null
+          county: string | null
           created_at: string | null
+          documents: string[] | null
           end_date: string | null
           flat_rate: number | null
           id: string
           landowner_email: string | null
           landowner_name: string | null
           landowner_phone: string | null
+          landowner_portal_enabled: boolean | null
+          landowner_portal_token: string | null
           legal_description: string | null
+          map_coordinates: Json | null
           notes: string | null
           parcel_id: string | null
+          parcel_ids: string[] | null
+          payment_frequency: string | null
+          photos: string[] | null
           property_name: string
           rate_per_acre: number | null
+          rate_per_aum: number | null
+          rate_per_head: number | null
+          rate_type: string | null
           renewal_alert_days: number | null
           start_date: string | null
+          state: string | null
+          status: string | null
+          total_aum_capacity: number | null
         }
         Insert: {
           acreage?: number | null
+          auto_renew?: boolean | null
+          county?: string | null
           created_at?: string | null
+          documents?: string[] | null
           end_date?: string | null
           flat_rate?: number | null
           id?: string
           landowner_email?: string | null
           landowner_name?: string | null
           landowner_phone?: string | null
+          landowner_portal_enabled?: boolean | null
+          landowner_portal_token?: string | null
           legal_description?: string | null
+          map_coordinates?: Json | null
           notes?: string | null
           parcel_id?: string | null
+          parcel_ids?: string[] | null
+          payment_frequency?: string | null
+          photos?: string[] | null
           property_name: string
           rate_per_acre?: number | null
+          rate_per_aum?: number | null
+          rate_per_head?: number | null
+          rate_type?: string | null
           renewal_alert_days?: number | null
           start_date?: string | null
+          state?: string | null
+          status?: string | null
+          total_aum_capacity?: number | null
         }
         Update: {
           acreage?: number | null
+          auto_renew?: boolean | null
+          county?: string | null
           created_at?: string | null
+          documents?: string[] | null
           end_date?: string | null
           flat_rate?: number | null
           id?: string
           landowner_email?: string | null
           landowner_name?: string | null
           landowner_phone?: string | null
+          landowner_portal_enabled?: boolean | null
+          landowner_portal_token?: string | null
           legal_description?: string | null
+          map_coordinates?: Json | null
           notes?: string | null
           parcel_id?: string | null
+          parcel_ids?: string[] | null
+          payment_frequency?: string | null
+          photos?: string[] | null
           property_name?: string
           rate_per_acre?: number | null
+          rate_per_aum?: number | null
+          rate_per_head?: number | null
+          rate_type?: string | null
           renewal_alert_days?: number | null
           start_date?: string | null
+          state?: string | null
+          status?: string | null
+          total_aum_capacity?: number | null
         }
         Relationships: []
       }
@@ -1305,6 +1663,7 @@ export type Database = {
           source: string | null
           stud: string | null
           submitted_by: string | null
+          updated_at: string | null
           use_count: number | null
         }
         Insert: {
@@ -1353,6 +1712,7 @@ export type Database = {
           source?: string | null
           stud?: string | null
           submitted_by?: string | null
+          updated_at?: string | null
           use_count?: number | null
         }
         Update: {
@@ -1401,6 +1761,7 @@ export type Database = {
           source?: string | null
           stud?: string | null
           submitted_by?: string | null
+          updated_at?: string | null
           use_count?: number | null
         }
         Relationships: [
