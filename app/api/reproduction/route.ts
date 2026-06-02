@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
+  console.log('[calving POST] full body:', JSON.stringify(body, null, 2))
   const {
     animal_id,
     event_type,
@@ -190,6 +191,13 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (calfErr) return NextResponse.json({ error: calfErr.message }, { status: 500 })
+  console.log('[calving POST] calf inserted:', JSON.stringify({
+    id:              newCalf.id,
+    breeds:          newCalf.breeds,
+    sire_id:         newCalf.sire_id,
+    sire_library_id: newCalf.sire_library_id,
+    ear_tag_color:   newCalf.ear_tag_color,
+  }))
 
   // Link calf back to the reproduction event
   await supabase

@@ -146,9 +146,13 @@ export default function CalvingEntryPage() {
     const sireBreeds = getSireBreeds(sireBreed)
     console.log('[BREED DEBUG] preview — dam:', dam?.id ?? 'none', 'sireBreed:', sireBreed)
     console.log('[BREED DEBUG] damBreeds:', JSON.stringify(damBreeds), 'sireBreeds:', JSON.stringify(sireBreeds))
+    console.log('[breed TRIGGER] dam:', dam?.tag_number, 'breeds:', JSON.stringify(dam?.breeds), 'breed:', dam?.breed)
+    console.log('[breed TRIGGER] sire source:', calf.sireKnown ? (calf.sireLibraryId ? 'library' : calf.sireId ? 'herd' : 'name-only') : 'unknown')
+    console.log('[breed TRIGGER] sireBreed:', sireBreed)
     if (damBreeds.length > 0 || sireBreeds.length > 0) {
       const preview = calf.sireKnown ? calcCalfBreeds(damBreeds, sireBreeds) : damBreeds
       console.log('[BREED DEBUG] preview result:', JSON.stringify(preview))
+      console.log('[breed TRIGGER] calcCalfBreeds result:', JSON.stringify(preview))
     }
   }, [dam, sireBreed, calf.sireKnown])
 
@@ -191,12 +195,26 @@ export default function CalvingEntryPage() {
     const damBreeds  = getDamBreeds(dam)
     const sireBreeds = getSireBreeds(sireBreed)
     console.log('[BREED DEBUG] doSave — damBreeds:', JSON.stringify(damBreeds), 'sireBreeds:', JSON.stringify(sireBreeds))
+    console.log('[breed TRIGGER] dam:', dam?.tag_number, 'breeds:', JSON.stringify(dam?.breeds), 'breed:', dam?.breed)
+    console.log('[breed TRIGGER] sire source:', calf.sireKnown ? (calf.sireLibraryId ? 'library' : calf.sireId ? 'herd' : 'name-only') : 'unknown')
+    console.log('[breed TRIGGER] sireBreed:', sireBreed)
     const autoBreeds = calf.sireKnown
       ? calcCalfBreeds(damBreeds, sireBreeds)
       : damBreeds.map(b => ({ breed: b.breed, pct: b.pct }))
+    console.log('[breed TRIGGER] calcCalfBreeds result:', JSON.stringify(autoBreeds))
+    console.log('[breed TRIGGER] setting calf_data.breeds to:', JSON.stringify(autoBreeds))
     console.log('[BREED DEBUG] doSave — autoBreeds applied:', JSON.stringify(autoBreeds))
 
     try {
+      const submitPayload = {
+        tag_number:      calf.calfTag.trim(),
+        ear_tag_color:   calf.calfColor,
+        breeds:          autoBreeds,
+        sire_id:         calf.sireKnown ? calf.sireId : null,
+        sire_library_id: calf.sireKnown ? calf.sireLibraryId : null,
+      }
+      console.log('[calving FORM] submitting calf_data:', JSON.stringify(submitPayload, null, 2))
+
       const res = await apiPost('/api/reproduction', {
           animal_id:          dam.id,
           event_type:         'calved',
