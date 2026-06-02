@@ -19,7 +19,7 @@ export function AnimalTableRow({ a }: { a: AnimalListItem }) {
       <TD><BreedDisplay breeds={a.breeds} breed={a.breed} breedPercentage={a.breed_percentage} /></TD>
       <TD><StatusChip map={ANIMAL_STATUS_CHIP} value={a.status} size="sm" /></TD>
       <TD>{a.latest_weight ? `${a.latest_weight.weight_lbs} lb` : '—'}</TD>
-      <TD>{a.owner?.name ?? '—'}</TD>
+      <TD>{a.owner_display_name ?? a.owner?.name ?? '—'}</TD>
     </TR>
   )
 }

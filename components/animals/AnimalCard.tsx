@@ -26,6 +26,8 @@ export interface AnimalListItem {
   breed: string | null
   breed_percentage: number | null
   breeds?: { breed: string; pct: number }[] | null
+  owner_id?: string | null
+  owner_display_name?: string | null
   photos: string[] | null
   owner: Owner | null
   latest_weight: LatestWeight | null
@@ -88,8 +90,10 @@ export function AnimalCard({ animal }: { animal: AnimalListItem }) {
           {animal.latest_weight && (
             <Chip tone="neutral" size="sm">{animal.latest_weight.weight_lbs} lb</Chip>
           )}
-          {animal.owner && (
-            <Chip tone="neutral" size="sm" className="truncate max-w-[8rem]">{animal.owner.name}</Chip>
+          {(animal.owner_display_name ?? animal.owner?.name) && (
+            <Chip tone="neutral" size="sm" className="truncate max-w-[8rem]">
+              {animal.owner_display_name ?? animal.owner?.name}
+            </Chip>
           )}
         </div>
       </div>

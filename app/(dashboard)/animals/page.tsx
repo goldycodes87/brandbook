@@ -22,23 +22,29 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
   const limit  = 50
   const offset = (page - 1) * limit
 
-  let query = supabase
-    .from('animals')
-    .select(
-      `id, tag_number, name, dob, sex, status, breed, breed_percentage, photos,
-       owner:owner_id ( id, name ),
-       weights ( weight_lbs, weighed_at )`,
-      { count: 'exact' }
-    )
-    .order('tag_number', { ascending: true })
-    .order('weighed_at', { referencedTable: 'weights', ascending: false })
-    .range(offset, offset + limit - 1)
+  const [{ data: ranchData }, queryResult] = await Promise.all([
+    supabase.from('ranch_settings').select('ranch_name').maybeSingle(),
+    (() => {
+      let q = supabase
+        .from('animals')
+        .select(
+          `id, tag_number, name, dob, sex, status, breed, breed_percentage, breeds, owner_id, photos,
+           owner:owner_id ( id, name ),
+           weights ( weight_lbs, weighed_at )`,
+          { count: 'exact' }
+        )
+        .order('tag_number', { ascending: true })
+        .order('weighed_at', { referencedTable: 'weights', ascending: false })
+        .range(offset, offset + limit - 1)
+      if (searchParams.search) q = q.or(`tag_number.ilike.%${searchParams.search}%,name.ilike.%${searchParams.search}%`)
+      if (searchParams.status) q = q.eq('status', searchParams.status)
+      if (searchParams.sex)    q = q.eq('sex', searchParams.sex)
+      return q
+    })(),
+  ])
 
-  if (searchParams.search) query = query.or(`tag_number.ilike.%${searchParams.search}%,name.ilike.%${searchParams.search}%`)
-  if (searchParams.status) query = query.eq('status', searchParams.status)
-  if (searchParams.sex)    query = query.eq('sex', searchParams.sex)
-
-  const { data, error, count } = await query
+  const { data, error, count } = queryResult
+  const ranchName = (ranchData as { ranch_name?: string } | null)?.ranch_name ?? 'My Ranch'
 
   if (error) {
     return <p className="type-body" style={{ color: 'var(--danger-fg)' }}>{error.message}</p>
@@ -49,7 +55,8 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
       (x, y) => new Date(y.weighed_at).getTime() - new Date(x.weighed_at).getTime()
     )
     const { weights: _, ...rest } = a as typeof a & { weights: unknown }
-    return { ...rest, latest_weight: sorted[0] ?? null } as unknown as AnimalListItem
+    const ownerDisplayName = (rest as { owner?: { name?: string } | null }).owner?.name ?? ranchName
+    return { ...rest, latest_weight: sorted[0] ?? null, owner_display_name: ownerDisplayName } as unknown as AnimalListItem
   })
 
   if (!animals.length) {
