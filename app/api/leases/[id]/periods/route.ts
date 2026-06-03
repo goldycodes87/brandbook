@@ -19,18 +19,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const supabase = createAdminClient()
   const body = await req.json()
-  const { start_date, end_date, head_count, notes } = body
+  const { start_date, end_date, notes, animal_ids } = body
+
+  // head_count derived from animal_ids when provided, else explicit
+  const derivedCount = Array.isArray(animal_ids) ? animal_ids.length : Number(body.head_count || 0)
 
   if (!start_date || !end_date)
     return NextResponse.json({ error: 'start_date and end_date are required' }, { status: 400 })
   if (new Date(start_date) >= new Date(end_date))
     return NextResponse.json({ error: 'start_date must be before end_date' }, { status: 400 })
-  if (!head_count || Number(head_count) <= 0)
-    return NextResponse.json({ error: 'head_count must be greater than 0' }, { status: 400 })
+  if (derivedCount <= 0)
+    return NextResponse.json({ error: 'At least one animal (or a head count) is required' }, { status: 400 })
+
+  const insertData: Record<string, unknown> = {
+    lease_id: id, start_date, end_date,
+    head_count: derivedCount,
+    notes: notes || null,
+  }
+  if (Array.isArray(animal_ids)) insertData.animal_ids = animal_ids
 
   const { data, error } = await supabase
     .from('grazing_periods')
-    .insert({ lease_id: id, start_date, end_date, head_count: Number(head_count), notes: notes || null })
+    .insert(insertData)
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

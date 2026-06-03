@@ -14,9 +14,11 @@ function calcCost(lease: Record<string, unknown>, period: Record<string, unknown
   const rateType = lease.rate_type as string
   const headCount = Number(period.head_count) || 0
 
-  if (rateType === 'per_head' || lease.rate_per_head) {
-    const monthly = Number(lease.rate_per_head) || Number(lease.flat_rate) || 0
-    return headCount * monthly * (days / 30)
+  if (rateType === 'per_head') {
+    return headCount * (Number(lease.rate_per_head) || 0) * days
+  }
+  if (rateType === 'per_head_month') {
+    return headCount * (Number(lease.rate_per_head) || 0) * (days / 30)
   }
   if (rateType === 'per_acre') {
     const monthly = ((Number(lease.rate_per_acre) || 0) * (Number(lease.acreage) || 0)) / 12
@@ -33,7 +35,8 @@ function calcCost(lease: Record<string, unknown>, period: Record<string, unknown
 
 function rateDescription(lease: Record<string, unknown>): string {
   const rt = lease.rate_type as string
-  if (rt === 'per_head') return `$${Number(lease.rate_per_head || 0).toFixed(2)}/head/month`
+  if (rt === 'per_head') return `$${Number(lease.rate_per_head || 0).toFixed(2)}/head/day`
+  if (rt === 'per_head_month') return `$${Number(lease.rate_per_head || 0).toFixed(2)}/head/month`
   if (rt === 'per_acre') return `$${Number(lease.rate_per_acre || 0).toFixed(2)}/acre/year · ${lease.acreage ?? 0} acres`
   if (rt === 'flat')     return `Flat rate: $${Number(lease.flat_rate || 0).toFixed(2)}/month`
   if (rt === 'per_aum')  return `$${Number(lease.rate_per_aum || 0).toFixed(2)}/AUM/month`

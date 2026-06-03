@@ -34,6 +34,7 @@ interface Period {
   start_date: string
   end_date: string
   head_count: number
+  animal_ids: string[] | null
   notes: string | null
   is_paid: boolean | null
   paid_date: string | null
@@ -272,7 +273,7 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                    {['Start','End','Days','Head','Cost','Status',''].map(h => (
+                    {['Start','End','Days','Animals','Cost','Status',''].map(h => (
                       <th key={h} className="text-left px-4 py-2 type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
                   </tr>
@@ -283,7 +284,14 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
                       <td className="px-4 py-3" style={{ color: 'var(--text)' }}>{fmtDate(p.start_date)}</td>
                       <td className="px-4 py-3" style={{ color: 'var(--text)' }}>{fmtDate(p.end_date)}</td>
                       <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{p.days}</td>
-                      <td className="px-4 py-3 font-semibold" style={{ color: 'var(--text)' }}>{p.head_count}</td>
+                      <td className="px-4 py-3 font-semibold" style={{ color: 'var(--text)' }}>
+                        {p.animal_ids?.length
+                          ? <span className="inline-flex items-center gap-1">
+                              <span>{p.animal_ids.length}</span>
+                              <span className="type-helper" style={{ color: 'var(--text-muted)' }}>tracked</span>
+                            </span>
+                          : p.head_count}
+                      </td>
                       <td className="px-4 py-3 font-medium" style={{ color: 'var(--gold-fg)' }}>{fmt(p.calculated_cost)}</td>
                       <td className="px-4 py-3">
                         {p.is_paid
@@ -334,8 +342,12 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{p.head_count}</span>
-                      <span className="type-helper ml-1" style={{ color: 'var(--text-muted)' }}>head</span>
+                      <span className="text-2xl font-bold" style={{ color: 'var(--text)' }}>
+                        {p.animal_ids?.length ?? p.head_count}
+                      </span>
+                      <span className="type-helper ml-1" style={{ color: 'var(--text-muted)' }}>
+                        {p.animal_ids?.length ? 'tracked' : 'head'}
+                      </span>
                     </div>
                     <span className="text-base font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(p.calculated_cost)}</span>
                   </div>

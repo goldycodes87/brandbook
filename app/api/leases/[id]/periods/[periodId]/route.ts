@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-const ALLOWED = ['start_date', 'end_date', 'head_count', 'notes', 'is_paid', 'paid_date', 'paid_amount']
+const ALLOWED = ['start_date', 'end_date', 'head_count', 'notes', 'is_paid', 'paid_date', 'paid_amount', 'animal_ids']
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; periodId: string }> }) {
   const { periodId } = await params
@@ -16,6 +16,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (clean.head_count != null) clean.head_count = Number(clean.head_count)
   if (clean.paid_amount != null) clean.paid_amount = Number(clean.paid_amount)
+  // Derive head_count from animal_ids if both provided
+  if (Array.isArray(clean.animal_ids) && !('head_count' in body)) {
+    clean.head_count = (clean.animal_ids as string[]).length
+  }
 
   const { data, error } = await supabase
     .from('grazing_periods')

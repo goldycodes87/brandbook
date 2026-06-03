@@ -302,7 +302,7 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue }: {
     : null
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 md:max-w-3xl">
       {/* Photo gallery */}
       {(animal.photos?.length ?? 0) > 0 && (
         <Panel title="PHOTOS" padding="sm">
@@ -317,7 +317,7 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue }: {
       )}
 
       {/* Stats strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Age',    value: animal.dob ? calcAge(animal.dob) : (animal.approximate_age ? `~${animal.approximate_age}` : '—') },
           { label: 'Weight', value: latestWeight ? `${latestWeight.weight_lbs} lb` : '—' },
@@ -830,7 +830,7 @@ function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal
           ))}
 
           {/* Completed pregnancy cards */}
-          <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {sortedPregnancies.map(pg => {
               const sireLib = pg.calfEvent.sire_library ?? pg.bredEvent?.sire_library ?? null
               return (
