@@ -41,7 +41,9 @@ export type Database = {
       animals: {
         Row: {
           age_class: string | null
+          ai_cost: number | null
           approximate_age: string | null
+          beef_production_flagged_at: string | null
           birth_type: string | null
           birth_weight_estimated: boolean | null
           birth_weight_lbs: number | null
@@ -50,17 +52,26 @@ export type Database = {
           breed_percentage: number | null
           breeds: Json | null
           calf_sex: string | null
+          cause_of_death: string | null
           conception_method: string | null
           created_at: string | null
           dam_id: string | null
+          disposition: string | null
+          disposition_date: string | null
+          disposition_notes: string | null
           dob: string | null
           dob_estimated: boolean | null
           donor_dam_id: string | null
           ear_tag_color: string | null
           ear_tag_number: string | null
+          embryo_cost: number | null
+          fmv_at_transfer: number | null
           id: string
+          implant_fee: number | null
+          manual_grazing_cost_override: number | null
           name: string | null
           notes: string | null
+          origin: string | null
           owner_id: string | null
           pair_animal_id: string | null
           photos: string[] | null
@@ -69,6 +80,7 @@ export type Database = {
           purchased_as_pair: boolean | null
           ranch_id: string | null
           registration_numbers: Json | null
+          semen_cost: number | null
           sex: Database["public"]["Enums"]["animal_sex"] | null
           sire_id: string | null
           sire_library_id: string | null
@@ -82,7 +94,9 @@ export type Database = {
         }
         Insert: {
           age_class?: string | null
+          ai_cost?: number | null
           approximate_age?: string | null
+          beef_production_flagged_at?: string | null
           birth_type?: string | null
           birth_weight_estimated?: boolean | null
           birth_weight_lbs?: number | null
@@ -91,17 +105,26 @@ export type Database = {
           breed_percentage?: number | null
           breeds?: Json | null
           calf_sex?: string | null
+          cause_of_death?: string | null
           conception_method?: string | null
           created_at?: string | null
           dam_id?: string | null
+          disposition?: string | null
+          disposition_date?: string | null
+          disposition_notes?: string | null
           dob?: string | null
           dob_estimated?: boolean | null
           donor_dam_id?: string | null
           ear_tag_color?: string | null
           ear_tag_number?: string | null
+          embryo_cost?: number | null
+          fmv_at_transfer?: number | null
           id?: string
+          implant_fee?: number | null
+          manual_grazing_cost_override?: number | null
           name?: string | null
           notes?: string | null
+          origin?: string | null
           owner_id?: string | null
           pair_animal_id?: string | null
           photos?: string[] | null
@@ -110,6 +133,7 @@ export type Database = {
           purchased_as_pair?: boolean | null
           ranch_id?: string | null
           registration_numbers?: Json | null
+          semen_cost?: number | null
           sex?: Database["public"]["Enums"]["animal_sex"] | null
           sire_id?: string | null
           sire_library_id?: string | null
@@ -123,7 +147,9 @@ export type Database = {
         }
         Update: {
           age_class?: string | null
+          ai_cost?: number | null
           approximate_age?: string | null
+          beef_production_flagged_at?: string | null
           birth_type?: string | null
           birth_weight_estimated?: boolean | null
           birth_weight_lbs?: number | null
@@ -132,17 +158,26 @@ export type Database = {
           breed_percentage?: number | null
           breeds?: Json | null
           calf_sex?: string | null
+          cause_of_death?: string | null
           conception_method?: string | null
           created_at?: string | null
           dam_id?: string | null
+          disposition?: string | null
+          disposition_date?: string | null
+          disposition_notes?: string | null
           dob?: string | null
           dob_estimated?: boolean | null
           donor_dam_id?: string | null
           ear_tag_color?: string | null
           ear_tag_number?: string | null
+          embryo_cost?: number | null
+          fmv_at_transfer?: number | null
           id?: string
+          implant_fee?: number | null
+          manual_grazing_cost_override?: number | null
           name?: string | null
           notes?: string | null
+          origin?: string | null
           owner_id?: string | null
           pair_animal_id?: string | null
           photos?: string[] | null
@@ -151,6 +186,7 @@ export type Database = {
           purchased_as_pair?: boolean | null
           ranch_id?: string | null
           registration_numbers?: Json | null
+          semen_cost?: number | null
           sex?: Database["public"]["Enums"]["animal_sex"] | null
           sire_id?: string | null
           sire_library_id?: string | null
@@ -261,6 +297,133 @@ export type Database = {
             columns: ["lease_id"]
             isOneToOne: false
             referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      beef_inventory: {
+        Row: {
+          animal_id: string | null
+          breed_summary: string | null
+          butcher_date_id: string | null
+          cost_basis: number | null
+          created_at: string | null
+          estimated_harvest_weight: number | null
+          hanging_weight: number | null
+          id: string
+          price_per_lb: number | null
+          processed_at: string | null
+          sale_price: number | null
+          status: string | null
+          synced_at: string | null
+          tag_number: string | null
+        }
+        Insert: {
+          animal_id?: string | null
+          breed_summary?: string | null
+          butcher_date_id?: string | null
+          cost_basis?: number | null
+          created_at?: string | null
+          estimated_harvest_weight?: number | null
+          hanging_weight?: number | null
+          id?: string
+          price_per_lb?: number | null
+          processed_at?: string | null
+          sale_price?: number | null
+          status?: string | null
+          synced_at?: string | null
+          tag_number?: string | null
+        }
+        Update: {
+          animal_id?: string | null
+          breed_summary?: string | null
+          butcher_date_id?: string | null
+          cost_basis?: number | null
+          created_at?: string | null
+          estimated_harvest_weight?: number | null
+          hanging_weight?: number | null
+          id?: string
+          price_per_lb?: number | null
+          processed_at?: string | null
+          sale_price?: number | null
+          status?: string | null
+          synced_at?: string | null
+          tag_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beef_inventory_animal_id_fkey"
+            columns: ["animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calf_transfers: {
+        Row: {
+          animal_id: string | null
+          created_at: string | null
+          fmv_at_transfer: number | null
+          from_owner_id: string | null
+          id: string
+          notes: string | null
+          settlement_id: string | null
+          to_owner_id: string | null
+          transfer_date: string | null
+          transfer_type: string | null
+        }
+        Insert: {
+          animal_id?: string | null
+          created_at?: string | null
+          fmv_at_transfer?: number | null
+          from_owner_id?: string | null
+          id?: string
+          notes?: string | null
+          settlement_id?: string | null
+          to_owner_id?: string | null
+          transfer_date?: string | null
+          transfer_type?: string | null
+        }
+        Update: {
+          animal_id?: string | null
+          created_at?: string | null
+          fmv_at_transfer?: number | null
+          from_owner_id?: string | null
+          id?: string
+          notes?: string | null
+          settlement_id?: string | null
+          to_owner_id?: string | null
+          transfer_date?: string | null
+          transfer_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calf_transfers_animal_id_fkey"
+            columns: ["animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calf_transfers_from_owner_id_fkey"
+            columns: ["from_owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calf_transfers_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_settlements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calf_transfers_to_owner_id_fkey"
+            columns: ["to_owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
             referencedColumns: ["id"]
           },
         ]
@@ -647,6 +810,89 @@ export type Database = {
           },
         ]
       }
+      grazing_contracts: {
+        Row: {
+          billing_cycle: string | null
+          calf_selection_method: string | null
+          calf_share_pct: number | null
+          calf_share_rounding: string | null
+          calf_shortfall_carried: number | null
+          calf_transfer_basis: string | null
+          carry_forward_shortfall: boolean | null
+          created_at: string | null
+          death_loss_allowable_pct: number | null
+          death_loss_split_threshold_pct: number | null
+          effective_date: string | null
+          expense_share_method: string | null
+          expense_share_pct: number | null
+          expiration_date: string | null
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          owner_id: string | null
+          rate_per_head_month: number | null
+          sale_fee_auction_pct: number | null
+          sale_fee_private_flat: number | null
+          shortfall_from_year: number | null
+        }
+        Insert: {
+          billing_cycle?: string | null
+          calf_selection_method?: string | null
+          calf_share_pct?: number | null
+          calf_share_rounding?: string | null
+          calf_shortfall_carried?: number | null
+          calf_transfer_basis?: string | null
+          carry_forward_shortfall?: boolean | null
+          created_at?: string | null
+          death_loss_allowable_pct?: number | null
+          death_loss_split_threshold_pct?: number | null
+          effective_date?: string | null
+          expense_share_method?: string | null
+          expense_share_pct?: number | null
+          expiration_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          owner_id?: string | null
+          rate_per_head_month?: number | null
+          sale_fee_auction_pct?: number | null
+          sale_fee_private_flat?: number | null
+          shortfall_from_year?: number | null
+        }
+        Update: {
+          billing_cycle?: string | null
+          calf_selection_method?: string | null
+          calf_share_pct?: number | null
+          calf_share_rounding?: string | null
+          calf_shortfall_carried?: number | null
+          calf_transfer_basis?: string | null
+          carry_forward_shortfall?: boolean | null
+          created_at?: string | null
+          death_loss_allowable_pct?: number | null
+          death_loss_split_threshold_pct?: number | null
+          effective_date?: string | null
+          expense_share_method?: string | null
+          expense_share_pct?: number | null
+          expiration_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          owner_id?: string | null
+          rate_per_head_month?: number | null
+          sale_fee_auction_pct?: number | null
+          sale_fee_private_flat?: number | null
+          shortfall_from_year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grazing_contracts_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grazing_owners: {
         Row: {
           address: string | null
@@ -779,6 +1025,114 @@ export type Database = {
             columns: ["lease_id"]
             isOneToOne: false
             referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grazing_settlements: {
+        Row: {
+          balance_due_to_operator: number | null
+          balance_due_to_owner: number | null
+          calf_transfers_fmv: number | null
+          calves_born: number | null
+          calves_died: number | null
+          calves_weaned: number | null
+          contract_id: string | null
+          created_at: string | null
+          dead_calf_fmv_total: number | null
+          death_loss_pct: number | null
+          death_loss_responsibility: string | null
+          expense_splits_total: number | null
+          grazing_fees_total: number | null
+          gross_calf_sales: number | null
+          id: string
+          is_settled: boolean | null
+          net_calf_proceeds_to_owner: number | null
+          operator_calf_share: number | null
+          operator_death_loss_share: number | null
+          owner_calf_share: number | null
+          owner_death_loss_share: number | null
+          owner_id: string | null
+          pdf_url: string | null
+          sale_fees_charged: number | null
+          settled_date: string | null
+          settlement_notes: string | null
+          settlement_year: number | null
+          shortfall_carried_forward: number | null
+        }
+        Insert: {
+          balance_due_to_operator?: number | null
+          balance_due_to_owner?: number | null
+          calf_transfers_fmv?: number | null
+          calves_born?: number | null
+          calves_died?: number | null
+          calves_weaned?: number | null
+          contract_id?: string | null
+          created_at?: string | null
+          dead_calf_fmv_total?: number | null
+          death_loss_pct?: number | null
+          death_loss_responsibility?: string | null
+          expense_splits_total?: number | null
+          grazing_fees_total?: number | null
+          gross_calf_sales?: number | null
+          id?: string
+          is_settled?: boolean | null
+          net_calf_proceeds_to_owner?: number | null
+          operator_calf_share?: number | null
+          operator_death_loss_share?: number | null
+          owner_calf_share?: number | null
+          owner_death_loss_share?: number | null
+          owner_id?: string | null
+          pdf_url?: string | null
+          sale_fees_charged?: number | null
+          settled_date?: string | null
+          settlement_notes?: string | null
+          settlement_year?: number | null
+          shortfall_carried_forward?: number | null
+        }
+        Update: {
+          balance_due_to_operator?: number | null
+          balance_due_to_owner?: number | null
+          calf_transfers_fmv?: number | null
+          calves_born?: number | null
+          calves_died?: number | null
+          calves_weaned?: number | null
+          contract_id?: string | null
+          created_at?: string | null
+          dead_calf_fmv_total?: number | null
+          death_loss_pct?: number | null
+          death_loss_responsibility?: string | null
+          expense_splits_total?: number | null
+          grazing_fees_total?: number | null
+          gross_calf_sales?: number | null
+          id?: string
+          is_settled?: boolean | null
+          net_calf_proceeds_to_owner?: number | null
+          operator_calf_share?: number | null
+          operator_death_loss_share?: number | null
+          owner_calf_share?: number | null
+          owner_death_loss_share?: number | null
+          owner_id?: string | null
+          pdf_url?: string | null
+          sale_fees_charged?: number | null
+          settled_date?: string | null
+          settlement_notes?: string | null
+          settlement_year?: number | null
+          shortfall_carried_forward?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grazing_settlements_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grazing_settlements_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
             referencedColumns: ["id"]
           },
         ]

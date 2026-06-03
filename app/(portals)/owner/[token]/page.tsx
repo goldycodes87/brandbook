@@ -33,7 +33,20 @@ interface Invoice {
   created_at: string
 }
 
-type Tab = 'animals' | 'invoices' | 'payments'
+interface Settlement {
+  id: string
+  settlement_year: number
+  calves_born: number | null
+  calves_weaned: number | null
+  operator_calf_share: number | null
+  owner_calf_share: number | null
+  balance_due_to_operator: number | null
+  balance_due_to_owner: number | null
+  is_settled: boolean | null
+  pdf_url: string | null
+}
+
+type Tab = 'animals' | 'invoices' | 'payments' | 'annual_report'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -59,12 +72,15 @@ function statusBadge(status: string) {
 export default function OwnerPortalPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
 
-  const [valid, setValid]       = useState<boolean | null>(null)
-  const [owner, setOwner]       = useState<OwnerInfo | null>(null)
-  const [animals, setAnimals]   = useState<Animal[]>([])
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [tab, setTab]           = useState<Tab>('animals')
-  const [loading, setLoading]   = useState(true)
+  const [valid, setValid]           = useState<boolean | null>(null)
+  const [owner, setOwner]           = useState<OwnerInfo | null>(null)
+  const [animals, setAnimals]       = useState<Animal[]>([])
+  const [invoices, setInvoices]     = useState<Invoice[]>([])
+  const [settlements, setSettlements] = useState<Settlement[]>([])
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  const [tab, setTab]               = useState<Tab>('animals')
+  const [loading, setLoading]       = useState(true)
+  const [reportLoading, setReportLoading] = useState(false)
 
   useEffect(() => {
     fetch(`/api/portals/owner/verify?token=${token}`)
@@ -74,16 +90,35 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
         setOwner(d.owner)
         setValid(true)
 
-        const [animRes, invRes] = await Promise.all([
+        const [animRes, invRes, settleRes] = await Promise.all([
           fetch(`/api/animals?owner_id=${d.owner.id}&limit=200`).then(r => r.json()),
           fetch(`/api/billing?owner_id=${d.owner.id}&limit=100`).then(r => r.json()),
+          fetch(`/api/grazing-owners/${d.owner.id}/settlement`).then(r => r.json()),
         ])
         setAnimals(animRes.data ?? [])
         setInvoices(invRes.data ?? [])
+        setSettlements(settleRes.data ?? [])
         setLoading(false)
       })
       .catch(() => { setValid(false); setLoading(false) })
   }, [token])
+
+  const handleGenerateReport = async () => {
+    if (!owner) return
+    setReportLoading(true)
+    try {
+      const res  = await fetch(`/api/grazing-owners/${owner.id}/annual-report?year=${selectedYear}`, { method: 'POST' })
+      const data = await res.json()
+      if (data.data?.pdf_url) {
+        window.open(data.data.pdf_url, '_blank')
+        // Refresh settlements to get updated pdf_url
+        const settleRes = await fetch(`/api/grazing-owners/${owner.id}/settlement`).then(r => r.json())
+        setSettlements(settleRes.data ?? [])
+      }
+    } finally {
+      setReportLoading(false)
+    }
+  }
 
   // ─── Invalid / loading ──────────────────────────────────────────────────
 
@@ -114,9 +149,10 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   // ─── Portal ─────────────────────────────────────────────────────────────
 
   const TABS: { value: Tab; label: string }[] = [
-    { value: 'animals',  label: 'MY ANIMALS' },
-    { value: 'invoices', label: 'INVOICES' },
-    { value: 'payments', label: 'PAYMENTS' },
+    { value: 'animals',       label: 'MY ANIMALS' },
+    { value: 'invoices',      label: 'INVOICES' },
+    { value: 'annual_report', label: 'ANNUAL REPORT' },
+    { value: 'payments',      label: 'PAYMENTS' },
   ]
 
   return (
@@ -234,6 +270,123 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
             )}
           </div>
         )}
+
+        {/* ANNUAL REPORT */}
+        {tab === 'annual_report' && (() => {
+          const years = settlements.length > 0
+            ? [...new Set(settlements.map(s => s.settlement_year))].sort((a, b) => b - a)
+            : [new Date().getFullYear()]
+          const yearSettlement = settlements.find(s => s.settlement_year === selectedYear) ?? null
+          return (
+            <div className="flex flex-col gap-4">
+              {/* Year selector */}
+              <div className="flex items-center gap-2">
+                <span className="type-helper" style={{ color: 'var(--text-muted)' }}>Year:</span>
+                {years.map(y => (
+                  <button
+                    key={y}
+                    type="button"
+                    onClick={() => setSelectedYear(y)}
+                    className="px-3 py-1 rounded text-xs font-bold uppercase tracking-wider"
+                    style={{
+                      background: selectedYear === y ? 'var(--accent)' : 'var(--surface-2)',
+                      color:      selectedYear === y ? 'white'         : 'var(--text-muted)',
+                      border:     `1px solid ${selectedYear === y ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
+
+              {yearSettlement ? (
+                <>
+                  {/* Summary cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Calves Born',      value: yearSettlement.calves_born      ?? '—' },
+                      { label: 'Calves Weaned',    value: yearSettlement.calves_weaned    ?? '—' },
+                      { label: 'Your Calves',      value: yearSettlement.owner_calf_share ?? '—' },
+                      { label: 'Operator Share',   value: yearSettlement.operator_calf_share ?? '—' },
+                    ].map(({ label, value }) => (
+                      <div
+                        key={label}
+                        className="rounded-lg p-3"
+                        style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+                      >
+                        <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                        <p className="font-bold text-lg" style={{ color: 'var(--text)' }}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Balance */}
+                  <div
+                    className="rounded-lg p-4"
+                    style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+                  >
+                    {(yearSettlement.balance_due_to_operator ?? 0) > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>Balance due to operator</span>
+                        <span className="font-bold text-base" style={{ color: 'var(--text)' }}>
+                          {fmtMoney(yearSettlement.balance_due_to_operator!)}
+                        </span>
+                      </div>
+                    )}
+                    {(yearSettlement.balance_due_to_owner ?? 0) > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>Balance due to you</span>
+                        <span className="font-bold text-base" style={{ color: 'var(--text)' }}>
+                          {fmtMoney(yearSettlement.balance_due_to_owner!)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 mt-2">
+                      <span
+                        className="px-2 py-0.5 rounded-full text-xs font-bold uppercase"
+                        style={{
+                          background: yearSettlement.is_settled ? 'var(--success-bg, #dcfce7)' : 'var(--warning-bg, #fef3c7)',
+                          color:      yearSettlement.is_settled ? 'var(--success-fg)' : 'var(--warning-fg, #d97706)',
+                        }}
+                      >
+                        {yearSettlement.is_settled ? 'SETTLED' : 'PENDING'}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Download */}
+                  <div className="flex flex-col gap-2">
+                    {yearSettlement.pdf_url ? (
+                      <a
+                        href={yearSettlement.pdf_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-center py-2.5 rounded-lg font-bold text-sm uppercase tracking-wider"
+                        style={{ background: 'var(--accent)', color: 'white' }}
+                      >
+                        DOWNLOAD ANNUAL REPORT
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleGenerateReport}
+                        disabled={reportLoading}
+                        className="w-full py-2.5 rounded-lg font-bold text-sm uppercase tracking-wider"
+                        style={{ background: 'var(--accent)', color: 'white', opacity: reportLoading ? 0.6 : 1 }}
+                      >
+                        {reportLoading ? 'GENERATING…' : 'GENERATE ANNUAL REPORT'}
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <EmptyState
+                  variant="neutral"
+                  title={`No ${selectedYear} settlement`}
+                  body="No settlement has been recorded for this year yet. Contact your ranch for details."
+                />
+              )}
+            </div>
+          )
+        })()}
 
         {/* PAYMENTS */}
         {tab === 'payments' && (

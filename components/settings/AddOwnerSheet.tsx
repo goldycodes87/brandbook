@@ -8,7 +8,9 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { AccordionSection } from '@/components/ui/Accordion'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
-import { apiPost, apiPatch, apiDelete } from '@/lib/fetch'
+import { apiPost, apiPatch, apiDelete, apiGet } from '@/lib/fetch'
+import { Toggle } from '@/components/ui/Toggle'
+import { ContextBanner } from '@/components/ui/ContextBanner'
 
 const normalizeColor = (c: string) => c ? c.charAt(0).toUpperCase() + c.slice(1).toLowerCase() : c
 
@@ -80,10 +82,29 @@ const BLANK = {
   notes: '',
 }
 
+const BLANK_CONTRACT = {
+  effective_date:                 '',
+  expiration_date:                '',
+  include_calf_sharing:           false,
+  calf_share_pct:                 '50',
+  calf_share_rounding:            'down',
+  calf_selection_method:          'operator_choice',
+  calf_transfer_basis:            'fmv',
+  carry_forward_shortfall:        true,
+  calf_shortfall_carried:         '0',
+  death_loss_allowable_pct:       '10',
+  death_loss_split_threshold_pct: '25',
+  sale_fee_auction_pct:           '3',
+  sale_fee_private_flat:          '350',
+  contract_notes:                 '',
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }: AddOwnerSheetProps) {
   const [form, setForm]               = useState({ ...BLANK })
+  const [contractForm, setContractForm] = useState({ ...BLANK_CONTRACT })
+  const [existingContractId, setExistingContractId] = useState<string | null>(null)
   const [saving, setSaving]           = useState(false)
   const [deleting, setDeleting]       = useState(false)
   const [error, setError]             = useState('')
@@ -115,6 +136,35 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
         setForm({ ...BLANK })
       }
       setError('')
+      setContractForm({ ...BLANK_CONTRACT })
+      setExistingContractId(null)
+      // Load existing contract in edit mode
+      if (mode === 'edit' && initialData?.id) {
+        apiGet(`/api/grazing-owners/${initialData.id}/contract`)
+          .then(r => r.json())
+          .then(d => {
+            const c = d.data
+            if (!c) return
+            setExistingContractId(c.id)
+            setContractForm({
+              effective_date:                 c.effective_date                 ?? '',
+              expiration_date:                c.expiration_date                ?? '',
+              include_calf_sharing:           c.calf_share_pct != null,
+              calf_share_pct:                 c.calf_share_pct != null ? String(c.calf_share_pct) : '50',
+              calf_share_rounding:            c.calf_share_rounding            ?? 'down',
+              calf_selection_method:          c.calf_selection_method          ?? 'operator_choice',
+              calf_transfer_basis:            c.calf_transfer_basis            ?? 'fmv',
+              carry_forward_shortfall:        c.carry_forward_shortfall        ?? true,
+              calf_shortfall_carried:         c.calf_shortfall_carried != null ? String(c.calf_shortfall_carried) : '0',
+              death_loss_allowable_pct:       c.death_loss_allowable_pct       != null ? String(c.death_loss_allowable_pct) : '10',
+              death_loss_split_threshold_pct: c.death_loss_split_threshold_pct != null ? String(c.death_loss_split_threshold_pct) : '25',
+              sale_fee_auction_pct:           c.sale_fee_auction_pct           != null ? String(c.sale_fee_auction_pct)           : '3',
+              sale_fee_private_flat:          c.sale_fee_private_flat          != null ? String(c.sale_fee_private_flat)          : '350',
+              contract_notes:                 c.notes                          ?? '',
+            })
+          })
+          .catch(() => {})
+      }
     }
   }, [isOpen, mode, initialData])
 
@@ -155,6 +205,35 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
       const res  = await (mode === 'edit' ? apiPatch(url, payload) : apiPost(url, payload))
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
+
+      // Save contract if any contract field is filled
+      const ownerId = mode === 'edit' ? initialData!.id : json.data?.id
+      const hasContract = contractForm.effective_date || contractForm.include_calf_sharing ||
+        contractForm.death_loss_allowable_pct !== '10' || contractForm.sale_fee_auction_pct !== '3'
+      if (ownerId && hasContract) {
+        const contractPayload = {
+          effective_date:                 contractForm.effective_date                 || null,
+          expiration_date:                contractForm.expiration_date                || null,
+          calf_share_pct:                 contractForm.include_calf_sharing ? Number(contractForm.calf_share_pct) : null,
+          calf_share_rounding:            contractForm.include_calf_sharing ? contractForm.calf_share_rounding         : null,
+          calf_selection_method:          contractForm.include_calf_sharing ? contractForm.calf_selection_method       : null,
+          calf_transfer_basis:            contractForm.include_calf_sharing ? contractForm.calf_transfer_basis         : null,
+          carry_forward_shortfall:        contractForm.carry_forward_shortfall,
+          calf_shortfall_carried:         Number(contractForm.calf_shortfall_carried) || 0,
+          death_loss_allowable_pct:       Number(contractForm.death_loss_allowable_pct) || 10,
+          death_loss_split_threshold_pct: Number(contractForm.death_loss_split_threshold_pct) || 25,
+          sale_fee_auction_pct:           Number(contractForm.sale_fee_auction_pct) || 3,
+          sale_fee_private_flat:          Number(contractForm.sale_fee_private_flat) || 350,
+          notes:                          contractForm.contract_notes || null,
+        }
+        const contractUrl = `/api/grazing-owners/${ownerId}/contract`
+        if (existingContractId) {
+          await apiPatch(contractUrl, contractPayload)
+        } else {
+          await apiPost(contractUrl, contractPayload)
+        }
+      }
+
       onSuccess()
       onClose()
     } catch { setError('Connection error') }
@@ -322,7 +401,99 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
               </Field>
             </AccordionSection>
 
-            {/* ── Section 4: BRAND ─────────────────────────────────────── */}
+            {/* ── Section 4: GRAZING CONTRACT ──────────────────────────── */}
+            <AccordionSection title="GRAZING CONTRACT" summary="Terms of the grazing agreement">
+              <Field label="Effective date">
+                <Input type="date" value={contractForm.effective_date} onChange={e => setContractForm(f => ({ ...f, effective_date: e.target.value }))} />
+              </Field>
+              <Field label="Expiration date" helper="Leave blank for ongoing agreement">
+                <Input type="date" value={contractForm.expiration_date} onChange={e => setContractForm(f => ({ ...f, expiration_date: e.target.value }))} />
+              </Field>
+
+              <div className="pt-1 pb-1" style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+                <p className="type-section-label mb-2" style={{ color: 'var(--text-muted)' }}>CALF SHARING</p>
+                <Toggle
+                  label="Include calf sharing"
+                  checked={contractForm.include_calf_sharing}
+                  onChange={v => setContractForm(f => ({ ...f, include_calf_sharing: v }))}
+                />
+                {contractForm.include_calf_sharing && (
+                  <div className="flex flex-col gap-3 mt-3">
+                    <Field label="Operator share %" helper="% of live calf crop at weaning">
+                      <Input type="number" min="0" max="100" value={contractForm.calf_share_pct}
+                        onChange={e => setContractForm(f => ({ ...f, calf_share_pct: e.target.value }))} />
+                    </Field>
+                    <Field label="Rounding">
+                      <SegmentedControl value={contractForm.calf_share_rounding}
+                        onChange={v => setContractForm(f => ({ ...f, calf_share_rounding: v }))}
+                        items={[{ value: 'down', label: 'ROUND DOWN' }, { value: 'up', label: 'ROUND UP' }, { value: 'nearest', label: 'NEAREST' }]}
+                        size="sm" block />
+                    </Field>
+                    <Field label="Selection method">
+                      <SegmentedControl value={contractForm.calf_selection_method}
+                        onChange={v => setContractForm(f => ({ ...f, calf_selection_method: v }))}
+                        items={[{ value: 'operator_choice', label: 'OPERATOR CHOICE' }, { value: 'by_sex', label: 'BY SEX' }, { value: 'alternating', label: 'ALTERNATING' }]}
+                        size="sm" block />
+                    </Field>
+                    <Field label="Transfer basis">
+                      <SegmentedControl value={contractForm.calf_transfer_basis}
+                        onChange={v => setContractForm(f => ({ ...f, calf_transfer_basis: v }))}
+                        items={[{ value: 'fmv', label: 'FAIR MARKET VALUE' }, { value: 'zero', label: '$0' }]}
+                        size="sm" block />
+                    </Field>
+                    <Toggle label="Carry forward shortfall"
+                      description="If rounding results in 0 calves, carry the shortfall to next year"
+                      checked={contractForm.carry_forward_shortfall}
+                      onChange={v => setContractForm(f => ({ ...f, carry_forward_shortfall: v }))} />
+                    <Field label="Current shortfall" helper="Calves carried forward from prior years">
+                      <Input type="number" min="0" value={contractForm.calf_shortfall_carried}
+                        onChange={e => setContractForm(f => ({ ...f, calf_shortfall_carried: e.target.value }))} />
+                    </Field>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-1 pb-1" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="type-section-label mb-3" style={{ color: 'var(--text-muted)' }}>DEATH LOSS</p>
+                <div className="flex flex-col gap-3">
+                  <Field label="Allowable loss %" helper="Below this % is owner's loss">
+                    <Input type="number" min="0" max="100" value={contractForm.death_loss_allowable_pct}
+                      onChange={e => setContractForm(f => ({ ...f, death_loss_allowable_pct: e.target.value }))} />
+                  </Field>
+                  <Field label="Split threshold %" helper="Above this % becomes operator's loss">
+                    <Input type="number" min="0" max="100" value={contractForm.death_loss_split_threshold_pct}
+                      onChange={e => setContractForm(f => ({ ...f, death_loss_split_threshold_pct: e.target.value }))} />
+                  </Field>
+                  <ContextBanner tone="info" eyebrow="DEATH LOSS TIERS">
+                    0–{contractForm.death_loss_allowable_pct || '10'}%: Owner&apos;s loss
+                    {' · '}{contractForm.death_loss_allowable_pct || '10'}–{contractForm.death_loss_split_threshold_pct || '25'}%: Split
+                    {' · '}{contractForm.death_loss_split_threshold_pct || '25'}%+: Operator&apos;s loss
+                  </ContextBanner>
+                </div>
+              </div>
+
+              <div className="pt-1 pb-1">
+                <p className="type-section-label mb-3" style={{ color: 'var(--text-muted)' }}>SALE HANDLING</p>
+                <div className="flex flex-col gap-3">
+                  <Field label="Auction fee %" helper="% of gross sale price">
+                    <Input type="number" min="0" step="0.1" value={contractForm.sale_fee_auction_pct}
+                      onChange={e => setContractForm(f => ({ ...f, sale_fee_auction_pct: e.target.value }))} />
+                  </Field>
+                  <Field label="Private treaty flat fee ($)" helper="Flat fee per head for private sales">
+                    <Input type="number" min="0" value={contractForm.sale_fee_private_flat}
+                      onChange={e => setContractForm(f => ({ ...f, sale_fee_private_flat: e.target.value }))} />
+                  </Field>
+                </div>
+              </div>
+
+              <Field label="Contract notes">
+                <Textarea value={contractForm.contract_notes} rows={2}
+                  onChange={e => setContractForm(f => ({ ...f, contract_notes: e.target.value }))}
+                  placeholder="Any additional terms or notes" />
+              </Field>
+            </AccordionSection>
+
+            {/* ── Section 5: BRAND ─────────────────────────────────────── */}
             <AccordionSection title="BRAND">
               <BrandDrawingPad
                 existingUrl={form.brand_photo_url || form.brand_drawing_url || undefined}

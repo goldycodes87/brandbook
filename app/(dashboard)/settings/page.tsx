@@ -16,6 +16,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
 import { AddOwnerSheet, type GrazingOwner } from '@/components/settings/AddOwnerSheet'
+import Link from 'next/link'
 import { Check, Download, Tag, AlertTriangle, FileText, MapPin, Calendar, Mail, Plus, Pencil } from 'lucide-react'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
@@ -958,9 +959,21 @@ interface ExpenseCategory {
 
 // ─── Grazing Tab ─────────────────────────────────────────────────────────────
 
+interface GrazingContract {
+  id: string
+  owner_id: string | null
+  is_active: boolean | null
+  calf_share_pct: number | null
+  death_loss_allowable_pct: number | null
+  death_loss_split_threshold_pct: number | null
+  sale_fee_auction_pct: number | null
+  sale_fee_private_flat: number | null
+}
+
 function GrazingTab() {
   const [owners, setOwners]       = useState<GrazingOwner[]>([])
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
+  const [contracts, setContracts] = useState<Record<string, GrazingContract>>({})
   const [loading, setLoading]     = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing]     = useState<GrazingOwner | null>(null)
@@ -976,9 +989,15 @@ function GrazingTab() {
     Promise.all([
       apiGet('/api/grazing-owners').then(r => r.json()),
       apiGet('/api/billing/expenses/categories').then(r => r.json()),
-    ]).then(([owners, cats]) => {
-      setOwners(Array.isArray(owners.data) ? owners.data : [])
+      apiGet('/api/grazing-owners/contracts').then(r => r.json()),
+    ]).then(([ownersData, cats, contractsData]) => {
+      setOwners(Array.isArray(ownersData.data) ? ownersData.data : [])
       setCategories(Array.isArray(cats.data) ? cats.data : [])
+      const map: Record<string, GrazingContract> = {}
+      for (const c of (contractsData.data ?? [])) {
+        if (c.owner_id) map[c.owner_id] = c
+      }
+      setContracts(map)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
@@ -1074,6 +1093,32 @@ function GrazingTab() {
                       {[owner.email, owner.phone].filter(Boolean).join(' · ')}
                       {owner.default_breed && <span className="ml-1">· {owner.default_breed}</span>}
                     </p>
+                    {/* Contract summary */}
+                    {(() => {
+                      const c = contracts[owner.id]
+                      if (c) return (
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <Chip tone="success" size="sm">CONTRACT</Chip>
+                          <span className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                            {c.calf_share_pct != null && `Calf share: ${c.calf_share_pct}% · `}
+                            Death loss: {c.death_loss_allowable_pct ?? 10}% / {c.death_loss_split_threshold_pct ?? 25}%
+                            {c.sale_fee_auction_pct != null && ` · Sale fee: ${c.sale_fee_auction_pct}% auction`}
+                          </span>
+                          <Link href={`/settings/grazing/${owner.id}/contract`} className="type-helper font-semibold" style={{ color: 'var(--accent)' }}>
+                            VIEW →
+                          </Link>
+                        </div>
+                      )
+                      return (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Chip tone="neutral" size="sm">NO CONTRACT</Chip>
+                          <button type="button" className="type-helper font-semibold" style={{ color: 'var(--accent)' }}
+                            onClick={() => { setEditing(owner); setSheetOpen(true) }}>
+                            SET UP CONTRACT
+                          </button>
+                        </div>
+                      )
+                    })()}
                     {thisMsg && (
                       <p className="type-helper" style={{ color: thisMsg === 'Invite sent!' ? 'var(--success-fg)' : 'var(--danger-fg)' }}>
                         {thisMsg}
