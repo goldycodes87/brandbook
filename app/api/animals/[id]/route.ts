@@ -237,6 +237,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     registration_numbers: body.registration_numbers ?? [],
     notes:                body.notes || null,
     photos:               body.photos ?? [],
+    origin:               body.origin ?? null,
+    ai_cost:              body.ai_cost != null ? Number(body.ai_cost) : null,
+    semen_cost:           body.semen_cost != null ? Number(body.semen_cost) : null,
+    embryo_cost:          body.embryo_cost != null ? Number(body.embryo_cost) : null,
+    implant_fee:          body.implant_fee != null ? Number(body.implant_fee) : null,
+    manual_grazing_cost_override: body.manual_grazing_cost_override != null ? Number(body.manual_grazing_cost_override) : null,
+    disposition:          body.disposition ?? null,
+    disposition_date:     body.disposition_date || null,
+    disposition_notes:    body.disposition_notes || null,
+    cause_of_death:       body.cause_of_death || null,
+    beef_production_flagged_at: body.beef_production_flagged_at || null,
   }
 
   const { data, error } = await supabase

@@ -4,6 +4,7 @@ import { use, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { ArrowRightSquare } from 'lucide-react'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Panel, PanelSection } from '@/components/ui/Panel'
@@ -12,17 +13,19 @@ import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { ANIMAL_STATUS_CHIP, SEX_CHIP, HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP, getSexValue } from '@/components/ui/tokens'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { HealthEventForm } from '@/components/health/HealthEventForm'
 import { WeightForm } from '@/components/animals/WeightForm'
 import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
-import { PregnancyCard, OpenPregnancyCard } from '@/components/animals/PregnancyCard'
+import { OpenPregnancyCard } from '@/components/animals/PregnancyCard'
 import type { ReproEventShape, CalfRecord } from '@/components/animals/PregnancyCard'
-import { SellAnimalSheet } from '@/components/animals/SellAnimalSheet'
+import { CowCalfCard } from '@/components/animals/CowCalfCard'
+import { DispositionSheet } from '@/components/animals/DispositionSheet'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
-import { apiGet, apiDelete } from '@/lib/fetch'
+import { apiGet, apiDelete, apiPatch } from '@/lib/fetch'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
@@ -50,6 +53,15 @@ interface Animal {
   purchase_price: number | null
   purchase_date: string | null
   vendor: string | null
+  origin: string | null
+  disposition: string | null
+  disposition_date: string | null
+  ai_cost: number | null
+  semen_cost: number | null
+  embryo_cost: number | null
+  implant_fee: number | null
+  manual_grazing_cost_override: number | null
+  beef_production_flagged_at: string | null
   photos: string[] | null
   brand_photo: string | null
   notes: string | null
@@ -68,6 +80,44 @@ interface Animal {
   weights: WeightRow[]
   health_events: HealthEvent[]
   reproduction_events: ReproEvent[]
+}
+
+interface CostBasis {
+  base_cost: number
+  vet_costs: number
+  grazing_costs: number
+  total_invested: number
+  manual_override: boolean
+  breakdown: {
+    purchase_price: number
+    ai_cost: number
+    semen_cost: number
+    embryo_cost: number
+    implant_fee: number
+    vet_bills: number
+    grazing: number
+  }
+}
+
+interface Revenue {
+  gross_revenue: number
+  net_revenue: number
+  total_invested: number
+  calf_count: number
+  breakdown: {
+    calf_sales: number
+    calf_transfers: number
+    embryo_sales: number
+  }
+  cost_breakdown: {
+    purchase_price: number
+    ai_cost: number
+    semen_cost: number
+    embryo_cost: number
+    implant_fee: number
+    vet_bills: number
+    grazing: number
+  }
 }
 
 type Tab = 'overview' | 'health' | 'reproduction' | 'weights' | 'documents'
@@ -133,7 +183,106 @@ function WeightSparkline({ weights }: { weights: WeightRow[] }) {
   )
 }
 
-function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete: () => void; ranchName?: string }) {
+function FinancialsBreakdown({ costBasis, revenue, animalId, onRefresh }: { costBasis: CostBasis; revenue: Revenue | null; animalId: string; onRefresh: () => void }) {
+  const [costOpen, setCostOpen]         = useState(false)
+  const [revenueOpen, setRevenueOpen]   = useState(false)
+  const [editGrazing, setEditGrazing]   = useState(false)
+  const [grazingOverride, setGrazingOverride] = useState('')
+  const [savingOverride, setSavingOverride]   = useState(false)
+
+  const saveGrazingOverride = async () => {
+    setSavingOverride(true)
+    try {
+      await apiPatch(`/api/animals/${animalId}`, { manual_grazing_cost_override: Number(grazingOverride) || null })
+      onRefresh()
+      setEditGrazing(false)
+    } finally { setSavingOverride(false) }
+  }
+
+  const bd = costBasis.breakdown
+  const rb = revenue?.breakdown
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Cost Breakdown */}
+      <button type="button" onClick={() => setCostOpen(o => !o)} className="flex items-center gap-1 type-helper font-semibold" style={{ color: 'var(--text-secondary)' }}>
+        {costOpen ? '▾' : '▸'} Cost Breakdown
+      </button>
+      {costOpen && (
+        <div className="rounded-[var(--radius-md)] p-3 flex flex-col gap-1.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+          {[
+            ['Purchase price', bd.purchase_price],
+            ['AI / semen costs', bd.ai_cost + bd.semen_cost],
+            ['Embryo / implant', bd.embryo_cost + bd.implant_fee],
+            ['Vet bills', bd.vet_bills],
+            ['Grazing costs', bd.grazing],
+          ].map(([label, val]) => (
+            <div key={String(label)} className="flex justify-between type-helper">
+              <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+              <span style={{ fontWeight: 600 }}>${Math.round(Number(val)).toLocaleString()}</span>
+            </div>
+          ))}
+          <div className="flex justify-between type-helper" style={{ borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '4px' }}>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>Total</span>
+            <span style={{ fontWeight: 700 }}>${Math.round(costBasis.total_invested).toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Revenue Breakdown */}
+      {revenue && (
+        <>
+          <button type="button" onClick={() => setRevenueOpen(o => !o)} className="flex items-center gap-1 type-helper font-semibold" style={{ color: 'var(--text-secondary)' }}>
+            {revenueOpen ? '▾' : '▸'} Revenue Breakdown
+          </button>
+          {revenueOpen && rb && (
+            <div className="rounded-[var(--radius-md)] p-3 flex flex-col gap-1.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+              {[
+                ['Calf sales', rb.calf_sales],
+                ['Calf transfers (FMV)', rb.calf_transfers],
+                ['Embryo sales', rb.embryo_sales],
+              ].map(([label, val]) => (
+                <div key={String(label)} className="flex justify-between type-helper">
+                  <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+                  <span style={{ fontWeight: 600 }}>${Math.round(Number(val)).toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="flex justify-between type-helper" style={{ borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '4px' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>Total</span>
+                <span style={{ fontWeight: 700 }}>${Math.round(revenue.gross_revenue).toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Grazing override */}
+      {!editGrazing ? (
+        <button type="button" onClick={() => { setGrazingOverride(String(costBasis.breakdown.grazing || '')); setEditGrazing(true) }} className="type-helper" style={{ color: 'var(--accent)', textDecoration: 'underline', textAlign: 'left' }}>
+          {costBasis.manual_override ? 'Edit grazing cost override →' : 'Override grazing cost →'}
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 mt-1">
+          <input
+            type="number"
+            value={grazingOverride}
+            onChange={e => setGrazingOverride(e.target.value)}
+            className="h-8 px-2 rounded-[var(--radius-sm)] type-helper"
+            style={{ border: '1px solid var(--border)', background: 'var(--surface-2)', width: '100px' }}
+            placeholder="0.00"
+          />
+          <Button intent="primary" size="sm" onClick={saveGrazingOverride} loading={savingOverride}>SAVE</Button>
+          <Button intent="ghost" size="sm" onClick={() => setEditGrazing(false)}>CANCEL</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue }: {
+  animal: Animal; onDelete: () => void; ranchName?: string;
+  costBasis: CostBasis | null; revenue: Revenue | null
+}) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
 
@@ -200,9 +349,6 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
                       : `~${fmtDate(animal.dob)} (est.)`)
                   : fmtDate(animal.dob) },
               { k: 'Birth weight', v: animal.birth_weight_lbs != null ? `${animal.birth_weight_lbs} lb${animal.birth_weight_estimated ? ' (est.)' : ''}` : '—' },
-              { k: 'Purchase date',v: fmtDate(animal.purchase_date) },
-              { k: 'Purchase price',v: animal.purchase_price != null ? `$${animal.purchase_price.toLocaleString()}` : '—' },
-              { k: 'Vendor',       v: animal.vendor ?? '—' },
               { k: 'Owner',        v: animal.owner?.name ?? ranchName ?? '—' },
             ].map(({ k, v }) => (
               <div key={k}>
@@ -213,6 +359,59 @@ function OverviewTab({ animal, onDelete, ranchName }: { animal: Animal; onDelete
           </dl>
         </PanelSection>
       </Panel>
+
+      {/* Lifetime Financials */}
+      {(costBasis || revenue) && (
+        <Panel title="LIFETIME FINANCIALS">
+          <PanelSection>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <p className="type-section-label mb-1" style={{ color: 'var(--text-muted)' }}>INVESTED</p>
+                <p className="type-data-lg font-bold" style={{ color: 'var(--text)' }}>
+                  {costBasis ? `$${Math.round(costBasis.total_invested).toLocaleString()}` : '—'}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="type-section-label mb-1" style={{ color: 'var(--text-muted)' }}>REVENUE</p>
+                <p className="type-data-lg font-bold" style={{ color: 'var(--text)' }}>
+                  {revenue ? `$${Math.round(revenue.gross_revenue).toLocaleString()}` : '—'}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="type-section-label mb-1" style={{ color: 'var(--text-muted)' }}>NET +/-</p>
+                {revenue ? (
+                  <p className="type-data-lg font-bold" style={{ color: revenue.net_revenue >= 0 ? 'var(--success-fg)' : 'var(--danger-fg)' }}>
+                    {revenue.net_revenue >= 0 ? '+' : ''}{`$${Math.round(revenue.net_revenue).toLocaleString()}`}
+                  </p>
+                ) : <p className="type-data-lg font-bold">—</p>}
+              </div>
+            </div>
+            {costBasis && (
+              <FinancialsBreakdown costBasis={costBasis} revenue={revenue} animalId={animal.id} onRefresh={() => {}} />
+            )}
+          </PanelSection>
+        </Panel>
+      )}
+
+      {/* Origin / purchase info */}
+      {(animal.origin === 'purchased' || animal.purchase_price || animal.purchase_date || animal.vendor) && (
+        <Panel title="PURCHASE INFO">
+          <PanelSection>
+            <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+              {[
+                { k: 'Purchased', v: fmtDate(animal.purchase_date) },
+                { k: 'From', v: animal.vendor ?? '—' },
+                { k: 'Price', v: animal.purchase_price != null ? `$${animal.purchase_price.toLocaleString()}` : '—' },
+              ].map(({ k, v }) => (
+                <div key={k}>
+                  <dt className="type-field-label mb-0.5" style={{ color: 'var(--text-muted)' }}>{k}</dt>
+                  <dd className="type-data-sm">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </PanelSection>
+        </Panel>
+      )}
 
       {/* Registration numbers */}
       {(animal.registration_numbers?.length ?? 0) > 0 && (
@@ -512,7 +711,7 @@ function groupReproEvents(
   return { pregnancies, openPregnancies }
 }
 
-function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void }) {
+function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void; onDispose?: (calfId: string) => void }) {
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
 
   const events   = animal.reproduction_events ?? []
@@ -617,6 +816,7 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
               >
                 Oldest First
               </button>
+              <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{pregnancies.length} calf{pregnancies.length !== 1 ? 'ves' : ''} total</span>
             </div>
           )}
 
@@ -631,20 +831,76 @@ function ReproTab({ animal, onLogEvent, onRefresh }: { animal: Animal; onLogEven
 
           {/* Completed pregnancy cards */}
           <div className="flex flex-col gap-4">
-            {sortedPregnancies.map(pg => (
-              <PregnancyCard
-                key={pg.calfEvent.id}
-                calfEvent={pg.calfEvent as ReproEventShape}
-                calfRecord={pg.calfRecord as CalfRecord | null}
-                bredEvent={pg.bredEvent as ReproEventShape | null}
-                pregCheckEvents={pg.pregCheckEvents as ReproEventShape[]}
-                weaningEvent={pg.weaningEvent as ReproEventShape | null}
-              />
-            ))}
+            {sortedPregnancies.map(pg => {
+              const sireLib = pg.calfEvent.sire_library ?? pg.bredEvent?.sire_library ?? null
+              return (
+                <CowCalfCard
+                  key={pg.calfEvent.id}
+                  calfEvent={pg.calfEvent as ReproEventShape}
+                  calf={pg.calfRecord as CalfRecord | null}
+                  bredEvent={pg.bredEvent as ReproEventShape | null}
+                  pregCheckEvents={pg.pregCheckEvents as ReproEventShape[]}
+                  weaningEvent={pg.weaningEvent as ReproEventShape | null}
+                  sireLibraryEntry={sireLib}
+                  onDispose={onDispose}
+                />
+              )
+            })}
           </div>
+
+          {/* Sire Comparison */}
+          {pregnancies.length > 0 && <SireComparisonTable calfRecords={animal.calves ?? []} />}
         </>
       )}
     </div>
+  )
+}
+
+function SireComparisonTable({ calfRecords }: { calfRecords: AnimalRef[] }) {
+  // Group calves by sire_library_id
+  const groups = new Map<string, { label: string; calves: AnimalRef[] }>()
+
+  for (const calf of calfRecords) {
+    const key = calf.sire_library_id ?? 'unknown'
+    if (!groups.has(key)) groups.set(key, { label: key === 'unknown' ? 'Unknown Sire' : key, calves: [] })
+    groups.get(key)!.calves.push(calf)
+  }
+
+  if (groups.size < 1) return null
+
+  return (
+    <Panel title="SIRE COMPARISON">
+      <Table>
+        <THead>
+          <TR>
+            <TH>Sire</TH>
+            <TH>Calves</TH>
+            <TH>Avg BW</TH>
+            <TH>Avg WW</TH>
+          </TR>
+        </THead>
+        <TBody>
+          {[...groups.entries()].map(([key, { calves }]) => {
+            const bwCalves = calves.filter(c => c.birth_weight_lbs != null)
+            const wwCalves = calves.filter(c => c.weaning_weight_lbs != null)
+            const avgBW = bwCalves.length > 0 ? Math.round(bwCalves.reduce((s, c) => s + c.birth_weight_lbs!, 0) / bwCalves.length) : null
+            const avgWW = wwCalves.length > 0 ? Math.round(wwCalves.reduce((s, c) => s + c.weaning_weight_lbs!, 0) / wwCalves.length) : null
+            const sireLabel = key === 'unknown' ? 'Unknown Sire' : `Sire ${key.slice(0, 8)}…`
+            return (
+              <TR key={key}>
+                <TD>
+                  <span className="type-data-sm">{sireLabel}</span>
+                  {calves.length === 1 && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>(1 calf — limited data)</p>}
+                </TD>
+                <TD>{calves.length}</TD>
+                <TD>{avgBW != null ? `${avgBW} lbs` : '—'}</TD>
+                <TD>{avgWW != null ? `${avgWW} lbs` : '—'}</TD>
+              </TR>
+            )
+          })}
+        </TBody>
+      </Table>
+    </Panel>
   )
 }
 
@@ -743,8 +999,10 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   const [logOpen, setLogOpen]         = useState(false)
   const [weightOpen, setWeightOpen]   = useState(false)
   const [reproOpen, setReproOpen]     = useState(false)
-  const [sellOpen, setSellOpen]       = useState(false)
+  const [dispositionOpen, setDispositionOpen] = useState(false)
   const [ranchName, setRanchName]     = useState<string | undefined>(undefined)
+  const [costBasis, setCostBasis]     = useState<CostBasis | null>(null)
+  const [revenue, setRevenue]         = useState<Revenue | null>(null)
 
   const fetchAnimal = useCallback(() => {
     apiGet(`/api/animals/${id}`)
@@ -765,6 +1023,16 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
       .then(d => { const s = d.data ?? d; if (s.ranch_name) setRanchName(s.ranch_name) })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!animal) return
+    apiGet(`/api/animals/${animal.id}/cost-basis`).then(r => r.json()).then(setCostBasis).catch(() => {})
+    apiGet(`/api/animals/${animal.id}/lifetime-revenue`).then(r => r.json()).then(setRevenue).catch(() => {})
+  }, [animal?.id])
+
+  const handleCalfDispose = useCallback((calfId: string) => {
+    router.push(`/animals/${calfId}`)
+  }, [router])
 
   if (loading) {
     return (
@@ -817,13 +1085,13 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
           <Button intent="secondary" size="sm" onClick={() => setReproOpen(true)}>REPRO EVENT</Button>
         )}
         {animal.status === 'active' && (
-          <Button
-            intent="secondary"
-            size="sm"
-            style={{ borderColor: 'var(--success-border)', color: 'var(--success-fg)' }}
-            onClick={() => setSellOpen(true)}
-          >
-            SELL
+          <Button intent="secondary" size="sm" leading={<ArrowRightSquare size={14} />} onClick={() => setDispositionOpen(true)}>
+            DISPOSITION
+          </Button>
+        )}
+        {animal.sex === 'steer' && animal.status === 'active' && (
+          <Button intent="secondary" size="sm" style={{ borderColor: '#ea580c', color: '#ea580c' }} onClick={() => setDispositionOpen(true)}>
+            BEEF PRODUCTION
           </Button>
         )}
         <ButtonLink href={`/animals/${id}/edit`} intent="ghost" size="sm">EDIT ANIMAL</ButtonLink>
@@ -831,9 +1099,9 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
 
       <Tabs value={tab} onChange={setTab} items={TABS} className="mb-5" />
 
-      {tab === 'overview'      && <OverviewTab  animal={animal} onDelete={() => router.push('/animals')} ranchName={ranchName} />}
+      {tab === 'overview'      && <OverviewTab  animal={animal} onDelete={() => router.push('/animals')} ranchName={ranchName} costBasis={costBasis} revenue={revenue} />}
       {tab === 'health'        && <HealthTab    animal={animal} onLogEvent={() => setLogOpen(true)} onRefresh={fetchAnimal} />}
-      {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} onRefresh={fetchAnimal} />}
+      {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} onRefresh={fetchAnimal} onDispose={handleCalfDispose} />}
       {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'documents'     && (
         <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
@@ -897,12 +1165,12 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* Sell animal sheet */}
-      <SellAnimalSheet
-        isOpen={sellOpen}
-        onClose={() => setSellOpen(false)}
-        animal={{ id, tag_number: animal.tag_number, name: animal.name, sex: animal.sex, ear_tag_color: animal.ear_tag_color }}
-        onSuccess={() => { setSellOpen(false); fetchAnimal() }}
+      {/* Disposition sheet */}
+      <DispositionSheet
+        isOpen={dispositionOpen}
+        onClose={() => setDispositionOpen(false)}
+        animal={{ id, tag_number: animal.tag_number, name: animal.name, sex: animal.sex, ear_tag_color: animal.ear_tag_color, owner_id: animal.owner_id, breeds: animal.breeds }}
+        onSuccess={() => { setDispositionOpen(false); fetchAnimal() }}
       />
     </PageContainer>
   )

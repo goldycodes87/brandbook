@@ -175,6 +175,14 @@ export default function NewAnimalPage() {
   const [defaultsApplied, setDefaultsApplied] = useState<string | null>(null)
   const [isPair, setIsPair]                 = useState(false)
   const [pairCalf, setPairCalf]             = useState(blankPairCalf())
+  const [origin, setOrigin]                 = useState<'purchased' | 'home_raised'>('purchased')
+  const [aiCost, setAiCost]                 = useState('')
+  const [semenCost, setSemenCost]           = useState('')
+  const [embryoCost, setEmbryoCost]         = useState('')
+  const [implantFee, setImplantFee]         = useState('')
+  const [brandInspectionUrl, setBrandInspectionUrl] = useState<string | null>(null)
+  const [uploadingDoc, setUploadingDoc]     = useState(false)
+  const [conceptionMethod, setConceptionMethod] = useState<'natural' | 'ai' | 'embryo'>('natural')
   const mediaRef    = useRef<MediaRecorder | null>(null)
   const chunksRef   = useRef<Blob[]>([])
   const pendingIdRef = useRef<string | null>(null)
@@ -342,6 +350,21 @@ export default function NewAnimalPage() {
     }
   }
 
+  const handleBrandInspectionUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingDoc(true)
+    try {
+      // We need an animal ID — use pendingIdRef if available, otherwise just store locally
+      // For now, store the file as a blob URL for display, and send URL in submit payload
+      const objectUrl = URL.createObjectURL(file)
+      setBrandInspectionUrl(objectUrl)
+      // TODO: upload to R2 on actual animal save
+    } finally {
+      setUploadingDoc(false)
+    }
+  }
+
   const onSubmit = async (values: FormValues) => {
     if (breeds.length > 0) {
       const total = breeds.reduce((s, b) => s + (b.pct || 0), 0)
@@ -363,6 +386,12 @@ export default function NewAnimalPage() {
         photos:           photoUrls,
         dob_estimated:    values.dob_estimated ?? false,
         approximate_age:  values.approximate_age || null,
+        origin:           origin,
+        ai_cost:          origin === 'home_raised' ? (toNum(aiCost) ?? null) : null,
+        semen_cost:       origin === 'home_raised' ? (toNum(semenCost) ?? null) : null,
+        embryo_cost:      origin === 'home_raised' ? (toNum(embryoCost) ?? null) : null,
+        implant_fee:      origin === 'home_raised' ? (toNum(implantFee) ?? null) : null,
+        conception_method: origin === 'home_raised' ? conceptionMethod : null,
       })
 
       if (isPair && pairCalf.tag_number.trim()) {
@@ -495,6 +524,143 @@ export default function NewAnimalPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
 
+        {/* Origin Panel */}
+        <Panel title="ORIGIN">
+          <PanelSection>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { value: 'purchased', label: 'PURCHASED', desc: 'Bought from another ranch or sale barn', emoji: '🏷️' },
+                { value: 'home_raised', label: 'HOME RAISED', desc: 'Born on our ranch', emoji: '🐄' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setOrigin(opt.value)}
+                  className="flex flex-col items-start gap-1 rounded-[var(--radius-lg)] p-4 text-left transition-all"
+                  style={{
+                    border: `2px solid ${origin === opt.value ? 'var(--accent)' : 'var(--border)'}`,
+                    backgroundColor: origin === opt.value ? 'var(--accent-soft, var(--surface-2))' : 'var(--surface-1)',
+                    position: 'relative',
+                  }}
+                >
+                  {origin === opt.value && (
+                    <div
+                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: 'var(--accent)', color: '#fff', fontSize: '11px' }}
+                    >✓</div>
+                  )}
+                  <span style={{ fontSize: '20px' }}>{opt.emoji}</span>
+                  <span className="type-section-label" style={{ color: origin === opt.value ? 'var(--accent)' : 'var(--text)' }}>{opt.label}</span>
+                  <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* PURCHASED fields */}
+            {origin === 'purchased' && (
+              <div className="mt-4 flex flex-col gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Field label="Purchase price ($)">
+                    <Input {...register('purchase_price')} type="number" step="0.01" placeholder="0.00" />
+                  </Field>
+                  <Field label="Purchase date">
+                    <Input {...register('purchase_date')} type="date" />
+                  </Field>
+                  <Field label="Vendor / Source">
+                    <Input {...register('vendor')} placeholder="Ranch name, sale barn, or seller" />
+                  </Field>
+                </div>
+                <Toggle
+                  checked={isPair}
+                  onChange={setIsPair}
+                  label="PURCHASED AS PAIR"
+                  description="This animal came with a calf. Create a linked calf record."
+                />
+                {/* Brand Inspection Upload */}
+                <Field label="Brand Inspection" helper="Upload photo or scan of inspection paperwork">
+                  {brandInspectionUrl ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={brandInspectionUrl} alt="Brand inspection" className="w-full h-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        className="type-helper"
+                        style={{ color: 'var(--danger-fg)' }}
+                        onClick={() => setBrandInspectionUrl(null)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      className="inline-flex items-center gap-2 cursor-pointer px-3 py-2 rounded-[var(--radius-md)] transition-colors duration-150 type-button"
+                      style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                    >
+                      <Upload size={15} />
+                      {uploadingDoc ? 'Uploading…' : 'Upload document'}
+                      <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleBrandInspectionUpload} disabled={uploadingDoc} />
+                    </label>
+                  )}
+                </Field>
+              </div>
+            )}
+
+            {/* HOME RAISED fields */}
+            {origin === 'home_raised' && (
+              <div className="mt-4 flex flex-col gap-4">
+                <ContextBanner tone="info" eyebrow="COST BASIS">
+                  Cost basis for home raised animals is built from AI/semen costs, vet bills, and grazing. These are tracked automatically.
+                </ContextBanner>
+
+                {/* Conception method selector */}
+                <Field label="Conception method">
+                  <div className="flex gap-2">
+                    {(['natural', 'ai', 'embryo'] as const).map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setConceptionMethod(m)}
+                        className="px-3 py-1.5 rounded-[var(--radius-md)] type-label font-bold uppercase tracking-wider"
+                        style={{
+                          background: conceptionMethod === m ? 'var(--accent)' : 'var(--surface-2)',
+                          color: conceptionMethod === m ? '#fff' : 'var(--text-muted)',
+                          border: `1px solid ${conceptionMethod === m ? 'var(--accent)' : 'var(--border)'}`,
+                        }}
+                      >
+                        {m === 'natural' ? 'Natural' : m === 'ai' ? 'AI' : 'Embryo'}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+
+                {conceptionMethod === 'ai' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="AI Tech Fee ($)" helper="Fee paid to AI technician">
+                      <Input type="number" step="0.01" value={aiCost} onChange={e => setAiCost(e.target.value)} placeholder="0.00" />
+                    </Field>
+                    <Field label="Semen Cost ($)" helper="Cost of semen straw used">
+                      <Input type="number" step="0.01" value={semenCost} onChange={e => setSemenCost(e.target.value)} placeholder="0.00" />
+                    </Field>
+                  </div>
+                )}
+
+                {conceptionMethod === 'embryo' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Embryo Cost ($)">
+                      <Input type="number" step="0.01" value={embryoCost} onChange={e => setEmbryoCost(e.target.value)} placeholder="0.00" />
+                    </Field>
+                    <Field label="Implant Fee ($)">
+                      <Input type="number" step="0.01" value={implantFee} onChange={e => setImplantFee(e.target.value)} placeholder="0.00" />
+                    </Field>
+                  </div>
+                )}
+              </div>
+            )}
+          </PanelSection>
+        </Panel>
+
         {/* Panel 1 — Identification */}
         <Panel title="IDENTIFICATION">
           <PanelSection>
@@ -561,29 +727,6 @@ export default function NewAnimalPage() {
         <Panel title="BREED">
           <PanelSection>
             <BreedSelector value={breeds} onChange={setBreeds} error={breedError || undefined} />
-          </PanelSection>
-        </Panel>
-
-        {/* Panel 3 — Purchase */}
-        <Panel title="PURCHASE">
-          <PanelSection>
-            <Toggle
-              checked={isPair}
-              onChange={setIsPair}
-              label="PURCHASED AS PAIR"
-              description="This animal came with a calf. Create a linked calf record."
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-              <Field label="Purchase price ($)">
-                <Input {...register('purchase_price')} type="number" step="0.01" placeholder="0.00" />
-              </Field>
-              <Field label="Purchase date">
-                <Input {...register('purchase_date')} type="date" />
-              </Field>
-              <Field label="Vendor">
-                <Input {...register('vendor')} placeholder="Name or operation" />
-              </Field>
-            </div>
           </PanelSection>
         </Panel>
 
