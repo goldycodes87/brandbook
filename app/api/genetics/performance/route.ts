@@ -34,8 +34,10 @@ interface CalfRow {
 export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
   const { searchParams } = new URL(req.url)
-  const year  = searchParams.get('year') ?? ''
-  const breed = searchParams.get('breed') ?? ''
+  const year              = searchParams.get('year') ?? ''
+  const breed             = searchParams.get('breed') ?? ''
+  const filterLibraryId   = searchParams.get('sire_library_id') ?? ''
+  const filterSireId      = searchParams.get('sire_id') ?? ''
 
   // Fetch calved events — use separate queries to avoid self-join issues
   const [{ data: calvedEvents }, { data: bredEvents }] = await Promise.all([
@@ -150,8 +152,10 @@ export async function GET(req: NextRequest) {
       sire_breed = bull.breed
     }
 
-    // Apply breed filter
+    // Apply filters
     if (breed && sire_breed !== breed) continue
+    if (filterLibraryId && entry.sire_library_id !== filterLibraryId) continue
+    if (filterSireId && entry.sire_id !== filterSireId) continue
 
     results.push({
       sire_id:            entry.sire_id,

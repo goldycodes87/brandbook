@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
   const status   = searchParams.get('status') ?? ''
   const sex      = searchParams.get('sex') ?? ''
   const owner_id = searchParams.get('owner_id') ?? ''
+  const sire_id  = searchParams.get('sire_id') ?? ''
+  const ids      = searchParams.get('ids') ?? ''  // comma-separated UUIDs for batch fetch
   const page     = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
   const limitParam = searchParams.get('limit')
   const limit    = limitParam ? Math.min(Number(limitParam), 200) : 50
@@ -38,12 +40,19 @@ export async function GET(req: NextRequest) {
        photos, dob, created_at,
        owner_id, dam_id, sire_id,
        conception_method,
-       birth_weight_lbs,
+       birth_weight_lbs, weaning_weight_lbs,
        purchase_date, notes`,
       { count: 'exact' }
     )
     .order(sortColumn, { ascending: !sortDir, nullsFirst: false })
-    .range(offset, offset + limit - 1)
+
+  // When fetching by explicit IDs, skip normal pagination
+  if (ids) {
+    const idList = ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, 200)
+    query = query.in('id', idList)
+  } else {
+    query = query.range(offset, offset + limit - 1)
+  }
 
   if (search)   query = query.or(`tag_number.ilike.%${search}%,name.ilike.%${search}%`)
   if (status)   query = query.eq('status', status)
@@ -56,6 +65,7 @@ export async function GET(req: NextRequest) {
     }
   }
   if (owner_id) query = query.eq('owner_id', owner_id)
+  if (sire_id)  query = query.eq('sire_id', sire_id)
 
   const { data, error, count } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

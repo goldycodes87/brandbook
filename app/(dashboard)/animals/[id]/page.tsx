@@ -25,6 +25,7 @@ import type { ReproEventShape, CalfRecord } from '@/components/animals/Pregnancy
 import { CowCalfCard } from '@/components/animals/CowCalfCard'
 import { DispositionSheet } from '@/components/animals/DispositionSheet'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
+import { BullPerformanceSection } from '@/components/animals/BullPerformanceSection'
 import { apiGet, apiDelete, apiPatch } from '@/lib/fetch'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
@@ -411,6 +412,14 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue }: {
             </dl>
           </PanelSection>
         </Panel>
+      )}
+
+      {/* Bull sire performance */}
+      {animal.sex === 'bull' && (
+        <BullPerformanceSection
+          animalId={animal.id}
+          sireLibraryId={animal.sire_library_id}
+        />
       )}
 
       {/* Registration numbers */}
