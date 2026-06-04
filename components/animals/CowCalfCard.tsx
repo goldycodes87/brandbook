@@ -85,7 +85,8 @@ export function CowCalfCard({
   const calfName       = calfFromEvent?.name ?? calf?.name ?? null
   const calfDob        = calfFromEvent?.dob ?? calfEvent.event_date ?? null
   const earTagColor    = calfFromEvent?.ear_tag_color ?? calf?.ear_tag_color ?? null
-  const calfId         = calfFromEvent?.id ?? calf?.id ?? null
+  // Prefer the CalfRecord prop (direct from calves list) over the event JOIN result
+  const calfId         = calf?.id ?? calfFromEvent?.id ?? null
 
   // Birth weight: prefer event calf record, then CalfRecord, then weight log
   const birthWeightFromEvent = calfFromEvent?.birth_weight_lbs ?? null

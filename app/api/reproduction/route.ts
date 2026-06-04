@@ -47,6 +47,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
+  console.log('[repro POST] called')
+  console.log('[repro POST] type:', body?.event_type)
+  console.log('[repro POST] body:', JSON.stringify(body, null, 2))
   console.log('[calving POST] full body:', JSON.stringify(body, null, 2))
   const {
     animal_id,
@@ -110,12 +113,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (!create_calf || !calf_data) {
-    const { data, error } = await supabase
+    const insertResult = await supabase
       .from('reproduction_events')
       .insert(eventRow)
       .select()
       .single()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    console.log('[weaning] insert result:', JSON.stringify(insertResult, null, 2))
+    const { data, error } = insertResult
+    if (error) {
+      console.error('[weaning] error:', error.message, error.code, JSON.stringify(error))
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
     if (event_type === 'calved') {
       const { data: dam } = await supabase.from('animals').select('sex').eq('id', animal_id).single()
@@ -125,20 +133,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (event_type === 'weaned' && weaned_calf_id) {
-      const { data: calfAnimal } = await supabase
-        .from('animals')
-        .select('calf_sex')
-        .eq('id', weaned_calf_id)
-        .single()
-      const newSex =
-        calfAnimal?.calf_sex === 'heifer_calf' ? 'heifer' :
-        calfAnimal?.calf_sex === 'bull_calf'   ? 'bull'   : 'steer'
-      await supabase.from('animals').update({
-        sex:                newSex,
-        weaning_date:       weaning_date || event_date,
-        weaning_weight_lbs: weaning_weight_lbs ?? null,
-      }).eq('id', weaned_calf_id)
+    if (event_type === 'weaned') {
+      console.log('[weaning] animal_id:', animal_id)
+      console.log('[weaning] calf_id:', weaned_calf_id)
+      console.log('[weaning] date:', event_date)
+      console.log('[weaning] weight:', weaning_weight_lbs)
+
+      if (weaned_calf_id) {
+        const { data: calfAnimal, error: calfFetchErr } = await supabase
+          .from('animals')
+          .select('calf_sex')
+          .eq('id', weaned_calf_id)
+          .single()
+
+        if (calfFetchErr) {
+          console.error('[weaning] calf fetch error:', calfFetchErr.message, calfFetchErr.code, JSON.stringify(calfFetchErr))
+        }
+
+        const newSex =
+          calfAnimal?.calf_sex === 'heifer_calf' ? 'heifer' :
+          calfAnimal?.calf_sex === 'bull_calf'   ? 'bull'   : 'steer'
+
+        const sexUpdateResult = await supabase.from('animals').update({
+          sex:                newSex,
+          weaning_date:       weaning_date || event_date,
+          weaning_weight_lbs: weaning_weight_lbs ?? null,
+        }).eq('id', weaned_calf_id).select()
+
+        console.log('[weaning] calf sex update result:', JSON.stringify(sexUpdateResult, null, 2))
+      } else {
+        console.log('[weaning] no weaned_calf_id provided — skipping calf sex update')
+      }
     }
 
     return NextResponse.json({ data }, { status: 201 })
