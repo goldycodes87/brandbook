@@ -286,12 +286,7 @@ export function ReproEventForm({
       console.log('[weaning UI] result:', json)
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
 
-      if (eventType === 'weaned') {
-        setSuccessMsg('Calf weaned successfully')
-        setTimeout(() => onSuccess(json), 1500)
-      } else {
-        onSuccess(json)
-      }
+      onSuccess(json)
     } catch (err: unknown) {
       console.error('[weaning UI] error:', err)
       setError(err instanceof Error ? err.message : 'Connection error — please try again')
