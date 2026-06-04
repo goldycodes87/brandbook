@@ -101,8 +101,9 @@ export function CowCalfCard({
   const sireAnimal     = calfEvent.sire ?? bredEvent?.sire ?? null
   const sireNameText   = calfEvent.sire_name_text ?? bredEvent?.sire_name_text ?? null
 
+  const isWeaned       = !!weaningEvent || !!calf?.weaning_date
   const weanWeight     = weaningEvent?.weaning_weight_lbs ?? calf?.weaning_weight_lbs ?? null
-  const weanDate       = weaningEvent?.weaning_date ?? weaningEvent?.event_date ?? calf?.weaning_date ?? null
+  const weanDate       = weaningEvent?.event_date ?? weaningEvent?.weaning_date ?? calf?.weaning_date ?? null
 
   // Current sex (graduated from calf)
   const currentSex = calf?.sex ?? null
@@ -251,7 +252,9 @@ export function CowCalfCard({
             WEAN WEIGHT
           </div>
           <div className="type-data-sm font-semibold mt-0.5">
-            {weanWeight != null ? (
+            {!isWeaned ? (
+              <span style={{ color: 'var(--text-muted)' }}>Not yet weaned</span>
+            ) : weanWeight != null ? (
               <>
                 <span>{weanWeight} lbs</span>
                 {weanDate && (
@@ -261,7 +264,14 @@ export function CowCalfCard({
                 )}
               </>
             ) : (
-              <span style={{ color: 'var(--text-muted)' }}>Not yet weaned</span>
+              <>
+                <span style={{ color: 'var(--text)' }}>Weaned</span>
+                {weanDate && (
+                  <div className="type-helper" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+                    {fmtDate(weanDate)}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -318,43 +328,20 @@ export function CowCalfCard({
           </span>
         </div>
 
-        {/* Weaned */}
-        {weaningEvent && (
-          <>
-            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: '#ca8a04' }}
-              />
-              <span className="type-helper font-semibold text-center" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-                WEANED
-              </span>
-              <span className="type-helper text-center" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-                {fmtDateShort(weanDate)}
-              </span>
-            </div>
-          </>
-        )}
-
-        {/* Placeholder "not yet weaned" terminus */}
-        {!weaningEvent && (
-          <>
-            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: 'var(--border)' }}
-              />
-              <span className="type-helper font-semibold text-center" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-                WEAN
-              </span>
-              <span className="type-helper text-center" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-                —
-              </span>
-            </div>
-          </>
-        )}
+        {/* Wean dot — filled if isWeaned, gray placeholder if not */}
+        <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+        <div className="flex flex-col items-center gap-1">
+          <div
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: isWeaned ? '#ca8a04' : 'var(--border)' }}
+          />
+          <span className="type-helper font-semibold text-center" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+            WEAN
+          </span>
+          <span className="type-helper text-center" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+            {weanDate ? fmtDateShort(weanDate) : '—'}
+          </span>
+        </div>
       </div>
 
       {/* ── ROW 4: Disposition banner ── */}
@@ -368,7 +355,7 @@ export function CowCalfCard({
             </div>
           )
         }
-        if (!dispKey && weaningEvent && onDispose && calfId) {
+        if (!dispKey && isWeaned && onDispose && calfId) {
           return (
             <button
               type="button"
