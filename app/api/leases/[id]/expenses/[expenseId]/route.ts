@@ -5,14 +5,20 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string; expenseId: string }> }
 
+const ALLOWED = [
+  'category_name', 'category_id', 'expense_type', 'description', 'total_amount',
+  'expense_date', 'receipt_url', 'period_start', 'period_end',
+  'owner_id', 'animal_id', 'year', 'quarter', 'notes',
+  'quantity', 'unit_cost', 'sire_library_id', 'bull_name',
+]
+
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { expenseId } = await params
   const body = await req.json()
   const supabase = createAdminClient()
 
-  const allowed = ['category_name','description','total_amount','expense_date','receipt_url','period_start','period_end']
   const updates: Record<string, unknown> = {}
-  for (const k of allowed) {
+  for (const k of ALLOWED) {
     if (k in body) updates[k] = body[k]
   }
 

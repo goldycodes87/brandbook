@@ -81,14 +81,22 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
   const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
   const [editExpense, setEditExpense] = useState<LeaseExpense | null>(null)
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
+  const [filterYear, setFilterYear]       = useState<string>(String(new Date().getFullYear()))
+  const [filterQuarter, setFilterQuarter] = useState<string>('ALL')
+  const [filterType, setFilterType]       = useState<string>('ALL')
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
+      const expParams = new URLSearchParams()
+      if (filterYear)              expParams.set('year', String(Number(filterYear) % 100))
+      if (filterQuarter !== 'ALL') expParams.set('quarter', filterQuarter)
+      if (filterType    !== 'ALL') expParams.set('expense_type', filterType.toLowerCase())
+
       const [billingRes, aumRes, expRes] = await Promise.all([
         fetch(`/api/leases/${leaseId}/billing`),
         fetch(`/api/leases/${leaseId}/aum`),
-        fetch(`/api/leases/${leaseId}/expenses`),
+        fetch(`/api/leases/${leaseId}/expenses?${expParams}`),
       ])
       const billing = await billingRes.json()
       const aum     = await aumRes.json()
@@ -112,7 +120,7 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
     }
   }
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, filterYear, filterQuarter, filterType])
 
   const handleMarkPaid = async (p: Period) => {
     setMarkingPaid(p.id)
@@ -395,25 +403,77 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
         )}
       </Panel>
 
-      {/* ── Shared expenses ───────────────────────────────────────────── */}
-      <Panel
-        title="SHARED EXPENSES"
-        subtitle="Costs split across all owners on this lease"
-        actions={
+      {/* ── Lease expenses ────────────────────────────────────────────── */}
+
+      {/* Filter row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={filterYear}
+          onChange={e => setFilterYear(e.target.value)}
+          className="text-sm rounded px-2 py-1"
+          style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--text)' }}
+        >
+          {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+            <option key={y} value={String(y)}>{y}</option>
+          ))}
+        </select>
+
+        <div className="flex rounded overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          {['ALL','1','2','3','4'].map(q => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => setFilterQuarter(q)}
+              className="px-3 py-1 text-xs font-semibold transition-colors"
+              style={{
+                background: filterQuarter === q ? 'var(--accent)' : 'var(--surface-1)',
+                color:      filterQuarter === q ? 'var(--accent-fg, #fff)' : 'var(--text-muted)',
+                borderRight: q !== '4' ? '1px solid var(--border)' : undefined,
+              }}
+            >
+              {q === 'ALL' ? 'ALL Q' : `Q${q}`}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex rounded overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          {(['ALL','SHARED','OWNER','ANIMAL'] as const).map((t, idx, arr) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setFilterType(t)}
+              className="px-3 py-1 text-xs font-semibold transition-colors"
+              style={{
+                background: filterType === t ? 'var(--accent)' : 'var(--surface-1)',
+                color:      filterType === t ? 'var(--accent-fg, #fff)' : 'var(--text-muted)',
+                borderRight: idx < arr.length - 1 ? '1px solid var(--border)' : undefined,
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto">
           <Button intent="primary" size="sm" onClick={() => { setEditExpense(null); setExpenseSheetOpen(true) }}>
             <Plus size={14} className="mr-1" />
-            ADD EXPENSE
+            LOG EXPENSE
           </Button>
-        }
+        </div>
+      </div>
+
+      <Panel
+        title="LEASE EXPENSES"
+        subtitle="Logged expenses for this lease"
         padding="none"
       >
         {expenses.length === 0 ? (
           <div className="px-5 py-8 text-center">
             <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
-              No shared expenses logged. Expenses added here are automatically split by owner % when generating invoices.
+              No expenses logged. Expenses are split by herd % or assigned to a specific owner or animal when generating invoices.
             </p>
             <Button intent="primary" size="sm" className="mt-3" onClick={() => setExpenseSheetOpen(true)}>
-              Add First Expense
+              Log First Expense
             </Button>
           </div>
         ) : (
@@ -422,7 +482,7 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                    {['Date', 'Category', 'Description', 'Total Amount', ''].map(h => (
+                    {['Date', 'Type', 'Category', 'Description', 'Total Amount', ''].map(h => (
                       <th key={h} className="text-left px-4 py-2 type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
                   </tr>
@@ -432,6 +492,11 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
                     <tr key={exp.id} style={{ borderBottom: i < expenses.length - 1 ? '1px solid var(--border)' : undefined }}>
                       <td className="px-4 py-3 type-helper" style={{ color: 'var(--text-muted)' }}>
                         {exp.expense_date ? fmtDate(exp.expense_date) : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="type-helper font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>
+                          {exp.expense_type === 'owner_specific' ? 'Owner' : exp.expense_type === 'animal_specific' ? 'Animal' : 'Shared'}
+                        </span>
                       </td>
                       <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{exp.category_name}</td>
                       <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{exp.description || '—'}</td>
@@ -466,7 +531,12 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
                 >
                   <div className="flex items-start justify-between mb-1">
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{exp.category_name}</p>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{exp.category_name}</p>
+                        <span className="type-helper uppercase" style={{ color: 'var(--text-muted)' }}>
+                          {exp.expense_type === 'owner_specific' ? 'Owner' : exp.expense_type === 'animal_specific' ? 'Animal' : 'Shared'}
+                        </span>
+                      </div>
                       {exp.description && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{exp.description}</p>}
                     </div>
                     <span className="font-bold text-sm" style={{ color: 'var(--gold-fg)' }}>{fmt(exp.total_amount)}</span>
@@ -487,7 +557,7 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
               className="px-5 py-3 flex justify-between"
               style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}
             >
-              <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>TOTAL SHARED EXPENSES</span>
+              <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>TOTAL EXPENSES</span>
               <span className="font-bold" style={{ color: 'var(--gold-fg)' }}>
                 {fmt(expenses.reduce((s, e) => s + e.total_amount, 0))}
               </span>
@@ -510,6 +580,7 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
         isOpen={expenseSheetOpen}
         onClose={() => { setExpenseSheetOpen(false); setEditExpense(null) }}
         leaseId={leaseId}
+        leaseName={lease.property_name}
         onSuccess={load}
         initialData={editExpense}
         mode={editExpense ? 'edit' : 'create'}

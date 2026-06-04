@@ -9,6 +9,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import Badge from '@/components/ui/Badge'
 import { InvoiceForm } from '@/components/billing/InvoiceForm'
+import { QuarterlyInvoiceSheet } from '@/components/billing/QuarterlyInvoiceSheet'
 import { Send, CheckCircle, FileText, DollarSign } from 'lucide-react'
 import { apiGet } from '@/lib/fetch'
 
@@ -143,7 +144,8 @@ export default function BillingPage() {
   const [loading, setLoading]     = useState(true)
   const [statusTab, setStatusTab] = useState<string>('all')
   const [search, setSearch]       = useState('')
-  const [showCreate, setShowCreate] = useState(false)
+  const [showCreate, setShowCreate]             = useState(false)
+  const [showQuarterly, setShowQuarterly]       = useState(false)
   const router = useRouter()
 
   const load = useCallback(async () => {
@@ -213,9 +215,14 @@ export default function BillingPage() {
         title="INVOICES"
         subtitle={`${invoices.length} invoice${invoices.length !== 1 ? 's' : ''}`}
         actions={
-          <Button intent="primary" size="sm" onClick={() => setShowCreate(true)}>
-            + CREATE INVOICE
-          </Button>
+          <div className="flex gap-2">
+            <Button intent="secondary" size="sm" onClick={() => setShowQuarterly(true)}>
+              QUARTERLY INVOICE
+            </Button>
+            <Button intent="primary" size="sm" onClick={() => setShowCreate(true)}>
+              + CREATE INVOICE
+            </Button>
+          </div>
         }
       />
 
@@ -278,6 +285,12 @@ export default function BillingPage() {
           ))}
         </div>
       </div>
+
+      <QuarterlyInvoiceSheet
+        isOpen={showQuarterly}
+        onClose={() => setShowQuarterly(false)}
+        onSuccess={inv => { setShowQuarterly(false); router.push(`/billing/${inv.id}`) }}
+      />
 
       {/* List */}
       {loading ? (

@@ -696,6 +696,7 @@ export type Database = {
         Row: {
           created_at: string | null
           description: string | null
+          expense_type: string | null
           id: string
           is_active: boolean | null
           name: string
@@ -704,6 +705,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           description?: string | null
+          expense_type?: string | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -712,6 +714,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           description?: string | null
+          expense_type?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
@@ -1323,6 +1326,8 @@ export type Database = {
           expense_splits: Json | null
           id: string
           invoice_number: string | null
+          invoice_quarter: number | null
+          invoice_sequence: number | null
           line_items: Json | null
           notes: string | null
           owner_id: string
@@ -1346,6 +1351,8 @@ export type Database = {
           expense_splits?: Json | null
           id?: string
           invoice_number?: string | null
+          invoice_quarter?: number | null
+          invoice_sequence?: number | null
           line_items?: Json | null
           notes?: string | null
           owner_id: string
@@ -1369,6 +1376,8 @@ export type Database = {
           expense_splits?: Json | null
           id?: string
           invoice_number?: string | null
+          invoice_quarter?: number | null
+          invoice_sequence?: number | null
           line_items?: Json | null
           notes?: string | null
           owner_id?: string
@@ -1397,47 +1406,105 @@ export type Database = {
       }
       lease_expenses: {
         Row: {
+          animal_id: string | null
+          bull_name: string | null
+          category_id: string | null
           category_name: string
           created_at: string | null
           description: string | null
           expense_date: string | null
+          expense_type: string | null
           id: string
           lease_id: string
+          owner_id: string | null
           period_end: string | null
           period_start: string | null
+          qty: number | null
+          quarter: number | null
           receipt_url: string | null
+          sire_library_id: string | null
           total_amount: number
+          unit_cost: number | null
+          year: number | null
         }
         Insert: {
+          animal_id?: string | null
+          bull_name?: string | null
+          category_id?: string | null
           category_name: string
           created_at?: string | null
           description?: string | null
           expense_date?: string | null
+          expense_type?: string | null
           id?: string
           lease_id: string
+          owner_id?: string | null
           period_end?: string | null
           period_start?: string | null
+          qty?: number | null
+          quarter?: number | null
           receipt_url?: string | null
+          sire_library_id?: string | null
           total_amount: number
+          unit_cost?: number | null
+          year?: number | null
         }
         Update: {
+          animal_id?: string | null
+          bull_name?: string | null
+          category_id?: string | null
           category_name?: string
           created_at?: string | null
           description?: string | null
           expense_date?: string | null
+          expense_type?: string | null
           id?: string
           lease_id?: string
+          owner_id?: string | null
           period_end?: string | null
           period_start?: string | null
+          qty?: number | null
+          quarter?: number | null
           receipt_url?: string | null
+          sire_library_id?: string | null
           total_amount?: number
+          unit_cost?: number | null
+          year?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "lease_expenses_animal_id_fkey"
+            columns: ["animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lease_expenses_lease_id_fkey"
             columns: ["lease_id"]
             isOneToOne: false
             referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_expenses_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_expenses_sire_library_id_fkey"
+            columns: ["sire_library_id"]
+            isOneToOne: false
+            referencedRelation: "sire_library"
             referencedColumns: ["id"]
           },
         ]
