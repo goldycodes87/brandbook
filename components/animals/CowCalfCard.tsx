@@ -166,8 +166,9 @@ export function CowCalfCard({
           {calfId && (
             <Link
               href={`/animals/${calfId}`}
-              className="type-helper font-semibold"
+              className="type-helper font-semibold min-h-[44px] flex items-center"
               style={{ color: 'var(--accent)' }}
+              onClick={e => e.stopPropagation()}
             >
               VIEW CALF →
             </Link>
@@ -206,8 +207,9 @@ export function CowCalfCard({
               <>
                 <Link
                   href={`/genetics/sires/${sireLib.id}`}
-                  className="hover:underline"
+                  className="hover:underline min-h-[44px] flex items-center"
                   style={{ color: 'var(--accent)', fontSize: '11px' }}
+                  onClick={e => e.stopPropagation()}
                 >
                   {sireLib.bull_name}
                 </Link>
