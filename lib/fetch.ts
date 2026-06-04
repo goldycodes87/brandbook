@@ -1,5 +1,5 @@
 export async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-  return fetch(url, { credentials: 'include', ...init })
+  return fetch(url, { credentials: 'include', cache: 'no-store', ...init })
 }
 
 export async function apiGet(url: string): Promise<Response> {
