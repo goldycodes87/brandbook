@@ -128,6 +128,7 @@ export function ReproEventForm({
   const [notes,            setNotes]            = useState('')
   const [saving,           setSaving]           = useState(false)
   const [error,            setError]            = useState('')
+  const [successMsg,       setSuccessMsg]       = useState('')
 
   // Calf fields
   const [calfTag,        setCalfTag]        = useState('')
@@ -282,10 +283,18 @@ export function ReproEventForm({
 
       const res  = await apiPost('/api/reproduction', payload)
       const json = await res.json()
+      console.log('[weaning UI] result:', json)
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
-      onSuccess(json)
-    } catch {
-      setError('Connection error — please try again')
+
+      if (eventType === 'weaned') {
+        setSuccessMsg('Calf weaned successfully')
+        setTimeout(() => onSuccess(json), 1500)
+      } else {
+        onSuccess(json)
+      }
+    } catch (err: unknown) {
+      console.error('[weaning UI] error:', err)
+      setError(err instanceof Error ? err.message : 'Connection error — please try again')
     } finally {
       setSaving(false)
     }
@@ -584,6 +593,10 @@ export function ReproEventForm({
       <Field label="Notes">
         <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Observations, comments…" />
       </Field>
+
+      {successMsg && (
+        <ContextBanner tone="success">{successMsg}</ContextBanner>
+      )}
 
       {error && (
         <p className="type-helper px-3 py-2 rounded-[var(--radius-md)]"

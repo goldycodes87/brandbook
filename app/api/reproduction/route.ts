@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
     days_bred: days_bred ?? null,
     weaning_date: event_type === 'weaned' ? (weaning_date || event_date) : null,
     weaning_weight_lbs: event_type === 'weaned' ? (weaning_weight_lbs ?? null) : null,
+    calf_id: event_type === 'weaned' ? (weaned_calf_id || null) : null,
     donor_dam_id: donor_dam_id || null,
     notes: notes || null,
   }
