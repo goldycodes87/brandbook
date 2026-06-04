@@ -678,14 +678,16 @@ function groupReproEvents(
 
   for (const calfEvent of calvedEvents) {
     const calfDate    = new Date(calfEvent.event_date).getTime()
-    const calfRecord  =
-      // Direct ID match (calf_id was set on the event)
-      calves.find(c => c.id === calfEvent.calf?.id) ??
-      // DOB fallback for pre-fix records where calf_id was null on the event
-      (calfEvent.calf == null
-        ? calves.find(c => c.dob != null && c.dob.slice(0, 10) === calfEvent.event_date?.slice(0, 10))
-        : null) ??
-      null
+    const calfRecord =
+      calves.find(c =>
+        c.id === calfEvent.calf?.id)
+      ?? calves.find(c =>
+        calfEvent.calf == null &&
+        c.dob != null &&
+        c.dob.slice(0, 10) ===
+          calfEvent.event_date
+            ?.slice(0, 10))
+      ?? null
 
     // Most recent unclaimed bred event before this calved event
     const bredEvent = bredPool

@@ -205,14 +205,9 @@ export function CowCalfCard({
           <div className="type-data-sm font-semibold mt-0.5 flex flex-wrap items-center gap-1">
             {sireLib ? (
               <>
-                <Link
-                  href={`/genetics/sires/${sireLib.id}`}
-                  className="hover:underline min-h-[44px] flex items-center"
-                  style={{ color: 'var(--accent)', fontSize: '11px' }}
-                  onClick={e => e.stopPropagation()}
-                >
+                <span style={{ color: 'var(--accent)', fontSize: '11px' }}>
                   {sireLib.bull_name}
-                </Link>
+                </span>
                 {sireLib.breed && (
                   <Chip tone="neutral" size="sm">{sireLib.breed}</Chip>
                 )}
