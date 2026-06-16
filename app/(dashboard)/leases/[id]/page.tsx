@@ -12,6 +12,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
 import { LeaseSheet, type Lease } from '@/components/leases/LeaseSheet'
 import { LeaseBillingTab } from '@/components/leases/LeaseBillingTab'
+import { LeaseAnimalsTab } from '@/components/leases/LeaseAnimalsTab'
 
 const TABS: TabItem[] = [
   { value: 'billing', label: 'Billing' },
@@ -150,7 +151,7 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
 
       {tab === 'billing' && <LeaseBillingTab leaseId={id} lease={lease} />}
       {tab === 'details' && <DetailsTab lease={lease} onEdit={() => setEditOpen(true)} />}
-      {tab === 'animals' && <EmptyState variant="neutral" title="Animals" body="Animals assigned to this lease coming soon." />}
+      {tab === 'animals' && <LeaseAnimalsTab leaseId={id} leaseName={lease.property_name || 'this lease'} />}
       {tab === 'aum'     && <EmptyState variant="neutral" title="AUM Tracking" body="AUM records coming soon." />}
       {tab === 'history' && <EmptyState variant="neutral" title="History" body="Payment and change history coming soon." />}
 
