@@ -35,10 +35,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ total_billable_units: 0, unweaned_calves_excluded: 0, by_owner: [] })
   }
 
-  // Unweaned calves: sex is calf/Calf, no weaning date, has a dam
+  // Unweaned pair calves: calf with no weaning date whose dam is also currently assigned
+  const activeAnimalIdSet = new Set((animals as Array<{ id: string }>).map(a => a.id))
   const unweanedSet = new Set(
     (animals as Array<{ id: string; sex: string | null; weaning_date: string | null; dam_id: string | null }>)
-      .filter(a => (a.sex?.toLowerCase() === 'calf') && !a.weaning_date && a.dam_id)
+      .filter(a =>
+        a.sex?.toLowerCase() === 'calf' &&
+        !a.weaning_date &&
+        a.dam_id !== null &&
+        activeAnimalIdSet.has(a.dam_id!)
+      )
       .map(a => a.id)
   )
 

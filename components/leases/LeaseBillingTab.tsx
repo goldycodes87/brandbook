@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Pencil } from 'lucide-react'
+import { Plus, Trash2, Pencil, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatCard } from '@/components/ui/StatCard'
 import { ContextBanner } from '@/components/ui/ContextBanner'
@@ -28,6 +28,15 @@ interface AumData {
   by_owner: AumOwnerRow[]
 }
 
+interface OwnerShare {
+  owner_id: string | null
+  owner_name: string
+  animal_count: number
+  animal_days: number
+  cost: number
+  pair_calves_excluded: number
+}
+
 interface Period {
   id: string
   lease_id: string
@@ -42,6 +51,8 @@ interface Period {
   created_at: string
   days: number
   calculated_cost: number
+  pair_calves_excluded?: number
+  by_owner?: OwnerShare[]
 }
 
 interface BillingSummary {
@@ -84,6 +95,9 @@ export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
   const [filterYear, setFilterYear]       = useState<string>(String(new Date().getFullYear()))
   const [filterQuarter, setFilterQuarter] = useState<string>('ALL')
   const [filterType, setFilterType]       = useState<string>('ALL')
+  const [expandedPeriodId, setExpandedPeriodId] = useState<string | null>(null)
+
+  const today = new Date().toISOString().slice(0, 10)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -275,94 +289,201 @@ export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {periods.map((p, i) => (
-                    <tr key={p.id} style={{ borderBottom: i < periods.length - 1 ? '1px solid var(--border)' : undefined }}>
-                      <td className="px-4 py-3" style={{ color: 'var(--text)' }}>{fmtDate(p.start_date)}</td>
-                      <td className="px-4 py-3" style={{ color: 'var(--text)' }}>{fmtDate(p.end_date)}</td>
-                      <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{p.days}</td>
-                      <td className="px-4 py-3 font-semibold" style={{ color: 'var(--text)' }}>
-                        {p.animal_ids?.length
-                          ? <span className="inline-flex items-center gap-1">
-                              <span>{p.animal_ids.length}</span>
-                              <span className="type-helper" style={{ color: 'var(--text-muted)' }}>tracked</span>
-                            </span>
-                          : p.head_count}
-                      </td>
-                      <td className="px-4 py-3 font-medium" style={{ color: 'var(--gold-fg)' }}>{fmt(p.calculated_cost)}</td>
-                      <td className="px-4 py-3">
-                        {p.is_paid
-                          ? <Badge variant="success">PAID</Badge>
-                          : <Badge variant="warning">UNPAID</Badge>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {!p.is_paid && (
-                            <Button
-                              intent="ghost" size="sm"
-                              loading={markingPaid === p.id}
-                              onClick={() => handleMarkPaid(p)}
-                            >MARK PAID</Button>
-                          )}
-                          <button type="button" onClick={() => { setEditTarget(p); setAddOpen(true) }}>
-                            <Pencil size={14} style={{ color: 'var(--text-muted)' }} />
-                          </button>
-                          <button type="button" onClick={() => setDeleteTarget(p)}>
-                            <Trash2 size={14} style={{ color: 'var(--danger-fg)' }} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {periods.map((p, i) => {
+                    const isLive = p.end_date >= today
+                    const isExpanded = expandedPeriodId === p.id
+                    const hasBreakdown = (p.by_owner?.length ?? 0) > 0
+                    return (
+                      <>
+                        <tr key={p.id} style={{ borderBottom: (!isExpanded && i < periods.length - 1) ? '1px solid var(--border)' : undefined }}>
+                          <td className="px-4 py-3" style={{ color: 'var(--text)' }}>
+                            <div className="flex items-center gap-2">
+                              {isLive && <Chip tone="success" size="sm">LIVE</Chip>}
+                              {fmtDate(p.start_date)}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3" style={{ color: 'var(--text)' }}>{fmtDate(p.end_date)}</td>
+                          <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{p.days}</td>
+                          <td className="px-4 py-3 font-semibold" style={{ color: 'var(--text)' }}>
+                            {p.animal_ids?.length
+                              ? <span className="inline-flex items-center gap-1">
+                                  <span>{p.animal_ids.length}</span>
+                                  <span className="type-helper" style={{ color: 'var(--text-muted)' }}>tracked</span>
+                                </span>
+                              : p.head_count}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium" style={{ color: 'var(--gold-fg)' }}>{fmt(p.calculated_cost)}</span>
+                              {hasBreakdown && (
+                                <button type="button" onClick={() => setExpandedPeriodId(isExpanded ? null : p.id)}>
+                                  {isExpanded
+                                    ? <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />
+                                    : <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {p.is_paid
+                              ? <Badge variant="success">PAID</Badge>
+                              : <Badge variant="warning">UNPAID</Badge>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {!p.is_paid && (
+                                <Button
+                                  intent="ghost" size="sm"
+                                  loading={markingPaid === p.id}
+                                  onClick={() => handleMarkPaid(p)}
+                                >MARK PAID</Button>
+                              )}
+                              <button type="button" onClick={() => { setEditTarget(p); setAddOpen(true) }}>
+                                <Pencil size={14} style={{ color: 'var(--text-muted)' }} />
+                              </button>
+                              <button type="button" onClick={() => setDeleteTarget(p)}>
+                                <Trash2 size={14} style={{ color: 'var(--danger-fg)' }} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && hasBreakdown && (
+                          <tr key={`${p.id}-breakdown`} style={{ borderBottom: i < periods.length - 1 ? '1px solid var(--border)' : undefined }}>
+                            <td colSpan={7} className="px-4 pb-3">
+                              <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                                      {['Owner', 'Animals', 'Animal-Days', 'Cost Share'].map(h => (
+                                        <th key={h} className="text-left px-3 py-1.5 type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {p.by_owner!.map((row, ri) => (
+                                      <tr key={row.owner_id ?? 'ranch'} style={{ borderBottom: ri < p.by_owner!.length - 1 ? '1px solid var(--border)' : undefined }}>
+                                        <td className="px-3 py-2 font-medium" style={{ color: 'var(--text)' }}>
+                                          {row.owner_name}
+                                          {row.pair_calves_excluded > 0 && (
+                                            <span className="ml-1 type-helper" style={{ color: 'var(--text-muted)' }}>
+                                              (+{row.pair_calves_excluded} calf pair)
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-2" style={{ color: 'var(--text-muted)' }}>{row.animal_count}</td>
+                                        <td className="px-3 py-2" style={{ color: 'var(--text-muted)' }}>{row.animal_days}</td>
+                                        <td className="px-3 py-2 font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(row.cost)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              {(p.pair_calves_excluded ?? 0) > 0 && (
+                                <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>
+                                  {p.pair_calves_excluded} nursing calf{p.pair_calves_excluded !== 1 ? 's' : ''} ride free with dam
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
 
             {/* Mobile cards */}
             <div className="md:hidden flex flex-col">
-              {periods.map((p, i) => (
-                <div
-                  key={p.id}
-                  className="px-4 py-4"
-                  style={{ borderBottom: i < periods.length - 1 ? '1px solid var(--border)' : undefined }}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                        {fmtDate(p.start_date)} – {fmtDate(p.end_date)}
-                      </p>
-                      <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{p.days} days</p>
+              {periods.map((p, i) => {
+                const isLive = p.end_date >= today
+                const isExpanded = expandedPeriodId === p.id
+                const hasBreakdown = (p.by_owner?.length ?? 0) > 0
+                return (
+                  <div
+                    key={p.id}
+                    className="px-4 py-4"
+                    style={{ borderBottom: i < periods.length - 1 ? '1px solid var(--border)' : undefined }}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          {isLive && <Chip tone="success" size="sm">LIVE</Chip>}
+                          <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                            {fmtDate(p.start_date)} – {fmtDate(p.end_date)}
+                          </p>
+                        </div>
+                        <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{p.days} days</p>
+                      </div>
+                      {p.is_paid
+                        ? <Badge variant="success">PAID</Badge>
+                        : <Badge variant="warning">UNPAID</Badge>}
                     </div>
-                    {p.is_paid
-                      ? <Badge variant="success">PAID</Badge>
-                      : <Badge variant="warning">UNPAID</Badge>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-2xl font-bold" style={{ color: 'var(--text)' }}>
-                        {p.animal_ids?.length ?? p.head_count}
-                      </span>
-                      <span className="type-helper ml-1" style={{ color: 'var(--text-muted)' }}>
-                        {p.animal_ids?.length ? 'tracked' : 'head'}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-2xl font-bold" style={{ color: 'var(--text)' }}>
+                          {p.animal_ids?.length ?? p.head_count}
+                        </span>
+                        <span className="type-helper ml-1" style={{ color: 'var(--text-muted)' }}>
+                          {p.animal_ids?.length ? 'tracked' : 'head'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(p.calculated_cost)}</span>
+                        {hasBreakdown && (
+                          <button type="button" onClick={() => setExpandedPeriodId(isExpanded ? null : p.id)}>
+                            {isExpanded
+                              ? <ChevronDown size={16} style={{ color: 'var(--text-muted)' }} />
+                              : <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-base font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(p.calculated_cost)}</span>
-                  </div>
-                  {p.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{p.notes}</p>}
-                  <div className="flex items-center gap-2 mt-3">
-                    {!p.is_paid && (
-                      <Button
-                        intent="ghost" size="sm"
-                        loading={markingPaid === p.id}
-                        onClick={() => handleMarkPaid(p)}
-                      >MARK PAID</Button>
+                    {p.notes && <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>{p.notes}</p>}
+
+                    {/* Owner breakdown — mobile */}
+                    {isExpanded && hasBreakdown && (
+                      <div className="mt-3 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                        {p.by_owner!.map((row, ri) => (
+                          <div
+                            key={row.owner_id ?? 'ranch'}
+                            className="flex items-center justify-between px-3 py-2"
+                            style={{ borderBottom: ri < p.by_owner!.length - 1 ? '1px solid var(--border)' : undefined }}
+                          >
+                            <div>
+                              <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>{row.owner_name}</p>
+                              <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                                {row.animal_count} animals · {row.animal_days} days
+                                {row.pair_calves_excluded > 0 && ` · +${row.pair_calves_excluded} calf pair`}
+                              </p>
+                            </div>
+                            <span className="text-xs font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(row.cost)}</span>
+                          </div>
+                        ))}
+                        {(p.pair_calves_excluded ?? 0) > 0 && (
+                          <p className="type-helper px-3 py-1.5" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+                            {p.pair_calves_excluded} nursing calf{p.pair_calves_excluded !== 1 ? 's' : ''} ride free with dam
+                          </p>
+                        )}
+                      </div>
                     )}
-                    <Button intent="ghost" size="sm" onClick={() => { setEditTarget(p); setAddOpen(true) }}>EDIT</Button>
-                    <button type="button" className="ml-auto" onClick={() => setDeleteTarget(p)}>
-                      <Trash2 size={16} style={{ color: 'var(--danger-fg)' }} />
-                    </button>
+
+                    <div className="flex items-center gap-2 mt-3">
+                      {!p.is_paid && (
+                        <Button
+                          intent="ghost" size="sm"
+                          loading={markingPaid === p.id}
+                          onClick={() => handleMarkPaid(p)}
+                        >MARK PAID</Button>
+                      )}
+                      <Button intent="ghost" size="sm" onClick={() => { setEditTarget(p); setAddOpen(true) }}>EDIT</Button>
+                      <button type="button" className="ml-auto" onClick={() => setDeleteTarget(p)}>
+                        <Trash2 size={16} style={{ color: 'var(--danger-fg)' }} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Totals footer */}
