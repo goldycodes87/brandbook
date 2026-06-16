@@ -36,6 +36,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const { data: ranchData } = await supabase
+    .from('ranch_settings')
+    .select('ranch_name')
+    .limit(1)
+    .maybeSingle()
+  const ranchName = (ranchData as { ranch_name?: string | null } | null)?.ranch_name?.trim() || 'My Ranch'
+
   const ownerIds = [
     ...new Set(
       (animals ?? [])
@@ -61,7 +68,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     sex: string | null; status: string | null; owner_id: string | null
   }) => ({
     ...a,
-    owner_name:    a.owner_id ? (ownerMap[a.owner_id] ?? null) : null,
+    owner_name:    a.owner_id ? (ownerMap[a.owner_id] ?? ranchName) : ranchName,
     start_date:    assignMap.get(a.id)?.start_date ?? null,
     assignment_id: assignMap.get(a.id)?.assignment_id ?? null,
   }))

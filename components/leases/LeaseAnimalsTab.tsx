@@ -29,9 +29,10 @@ function aumFor(sex: string | null): number {
 interface Props {
   leaseId: string
   leaseName: string
+  ranchName?: string
 }
 
-export function LeaseAnimalsTab({ leaseId, leaseName }: Props) {
+export function LeaseAnimalsTab({ leaseId, leaseName, ranchName = '' }: Props) {
   const [animals, setAnimals]           = useState<LeaseAnimal[]>([])
   const [loading, setLoading]           = useState(true)
   const [assignOpen, setAssignOpen]     = useState(false)
@@ -128,12 +129,12 @@ export function LeaseAnimalsTab({ leaseId, leaseName }: Props) {
                       {a.sex}
                     </span>
                   )}
-                  {a.owner_name && (
+                  {(a.owner_name || ranchName) && (
                     <span
                       className="inline-block px-1.5 rounded text-xs uppercase"
                       style={{ background: 'var(--surface-1)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
                     >
-                      {a.owner_name}
+                      {a.owner_name || ranchName}
                     </span>
                   )}
                 </div>

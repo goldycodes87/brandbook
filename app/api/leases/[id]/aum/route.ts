@@ -42,6 +42,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .map(a => a.id)
   )
 
+  // Fetch ranch name for null-owner display
+  const { data: ranchData } = await supabase
+    .from('ranch_settings')
+    .select('ranch_name')
+    .limit(1)
+    .maybeSingle()
+  const ranchName = (ranchData as { ranch_name?: string | null } | null)?.ranch_name?.trim() || 'My Ranch'
+
   // Fetch owner names
   const ownerIds = [...new Set(
     (animals as Array<{ owner_id: string | null }>).map(a => a.owner_id).filter(Boolean) as string[]
@@ -73,7 +81,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const byOwner = Object.entries(byOwnerMap)
     .map(([owner_id, counts]) => ({
       owner_id:       owner_id === '__unassigned__' ? null : owner_id,
-      owner_name:     owner_id === '__unassigned__' ? 'Legacy Land & Cattle' : (ownerMap[owner_id] ?? 'Unknown'),
+      owner_name:     owner_id === '__unassigned__' ? ranchName : (ownerMap[owner_id] ?? 'Unknown'),
       billable:       counts.billable,
       calves_excluded: counts.calves_excluded,
       percent_of_herd: totalBillable > 0 ? Math.round((counts.billable / totalBillable) * 1000) / 10 : 0,

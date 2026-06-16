@@ -87,11 +87,12 @@ function DetailsTab({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
 export default function LeaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
-  const [lease, setLease]       = useState<Lease | null>(null)
-  const [loading, setLoading]   = useState(true)
-  const [notFound, setNotFound] = useState(false)
-  const [tab, setTab]           = useState('billing')
-  const [editOpen, setEditOpen] = useState(false)
+  const [lease, setLease]         = useState<Lease | null>(null)
+  const [loading, setLoading]     = useState(true)
+  const [notFound, setNotFound]   = useState(false)
+  const [tab, setTab]             = useState('billing')
+  const [editOpen, setEditOpen]   = useState(false)
+  const [ranchName, setRanchName] = useState<string>('')
 
   const loadLease = async () => {
     try {
@@ -105,6 +106,12 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   useEffect(() => { loadLease() }, [id])
+
+  useEffect(() => {
+    fetch('/api/settings/ranch')
+      .then(r => r.json())
+      .then(d => { if (d.data?.ranch_name) setRanchName(d.data.ranch_name.trim()) })
+  }, [])
 
   if (loading) {
     return (
@@ -149,9 +156,9 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
 
       <Tabs items={TABS} value={tab} onChange={setTab} className="my-4" />
 
-      {tab === 'billing' && <LeaseBillingTab leaseId={id} lease={lease} />}
+      {tab === 'billing' && <LeaseBillingTab leaseId={id} lease={lease} ranchName={ranchName} />}
       {tab === 'details' && <DetailsTab lease={lease} onEdit={() => setEditOpen(true)} />}
-      {tab === 'animals' && <LeaseAnimalsTab leaseId={id} leaseName={lease.property_name || 'this lease'} />}
+      {tab === 'animals' && <LeaseAnimalsTab leaseId={id} leaseName={lease.property_name || 'this lease'} ranchName={ranchName} />}
       {tab === 'aum'     && <EmptyState variant="neutral" title="AUM Tracking" body="AUM records coming soon." />}
       {tab === 'history' && <EmptyState variant="neutral" title="History" body="Payment and change history coming soon." />}
 

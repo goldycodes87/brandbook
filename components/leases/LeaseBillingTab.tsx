@@ -54,6 +54,7 @@ interface BillingSummary {
 interface Props {
   leaseId: string
   lease: Lease
+  ranchName: string
 }
 
 function fmt(n: number) {
@@ -65,7 +66,7 @@ function fmtDate(d: string | null) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function LeaseBillingTab({ leaseId, lease }: Props) {
+export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
   const [periods, setPeriods]   = useState<Period[]>([])
   const [summary, setSummary]   = useState<BillingSummary | null>(null)
   const [aumData, setAumData]   = useState<AumData | null>(null)
@@ -561,6 +562,7 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
         onClose={() => { setExpenseSheetOpen(false); setEditExpense(null) }}
         leaseId={leaseId}
         leaseName={lease.property_name}
+        ranchName={ranchName}
         onSuccess={load}
         initialData={editExpense}
         mode={editExpense ? 'edit' : 'create'}

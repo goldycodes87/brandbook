@@ -56,6 +56,7 @@ interface Props {
   onClose: () => void
   leaseId: string
   leaseName?: string
+  ranchName?: string
   onSuccess: () => void
   initialData?: LeaseExpense | null
   mode?: 'create' | 'edit'
@@ -68,7 +69,7 @@ function fmt(n: number) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AddLeaseExpenseSheet({
-  isOpen, onClose, leaseId, leaseName, onSuccess, initialData, mode = 'create',
+  isOpen, onClose, leaseId, leaseName, ranchName = 'My Ranch', onSuccess, initialData, mode = 'create',
 }: Props) {
   const [step,          setStep]         = useState<1 | 2 | 3 | 4>(1)
   const [expenseType,   setExpenseType]  = useState<ExpenseType>('shared')
@@ -163,7 +164,7 @@ export function AddLeaseExpenseSheet({
   const handleSave = async () => {
     const amt = parseFloat(computedTotal)
     if (!categoryName || isNaN(amt)) { setError('Category and amount are required'); return }
-    if (expenseType === 'owner_specific' && !ownerId) { setError('Select an owner'); return }
+    if (expenseType === 'owner_specific' && ownerId === null) { setError('Select an owner'); return }
     if (expenseType === 'animal_specific' && !animalId) { setError('Select an animal'); return }
 
     setSaving(true); setError('')
@@ -176,7 +177,7 @@ export function AddLeaseExpenseSheet({
         total_amount:    amt,
         expense_date:    expenseDate || null,
         notes:           notes || null,
-        owner_id:        expenseType === 'owner_specific'  ? ownerId  : null,
+        owner_id:        expenseType === 'owner_specific'  ? (ownerId === 'null' ? null : ownerId)  : null,
         animal_id:       expenseType === 'animal_specific' ? animalId : null,
         quantity:        quantity ? parseFloat(quantity) : null,
         unit_cost:       unitCost ? parseFloat(unitCost) : null,
@@ -300,6 +301,19 @@ export function AddLeaseExpenseSheet({
               {expenseType === 'owner_specific' && (
                 <Field label="Owner" required>
                   <div className="flex flex-col gap-1.5 mt-1">
+                    {/* Ranch (null owner) first */}
+                    <button
+                      type="button"
+                      className="text-left px-3 py-2.5 rounded-lg transition-all"
+                      style={{
+                        border:     `1.5px solid ${ownerId === 'null' ? 'var(--accent)' : 'var(--border)'}`,
+                        background: ownerId === 'null' ? 'var(--accent-soft)' : 'var(--surface-1)',
+                        color:      ownerId === 'null' ? 'var(--accent)' : 'var(--text)',
+                      }}
+                      onClick={() => setOwnerId('null')}
+                    >
+                      {ranchName}
+                    </button>
                     {owners.map(o => (
                       <button
                         key={o.id}
