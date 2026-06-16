@@ -9,10 +9,10 @@ function daysBetween(start: string, end: string): number {
   return Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1
 }
 
-function calcCost(lease: Record<string, unknown>, period: Record<string, unknown>): number {
+function calcCost(lease: Record<string, unknown>, period: Record<string, unknown>, billableHeadCount?: number): number {
   const days = daysBetween(period.start_date as string, period.end_date as string)
   const rateType = lease.rate_type as string
-  const headCount = Number(period.head_count) || 0
+  const headCount = billableHeadCount ?? (Number(period.head_count) || 0)
 
   if (rateType === 'per_head') {
     return headCount * (Number(lease.rate_per_head) || 0) * days
@@ -58,9 +58,41 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const lease = leaseRes.data as Record<string, unknown>
   const periods = (periodsRes.data ?? []) as Record<string, unknown>[]
+  const isHomeRanch = Boolean(lease.is_home_ranch)
+
+  // Home ranch: only animals with owner_id (grazing customers) are billable
+  const billableCountMap = new Map<string, number>()
+  if (isHomeRanch) {
+    const allAnimalIds = new Set<string>()
+    for (const p of periods) {
+      if (Array.isArray(p.animal_ids)) {
+        for (const aid of p.animal_ids as string[]) allAnimalIds.add(aid)
+      }
+    }
+    if (allAnimalIds.size > 0) {
+      const { data: animalRows } = await supabase
+        .from('animals')
+        .select('id, owner_id')
+        .in('id', [...allAnimalIds])
+      const billableSet = new Set(
+        ((animalRows ?? []) as Array<{ id: string; owner_id: string | null }>)
+          .filter(a => a.owner_id !== null)
+          .map(a => a.id)
+      )
+      for (const p of periods) {
+        if (Array.isArray(p.animal_ids)) {
+          billableCountMap.set(
+            p.id as string,
+            (p.animal_ids as string[]).filter(id => billableSet.has(id)).length
+          )
+        }
+      }
+    }
+  }
 
   const periodsWithCosts = periods.map(p => {
-    const cost = calcCost(lease, p)
+    const billable = isHomeRanch ? billableCountMap.get(p.id as string) : undefined
+    const cost = calcCost(lease, p, billable)
     return { ...p, days: daysBetween(p.start_date as string, p.end_date as string), calculated_cost: cost }
   })
 

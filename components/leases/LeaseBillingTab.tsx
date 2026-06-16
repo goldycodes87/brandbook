@@ -7,6 +7,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { Panel } from '@/components/ui/Panel'
 import Badge from '@/components/ui/Badge'
+import { Chip } from '@/components/ui/Chip'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { AddPeriodSheet } from './AddPeriodSheet'
 import { AddLeaseExpenseSheet, type LeaseExpense } from './AddLeaseExpenseSheet'
@@ -170,7 +171,13 @@ export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
 
       {/* ── Rate banner ───────────────────────────────────────────────── */}
       {summary && (
-        <ContextBanner tone="neutral" title={`Rate: ${summary.rate_used}`} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <ContextBanner tone="neutral" title={`Rate: ${summary.rate_used}`} className="flex-1" />
+          {lease.is_home_ranch && <Chip tone="neutral">HOME RANCH</Chip>}
+        </div>
+      )}
+      {lease.is_home_ranch && (
+        <p className="type-helper" style={{ color: 'var(--text-muted)' }}>Owner animals excluded from billing</p>
       )}
 
       {/* ── Herd composition ──────────────────────────────────────────── */}

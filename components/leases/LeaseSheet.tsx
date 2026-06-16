@@ -39,6 +39,7 @@ export interface Lease {
   notes: string | null
   landowner_portal_token: string | null
   landowner_portal_enabled: boolean | null
+  is_home_ranch: boolean | null
   created_at: string
 }
 
@@ -64,6 +65,7 @@ const BLANK = {
   auto_renew: false,
   status: 'active',
   landowner_portal_enabled: false,
+  is_home_ranch: false,
   notes: '',
 }
 
@@ -124,6 +126,7 @@ export function LeaseSheet({ isOpen, onClose, onSuccess, initialData, mode }: Le
           auto_renew:             initialData.auto_renew ?? false,
           status:                 initialData.status ?? 'active',
           landowner_portal_enabled: initialData.landowner_portal_enabled ?? false,
+          is_home_ranch:          initialData.is_home_ranch ?? false,
           notes:                  initialData.notes ?? '',
         })
       } else {
@@ -163,6 +166,7 @@ export function LeaseSheet({ isOpen, onClose, onSuccess, initialData, mode }: Le
         auto_renew:           form.auto_renew,
         status:               form.status,
         landowner_portal_enabled: form.landowner_portal_enabled,
+        is_home_ranch:            form.is_home_ranch,
         notes:                form.notes || null,
       }
 
@@ -394,6 +398,20 @@ export function LeaseSheet({ isOpen, onClose, onSuccess, initialData, mode }: Le
               {form.landowner_portal_enabled && !portalUrl && (
                 <p className="type-helper" style={{ color: 'var(--text-muted)' }}>Save the lease to generate a portal link.</p>
               )}
+            </AccordionSection>
+
+            {/* ── HOME RANCH ───────────────────────────────────────────── */}
+            <AccordionSection title="HOME RANCH">
+              <div className="flex items-start justify-between gap-3 py-1">
+                <div>
+                  <p className="type-label" style={{ color: 'var(--text)' }}>Home Ranch / Owner-Operated</p>
+                  <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Enable for your own property. Your animals won't generate billing costs but will still be tracked.</p>
+                </div>
+                <Toggle
+                  checked={form.is_home_ranch}
+                  onChange={v => setForm(f => ({ ...f, is_home_ranch: v }))}
+                />
+              </div>
             </AccordionSection>
 
             {/* ── NOTES ────────────────────────────────────────────────── */}

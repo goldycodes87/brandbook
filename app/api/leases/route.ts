@@ -9,7 +9,7 @@ const ALLOWED = [
   'county', 'state', 'start_date', 'end_date',
   'rate_per_acre', 'rate_per_head', 'rate_per_aum', 'flat_rate',
   'rate_type', 'payment_frequency', 'renewal_alert_days', 'auto_renew',
-  'status', 'notes', 'map_coordinates', 'landowner_portal_enabled',
+  'status', 'notes', 'map_coordinates', 'landowner_portal_enabled', 'is_home_ranch',
 ]
 
 export async function GET(req: NextRequest) {
