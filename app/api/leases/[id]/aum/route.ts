@@ -73,7 +73,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const byOwner = Object.entries(byOwnerMap)
     .map(([owner_id, counts]) => ({
       owner_id:       owner_id === '__unassigned__' ? null : owner_id,
-      owner_name:     owner_id === '__unassigned__' ? 'Unassigned' : (ownerMap[owner_id] ?? 'Unknown'),
+      owner_name:     owner_id === '__unassigned__' ? 'Legacy Land & Cattle' : (ownerMap[owner_id] ?? 'Unknown'),
       billable:       counts.billable,
       calves_excluded: counts.calves_excluded,
       percent_of_herd: totalBillable > 0 ? Math.round((counts.billable / totalBillable) * 1000) / 10 : 0,

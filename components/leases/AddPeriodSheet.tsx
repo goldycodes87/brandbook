@@ -30,6 +30,7 @@ interface AnimalOption {
   name: string | null
   ear_tag_color: string | null
   sex: string | null
+  weaning_date: string | null
 }
 
 interface AddPeriodSheetProps {
@@ -88,7 +89,9 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
     setAnimalsLoading(true)
     fetch(`/api/leases/${leaseId}/animals`)
       .then(r => r.json())
-      .then(j => setAnimals(j.data ?? []))
+      .then(j => setAnimals(
+        (j.data ?? []).filter((a: AnimalOption) => !(a.sex === 'calf' && !a.weaning_date))
+      ))
       .catch(() => setAnimals([]))
       .finally(() => setAnimalsLoading(false))
   }, [isOpen, leaseId])

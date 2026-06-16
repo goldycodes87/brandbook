@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatCard } from '@/components/ui/StatCard'
@@ -67,7 +66,6 @@ function fmtDate(d: string | null) {
 }
 
 export function LeaseBillingTab({ leaseId, lease }: Props) {
-  const router = useRouter()
   const [periods, setPeriods]   = useState<Period[]>([])
   const [summary, setSummary]   = useState<BillingSummary | null>(null)
   const [aumData, setAumData]   = useState<AumData | null>(null)
@@ -185,7 +183,7 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                  {['Owner', 'Billable Head', 'Calves (excluded)', '% of Herd', ''].map(h => (
+                  {['Owner', 'Billable Head', 'Calves (excluded)', '% of Herd'].map(h => (
                     <th key={h} className="text-left px-4 py-2 type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
                   ))}
                 </tr>
@@ -203,16 +201,6 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
                         </div>
                         <span className="type-helper font-semibold" style={{ color: 'var(--text)' }}>{row.percent_of_herd}%</span>
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {row.owner_id && (
-                        <Button
-                          intent="ghost" size="sm"
-                          onClick={() => router.push(`/billing?new=1&owner_id=${row.owner_id}&head_count=${row.billable}`)}
-                        >
-                          APPLY TO INVOICE
-                        </Button>
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -241,14 +229,6 @@ export function LeaseBillingTab({ leaseId, lease }: Props) {
                     <span className="type-helper" style={{ color: 'var(--text-muted)' }}>+{row.calves_excluded} calves</span>
                   )}
                 </div>
-                {row.owner_id && (
-                  <Button
-                    intent="ghost" size="sm" className="mt-3"
-                    onClick={() => router.push(`/billing?new=1&owner_id=${row.owner_id}&head_count=${row.billable}`)}
-                  >
-                    APPLY TO INVOICE
-                  </Button>
-                )}
               </div>
             ))}
           </div>
