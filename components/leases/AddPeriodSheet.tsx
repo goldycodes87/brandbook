@@ -62,7 +62,7 @@ function estCost(lease: Lease, headCount: number, days: number): number | null {
   if (!days || !headCount) return null
   const rt = lease.rate_type
   if (rt === 'per_head' && lease.rate_per_head)
-    return headCount * lease.rate_per_head * days
+    return headCount * lease.rate_per_head * (days / 30)
   if (rt === 'per_head_month' && lease.rate_per_head)
     return headCount * lease.rate_per_head * (days / 30)
   if (rt === 'per_acre' && lease.rate_per_acre && lease.acreage)
@@ -128,9 +128,9 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
     if (cost === null || !headCount) return null
     const rt = lease.rate_type
     if (rt === 'per_head' && lease.rate_per_head)
-      return `${headCount} head × $${lease.rate_per_head}/head/day × ${days} days`
+      return `${headCount} head × $${lease.rate_per_head}/head/month × ${days} days ÷ 30`
     if (rt === 'per_head_month' && lease.rate_per_head)
-      return `${headCount} head × $${lease.rate_per_head}/head/mo × ${days} days ÷ 30`
+      return `${headCount} head × $${lease.rate_per_head}/head/month × ${days} days ÷ 30`
     if (rt === 'per_acre' && lease.rate_per_acre && lease.acreage)
       return `$${lease.rate_per_acre}/acre × ${lease.acreage} acres ÷ 12 mo × ${days} days ÷ 30`
     if (rt === 'flat' && lease.flat_rate)

@@ -32,13 +32,13 @@ function formatDate(d: string | null) {
 
 function formatRate(lease: Lease) {
   if (lease.rate_type === 'per_head' && lease.rate_per_head != null)
-    return `$${Number(lease.rate_per_head).toFixed(2)}/head/mo`
+    return `$${Number(lease.rate_per_head).toFixed(2)}/head/month`
   if (lease.rate_type === 'per_aum' && lease.rate_per_aum != null)
-    return `$${Number(lease.rate_per_aum).toFixed(2)}/AUM/mo`
+    return `$${Number(lease.rate_per_aum).toFixed(2)}/AUM`
   if (lease.rate_type === 'flat' && lease.flat_rate != null)
-    return `$${Number(lease.flat_rate).toLocaleString()} flat/mo`
-  if (lease.rate_per_acre != null)
-    return `$${Number(lease.rate_per_acre).toFixed(2)}/acre/yr`
+    return `$${Number(lease.flat_rate).toLocaleString()}/month`
+  if (lease.rate_type === 'per_acre' && lease.rate_per_acre != null)
+    return `$${Number(lease.rate_per_acre).toFixed(2)}/acre/month`
   return '—'
 }
 

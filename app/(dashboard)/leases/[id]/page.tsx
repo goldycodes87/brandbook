@@ -47,9 +47,9 @@ function DetailsTab({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
   const fmtRate = () => {
     const rt = lease.rate_type
     if (rt === 'per_head' && lease.rate_per_head) return `$${lease.rate_per_head}/head/month`
-    if (rt === 'per_acre' && lease.rate_per_acre) return `$${lease.rate_per_acre}/acre/year`
-    if (rt === 'flat' && lease.flat_rate) return `$${lease.flat_rate}/month flat`
-    if (rt === 'per_aum' && lease.rate_per_aum) return `$${lease.rate_per_aum}/AUM/month`
+    if (rt === 'per_acre' && lease.rate_per_acre) return `$${lease.rate_per_acre}/acre/month`
+    if (rt === 'flat' && lease.flat_rate) return `$${lease.flat_rate}/month`
+    if (rt === 'per_aum' && lease.rate_per_aum) return `$${lease.rate_per_aum}/AUM`
     return null
   }
 
