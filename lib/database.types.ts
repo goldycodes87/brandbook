@@ -987,42 +987,61 @@ export type Database = {
       }
       grazing_periods: {
         Row: {
+          animal_ids: string[] | null
           created_at: string | null
           end_date: string
           head_count: number
           id: string
+          invoice_id: string | null
+          invoiced_at: string | null
           is_paid: boolean | null
           lease_id: string
           notes: string | null
           paid_amount: number | null
           paid_date: string | null
           start_date: string
+          status: string | null
         }
         Insert: {
+          animal_ids?: string[] | null
           created_at?: string | null
           end_date: string
           head_count: number
           id?: string
+          invoice_id?: string | null
+          invoiced_at?: string | null
           is_paid?: boolean | null
           lease_id: string
           notes?: string | null
           paid_amount?: number | null
           paid_date?: string | null
           start_date: string
+          status?: string | null
         }
         Update: {
+          animal_ids?: string[] | null
           created_at?: string | null
           end_date?: string
           head_count?: number
           id?: string
+          invoice_id?: string | null
+          invoiced_at?: string | null
           is_paid?: boolean | null
           lease_id?: string
           notes?: string | null
           paid_amount?: number | null
           paid_date?: string | null
           start_date?: string
+          status?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "grazing_periods_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "grazing_periods_lease_id_fkey"
             columns: ["lease_id"]
@@ -1415,7 +1434,9 @@ export type Database = {
           expense_date: string | null
           expense_type: string | null
           id: string
+          include_calves: boolean | null
           lease_id: string
+          notes: string | null
           owner_id: string | null
           period_end: string | null
           period_start: string | null
@@ -1437,7 +1458,9 @@ export type Database = {
           expense_date?: string | null
           expense_type?: string | null
           id?: string
+          include_calves?: boolean | null
           lease_id: string
+          notes?: string | null
           owner_id?: string | null
           period_end?: string | null
           period_start?: string | null
@@ -1459,7 +1482,9 @@ export type Database = {
           expense_date?: string | null
           expense_type?: string | null
           id?: string
+          include_calves?: boolean | null
           lease_id?: string
+          notes?: string | null
           owner_id?: string | null
           period_end?: string | null
           period_start?: string | null
@@ -1519,6 +1544,7 @@ export type Database = {
           end_date: string | null
           flat_rate: number | null
           id: string
+          is_home_ranch: boolean | null
           landowner_email: string | null
           landowner_name: string | null
           landowner_phone: string | null
@@ -1551,6 +1577,7 @@ export type Database = {
           end_date?: string | null
           flat_rate?: number | null
           id?: string
+          is_home_ranch?: boolean | null
           landowner_email?: string | null
           landowner_name?: string | null
           landowner_phone?: string | null
@@ -1583,6 +1610,7 @@ export type Database = {
           end_date?: string | null
           flat_rate?: number | null
           id?: string
+          is_home_ranch?: boolean | null
           landowner_email?: string | null
           landowner_name?: string | null
           landowner_phone?: string | null
