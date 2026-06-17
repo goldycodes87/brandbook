@@ -9,7 +9,7 @@ const ALLOWED = [
   'category_name', 'category_id', 'expense_type', 'description', 'total_amount',
   'expense_date', 'receipt_url', 'period_start', 'period_end',
   'owner_id', 'animal_id', 'year', 'quarter', 'notes',
-  'quantity', 'unit_cost', 'sire_library_id', 'bull_name',
+  'qty', 'unit_cost', 'sire_library_id', 'bull_name', 'include_calves',
 ]
 
 export async function PATCH(req: NextRequest, { params }: Params) {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
+import { Toggle } from '@/components/ui/Toggle'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiPost, apiPatch, apiGet } from '@/lib/fetch'
 
@@ -24,12 +25,22 @@ export interface LeaseExpense {
   owner_id: string | null
   animal_id: string | null
   notes: string | null
-  quantity: number | null
+  qty: number | null
   unit_cost: number | null
   sire_library_id: string | null
   bull_name: string | null
+  include_calves: boolean | null
   created_at: string
 }
+
+const REQUIRES_DESCRIPTION = [
+  'Labor',
+  'Equipment Rental',
+  'Veterinary Procedure',
+  'Other (Shared)',
+  'Other (Owner Specific)',
+  'Other (Animal Specific)',
+]
 
 interface CategoryRow { id: string; name: string; expense_type: string }
 
@@ -88,6 +99,7 @@ export function AddLeaseExpenseSheet({
   const [owners,        setOwners]       = useState<GrazingOwner[]>([])
   const [animals,       setAnimals]      = useState<LeaseAnimal[]>([])
   const [aumData,       setAumData]      = useState<{ by_owner: AumOwnerRow[] } | null>(null)
+  const [includeCalves, setIncludeCalves] = useState(false)
   const [saving,        setSaving]       = useState(false)
   const [error,         setError]        = useState('')
 
@@ -119,11 +131,12 @@ export function AddLeaseExpenseSheet({
       setDescription(initialData.description ?? '')
       setExpenseDate(initialData.expense_date ?? new Date().toISOString().slice(0, 10))
       setTotalAmount(String(initialData.total_amount ?? ''))
-      setQuantity(initialData.quantity != null ? String(initialData.quantity) : '')
+      setQuantity(initialData.qty != null ? String(initialData.qty) : '')
       setUnitCost(initialData.unit_cost != null ? String(initialData.unit_cost) : '')
       setNotes(initialData.notes ?? '')
       setOwnerId(initialData.owner_id)
       setAnimalId(initialData.animal_id)
+      setIncludeCalves(Boolean(initialData.include_calves))
       setStep(2)
     } else {
       setStep(1)
@@ -139,9 +152,12 @@ export function AddLeaseExpenseSheet({
       setOwnerId(null)
       setAnimalId(null)
       setAnimalSearch('')
+      setIncludeCalves(false)
     }
     setError('')
   }, [isOpen, leaseId, mode, initialData])
+
+  const descriptionRequired = REQUIRES_DESCRIPTION.includes(categoryName)
 
   // Auto-calc total for Semen Straws
   const isSemenStraws = categoryName === 'Semen Straws'
@@ -166,6 +182,7 @@ export function AddLeaseExpenseSheet({
     if (!categoryName || isNaN(amt)) { setError('Category and amount are required'); return }
     if (expenseType === 'owner_specific' && ownerId === null) { setError('Select an owner'); return }
     if (expenseType === 'animal_specific' && !animalId) { setError('Select an animal'); return }
+    if (descriptionRequired && !description.trim()) { setError('Description is required for this expense type'); return }
 
     setSaving(true); setError('')
     try {
@@ -173,14 +190,15 @@ export function AddLeaseExpenseSheet({
         category_name:   categoryName,
         category_id:     categoryId,
         expense_type:    expenseType,
-        description:     description || null,
+        description:     description.trim() || null,
         total_amount:    amt,
         expense_date:    expenseDate || null,
         notes:           notes || null,
         owner_id:        expenseType === 'owner_specific'  ? (ownerId === 'null' ? null : ownerId)  : null,
         animal_id:       expenseType === 'animal_specific' ? animalId : null,
-        quantity:        quantity ? parseFloat(quantity) : null,
+        qty:             quantity ? parseFloat(quantity) : null,
         unit_cost:       unitCost ? parseFloat(unitCost) : null,
+        include_calves:  expenseType === 'shared' ? includeCalves : false,
       }
 
       const url = mode === 'edit' && initialData
@@ -290,7 +308,13 @@ export function AddLeaseExpenseSheet({
                       color:      categoryId === cat.id ? 'var(--accent)' : 'var(--text)',
                       fontWeight: categoryId === cat.id ? 600 : 400,
                     }}
-                    onClick={() => { setCategoryId(cat.id); setCategoryName(cat.name); setDescription(cat.name) }}
+                    onClick={() => {
+                      setCategoryId(cat.id)
+                      setCategoryName(cat.name)
+                      // Pre-fill description only for non-required categories
+                      if (!REQUIRES_DESCRIPTION.includes(cat.name)) setDescription(cat.name)
+                      else setDescription('')
+                    }}
                   >
                     {cat.name}
                   </button>
@@ -413,12 +437,25 @@ export function AddLeaseExpenseSheet({
                 </>
               ) : (
                 <>
-                  <Field label="Description">
+                  <Field
+                    label={descriptionRequired ? 'Description *' : 'Description'}
+                    helper={descriptionRequired ? undefined : 'Optional — pre-filled from category'}
+                  >
                     <Input
                       value={description}
                       onChange={e => setDescription(e.target.value)}
-                      placeholder="e.g. June mineral block delivery"
+                      placeholder={descriptionRequired
+                        ? 'e.g. Gather and load out for lease move'
+                        : 'Optional notes'}
+                      style={descriptionRequired && !description.trim()
+                        ? { border: '1.5px solid var(--warning-border, #f59e0b)' }
+                        : undefined}
                     />
+                    {descriptionRequired && (
+                      <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>
+                        Required for this category
+                      </p>
+                    )}
                   </Field>
                   <Field label="Total amount ($)" required>
                     <Input
@@ -436,6 +473,21 @@ export function AddLeaseExpenseSheet({
               <Field label="Expense date" required>
                 <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
               </Field>
+
+              {expenseType === 'shared' && (
+                <div
+                  className="flex items-start justify-between gap-3 rounded-xl px-4 py-3"
+                  style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+                >
+                  <div>
+                    <p className="type-label" style={{ color: 'var(--text)' }}>Include calves in split</p>
+                    <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      Enable for wormer, ear tags, branding — expenses that apply to calves too
+                    </p>
+                  </div>
+                  <Toggle checked={includeCalves} onChange={setIncludeCalves} />
+                </div>
+              )}
 
               <Field label="Notes">
                 <Textarea
@@ -549,6 +601,10 @@ export function AddLeaseExpenseSheet({
                 if (step === 2 && !categoryId) { setError('Select a category'); return }
                 if (step === 2 && expenseType === 'owner_specific' && !ownerId) { setError('Select an owner'); return }
                 if (step === 2 && expenseType === 'animal_specific' && !animalId) { setError('Select an animal'); return }
+                if (step === 3 && descriptionRequired && !description.trim()) {
+                  setError('Description is required for this expense type')
+                  return
+                }
                 setStep(s => (s + 1) as 2|3|4)
               }}
             >
