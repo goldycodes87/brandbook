@@ -224,6 +224,8 @@ export async function POST(req: NextRequest) {
     console.log(`[${_leaseName} PL] green45 found:`, allAssignments.some(a => a.animal_id === GREEN45))
     console.log(`[${_leaseName} PL] pairCalfIds:`, [...pairCalfIds])
 
+    console.log('[vand start] allAssignments count:', allAssignments?.length, 'P&L cow:', allAssignments?.some(a => a.animal_id === '38aa511c-5492-4705-b48b-6b42f6e39ab1'))
+
     const leaseLineItems: LineItem[] = []
 
     for (const expense of expenses) {
