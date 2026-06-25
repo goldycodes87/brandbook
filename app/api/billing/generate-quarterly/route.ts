@@ -274,6 +274,9 @@ export async function POST(req: NextRequest) {
       let totalDays = 0
 
       for (const a of allAssignments) {
+        if (a.animal_id === '38aa511c-5492-4705-b48b-6b42f6e39ab1') {
+          console.log('[green19 loop] entered loop', 'pairCalf:', pairCalfIds.has(a.animal_id), 'start:', a.start_date, 'end:', a.end_date, 'window:', windowStart, windowEnd)
+        }
         console.log('[loop entry]', a.animal_id)
         // Skip pair calves unless include_calves is set
         if (!includeCaivesInSplit && pairCalfIds.has(a.animal_id)) continue
