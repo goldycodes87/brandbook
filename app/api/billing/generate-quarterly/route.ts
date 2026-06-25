@@ -100,8 +100,6 @@ export async function POST(req: NextRequest) {
     const sex = (a.sex || 'other').toLowerCase()
     sexBreakdown[sex] = (sexBreakdown[sex] || 0) + 1
   }
-  console.log('[quarterly] total:', ownerAnimalsFull.length, '| pair calves:', billingPairCalves.length, '| billable:', billableUnits, '| breakdown:', sexBreakdown)
-
   // ── Step 4: Billing quarter date range ──────────────────────────────────────
   const { start: bStart, end: bEnd } = quarterRange(billing_year, billing_quarter)
   const bStartLabel = fmtDate(bStart)
@@ -180,7 +178,6 @@ export async function POST(req: NextRequest) {
       .eq('year', expense_year)
 
     const expenses = (rawExpenses ?? []) as ExpenseRow[]
-    console.log(`[expenses] lease=${lease.property_name} found=${expenses.length}`)
     if (!expenses.length) continue
 
     // Fetch ALL assignments on this lease during expense quarter with animal details.
@@ -216,20 +213,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Debug: P&L pair-calf presence check
-    const _leaseName = (lease as { property_name: string }).property_name
-    const GREEN19 = '38aa511c-5492-4705-b48b-6b42f6e39ab1'
-    const GREEN45 = 'b0aed6a1-a98c-49f9-9eb7-9d89cebfecc2'
-    console.log(`[${_leaseName} PL] green19 found:`, allAssignments.some(a => a.animal_id === GREEN19))
-    console.log(`[${_leaseName} PL] green45 found:`, allAssignments.some(a => a.animal_id === GREEN45))
-    console.log(`[${_leaseName} PL] pairCalfIds:`, [...pairCalfIds])
-
-    console.log('[vand start] allAssignments count:', allAssignments?.length, 'P&L cow:', allAssignments?.some(a => a.animal_id === '38aa511c-5492-4705-b48b-6b42f6e39ab1'))
+    const leaseName = (lease as { property_name: string }).property_name
+    console.log(`[${leaseName} start] allAssignments:`, allAssignments?.length, 'P&L cow:', allAssignments?.some(a => a.animal_id === '38aa511c-5492-4705-b48b-6b42f6e39ab1'))
 
     const leaseLineItems: LineItem[] = []
 
     for (const expense of expenses) {
-      console.log(`[expense] type=${expense.expense_type} cat="${expense.category_name}" desc="${expense.description}" amt=${expense.total_amount} calcType=${expense.expense_categories?.calculation_type}`)
       // Owner specific: only if this owner
       if (expense.expense_type === 'owner_specific') {
         if (expense.owner_id !== owner_id) continue
@@ -277,16 +266,10 @@ export async function POST(req: NextRequest) {
       let totalDays = 0
 
       for (const a of allAssignments) {
-        if (a.animal_id === '38aa511c-5492-4705-b48b-6b42f6e39ab1') {
-          console.log('[green19 loop] entered loop', 'pairCalf:', pairCalfIds.has(a.animal_id), 'start:', a.start_date, 'end:', a.end_date, 'window:', windowStart, windowEnd)
-        }
-        console.log('[loop entry]', a.animal_id)
         // Skip pair calves unless include_calves is set
         if (!includeCaivesInSplit && pairCalfIds.has(a.animal_id)) continue
 
         const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
-        console.log('[loop check]', a.animal_id, 'isPairCalf:', pairCalfIds.has(a.animal_id), 'days:', days, 'skipped:', days <= 0)
-        console.log(`[animal days] ${(lease as { property_name: string }).property_name} | "${expense.category_name}" | animal=${a.animal_id} start=${a.start_date} end=${a.end_date ?? 'null'} window=${windowStart}→${windowEnd} days=${days}`)
         if (days <= 0) continue
 
         totalDays += days
@@ -295,7 +278,6 @@ export async function POST(req: NextRequest) {
         if (animalOwner === owner_id) ownerDays += days
       }
 
-      console.log(`[shared] "${expense.category_name}" window=${windowStart}→${windowEnd} ownerDays=${ownerDays} totalDays=${totalDays}`)
       if (totalDays === 0 || ownerDays === 0) continue
 
       const ownerShare = expense.total_amount * (ownerDays / totalDays)
@@ -314,7 +296,7 @@ export async function POST(req: NextRequest) {
     if (leaseLineItems.length > 0) {
       leaseExpenseGroups.push({
         lease_id:   leaseId,
-        lease_name: (lease as { property_name: string }).property_name,
+        lease_name: leaseName,
         line_items: leaseLineItems,
       })
     }
