@@ -154,9 +154,9 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col justify-end md:items-center md:justify-center">
-      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 z-0" onClick={onClose} />
       <div
-        className="relative w-full md:max-w-2xl rounded-t-2xl md:rounded-2xl flex flex-col"
+        className="relative w-full md:max-w-2xl rounded-t-2xl md:rounded-2xl flex flex-col z-10"
         style={{
           background: 'var(--surface-1)',
           border: '1px solid var(--border)',
