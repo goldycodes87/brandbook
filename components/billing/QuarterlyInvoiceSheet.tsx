@@ -153,7 +153,7 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[100] flex flex-col justify-end sm:items-center sm:justify-center">
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose} />
       <div
         className="relative w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl flex flex-col"
@@ -164,7 +164,10 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div
+          className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)', flexShrink: 0 }}
+        >
           <div>
             <p className="type-helper font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
               {step === 1 ? 'QUARTERLY INVOICE' : step === 2 ? 'PREVIEW' : 'CREATED'}
@@ -179,7 +182,10 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-4">
+        <div
+          className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-4"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
 
           {step === 3 && (
             <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
@@ -365,7 +371,7 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
 
         {/* Footer */}
         {step !== 3 && (
-          <div className="px-5 py-4 flex gap-3" style={{ borderTop: '1px solid var(--border)' }}>
+          <div className="px-5 py-4 flex gap-3" style={{ borderTop: '1px solid var(--border)', flexShrink: 0 }}>
             {step === 2 && (
               <Button intent="ghost" size="sm" onClick={() => setStep(1)}>← BACK</Button>
             )}
