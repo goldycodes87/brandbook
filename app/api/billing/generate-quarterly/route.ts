@@ -73,15 +73,26 @@ export async function POST(req: NextRequest) {
 
   const monthlyRate = contract?.rate_per_head_month ?? 0
 
-  // ── Step 3: Count active owner animals ──────────────────────────────────────
-  const { count: headCount } = await supabase
+  // ── Step 3: Fetch active owner animals with pair-calf detection ─────────────
+  const { data: ownerAnimalsAll } = await supabase
     .from('animals')
-    .select('id', { count: 'exact', head: true })
+    .select('id, sex, weaning_date, dam_id')
     .eq('owner_id', owner_id)
     .eq('status', 'active')
 
-  const ownerHead        = headCount ?? 0
-  const quarterlyGrazing = ownerHead * monthlyRate * 3
+  type OwnerAnimal = { id: string; sex: string | null; weaning_date: string | null; dam_id: string | null }
+  const ownerAnimalsFull = (ownerAnimalsAll ?? []) as OwnerAnimal[]
+  const ownerAnimalIdSet = new Set(ownerAnimalsFull.map(a => a.id))
+
+  // Pair calves: unweaned calves whose dam is also this owner's active animal
+  const billingPairCalves = ownerAnimalsFull.filter(a =>
+    a.sex?.toLowerCase() === 'calf' &&
+    !a.weaning_date &&
+    a.dam_id &&
+    ownerAnimalIdSet.has(a.dam_id)
+  )
+  const billableUnits    = ownerAnimalsFull.length - billingPairCalves.length
+  const quarterlyGrazing = billableUnits * monthlyRate * 3
 
   // ── Step 4: Billing quarter date range ──────────────────────────────────────
   const { start: bStart, end: bEnd } = quarterRange(billing_year, billing_quarter)
@@ -90,10 +101,13 @@ export async function POST(req: NextRequest) {
 
   const lineItems: LineItem[] = []
 
-  if (ownerHead > 0 && monthlyRate > 0) {
+  if (billableUnits > 0 && monthlyRate > 0) {
+    const pairNote = billingPairCalves.length > 0
+      ? ` (${billingPairCalves.length} pair calf${billingPairCalves.length > 1 ? 's' : ''} counted as 1 unit with dam)`
+      : ''
     lineItems.push({
-      description: `Grazing Per Head Per Month (Q${billing_quarter} ${2000 + billing_year} — ${bStartLabel} – ${bEndLabel})`,
-      quantity:    ownerHead,
+      description: `Grazing Per Head/Month (Q${billing_quarter} ${2000 + billing_year} — ${bStartLabel} – ${bEndLabel})${pairNote}`,
+      quantity:    billableUnits,
       unit_price:  monthlyRate,
       amount:      Math.round(quarterlyGrazing * 100) / 100,
     })
@@ -103,14 +117,7 @@ export async function POST(req: NextRequest) {
   const { start: eStart, end: eEnd } = quarterRange(expense_year, expense_quarter)
 
   // ── Step 6: Find all leases where owner had animals during expense quarter ──
-  // Get owner's animals first (avoid non-existent owner_id on grazing_assignments)
-  const { data: ownerAnimals } = await supabase
-    .from('animals')
-    .select('id')
-    .eq('owner_id', owner_id)
-    .eq('status', 'active')
-
-  const ownerAnimalIds = (ownerAnimals ?? []).map((a: { id: string }) => a.id)
+  const ownerAnimalIds = ownerAnimalsFull.map(a => a.id)
 
   type AssignRow = { animal_id: string; lease_id: string; start_date: string; end_date: string | null }
 
@@ -323,7 +330,7 @@ export async function POST(req: NextRequest) {
   const preview = {
     invoice_number:   invoiceNumber,
     owner_name:       ownerName,
-    head_count:       ownerHead,
+    head_count:       billableUnits,
     monthly_rate:     monthlyRate,
     quarterly_grazing: quarterlyGrazing,
     expense_count:    expenseCount,
