@@ -3,13 +3,14 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-type GroupType =
+export type GroupType =
   | 'whole_herd'
   | 'cows_only'
   | 'bulls_only'
   | 'heifers_only'
   | 'steers_only'
   | 'calves_only'
+  | 'yearlings'
   | 'by_ear_tag_color'
   | 'by_lease'
   | 'by_owner'
@@ -21,58 +22,76 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-async function resolveAnimalIds(
+export async function resolveAnimalIds(
   supabase: ReturnType<typeof createAdminClient>,
   groupType: GroupType,
   groupValue: string | undefined,
   customIds: string[] | undefined,
+  leaseFilter?: string | null,
 ): Promise<string[]> {
-  let query = supabase.from('animals').select('id').eq('status', 'active')
+  let ids: string[] | null = null
 
-  switch (groupType) {
-    case 'whole_herd':
-      break
-    case 'cows_only':
-      query = query.eq('sex', 'cow')
-      break
-    case 'bulls_only':
-      query = query.eq('sex', 'bull')
-      break
-    case 'heifers_only':
-      query = query.eq('sex', 'heifer')
-      break
-    case 'steers_only':
-      query = query.eq('sex', 'steer')
-      break
-    case 'calves_only':
-      query = query.eq('sex', 'calf')
-      break
-    case 'by_ear_tag_color':
-      if (!groupValue) return []
-      query = query.eq('ear_tag_color', groupValue)
-      break
-    case 'by_owner':
-      if (!groupValue) return []
-      query = query.eq('owner_id', groupValue)
-      break
-    case 'by_lease': {
-      if (!groupValue) return []
-      const { data: assignments } = await supabase
-        .from('grazing_assignments')
-        .select('animal_id')
-        .eq('lease_id', groupValue)
-        .is('end_date', null)
-      return (assignments ?? []).map((a: { animal_id: string }) => a.animal_id)
+  if (groupType === 'by_lease') {
+    if (!groupValue) return []
+    const { data: assignments } = await supabase
+      .from('grazing_assignments')
+      .select('animal_id')
+      .eq('lease_id', groupValue)
+      .is('end_date', null)
+    ids = (assignments ?? []).map((a: { animal_id: string }) => a.animal_id)
+  } else if (groupType === 'custom') {
+    ids = customIds ?? []
+  } else if (groupType === 'yearlings') {
+    // Weaned calves + animals < 2 years old that are heifers/bulls/steers
+    const cutoff = new Date()
+    cutoff.setFullYear(cutoff.getFullYear() - 2)
+    const cutoffStr = cutoff.toISOString().slice(0, 10)
+    const { data } = await supabase
+      .from('animals')
+      .select('id, sex, weaning_date, dob')
+      .eq('status', 'active')
+      .gte('dob', cutoffStr)
+    ids = ((data ?? []) as Array<{ id: string; sex: string | null; weaning_date: string | null; dob: string | null }>)
+      .filter(a =>
+        (a.sex === 'heifer' || a.sex === 'bull' || a.sex === 'steer') ||
+        (a.sex === 'calf' && a.weaning_date != null)
+      )
+      .map(a => a.id)
+  } else {
+    let query = supabase.from('animals').select('id').eq('status', 'active')
+    switch (groupType) {
+      case 'whole_herd':   break
+      case 'cows_only':    query = query.eq('sex', 'cow');    break
+      case 'bulls_only':   query = query.eq('sex', 'bull');   break
+      case 'heifers_only': query = query.eq('sex', 'heifer'); break
+      case 'steers_only':  query = query.eq('sex', 'steer');  break
+      case 'calves_only':  query = query.eq('sex', 'calf');   break
+      case 'by_ear_tag_color':
+        if (!groupValue) return []
+        query = query.eq('ear_tag_color', groupValue)
+        break
+      case 'by_owner':
+        if (!groupValue) return []
+        query = query.eq('owner_id', groupValue)
+        break
+      default: return []
     }
-    case 'custom':
-      return customIds ?? []
-
-    default:
-      return []
+    const { data } = await query
+    ids = (data ?? []).map((a: { id: string }) => a.id)
   }
 
-  const { data } = await query
-  return (data ?? []).map((a: { id: string }) => a.id)
+  // Optional: intersect with animals currently on a specific lease
+  if (leaseFilter && ids !== null && ids.length > 0) {
+    const { data: leaseAssignments } = await supabase
+      .from('grazing_assignments')
+      .select('animal_id')
+      .eq('lease_id', leaseFilter)
+      .is('end_date', null)
+    const leaseSet = new Set((leaseAssignments ?? []).map((a: { animal_id: string }) => a.animal_id))
+    ids = ids.filter(id => leaseSet.has(id))
+  }
+
+  return ids ?? []
 }
 
 export async function POST(req: NextRequest) {
@@ -84,6 +103,7 @@ export async function POST(req: NextRequest) {
     group_label,
     custom_animal_ids,
     custom_tag_numbers,
+    lease_filter,
     event_date,
     drug_name,
     dose_amount,
@@ -110,7 +130,7 @@ export async function POST(req: NextRequest) {
     resolvedCustomIds = (byTag ?? []).map((a: { id: string }) => a.id)
   }
 
-  const animalIds = await resolveAnimalIds(supabase, group_type, group_value, resolvedCustomIds)
+  const animalIds = await resolveAnimalIds(supabase, group_type, group_value, resolvedCustomIds, lease_filter)
 
   if (!animalIds.length) {
     return NextResponse.json({ error: 'No animals matched the selected group' }, { status: 400 })

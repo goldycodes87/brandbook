@@ -26,11 +26,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const supabase = createAdminClient()
 
   const updates: Record<string, unknown> = {}
-  const allowed = ['status', 'notes', 'due_date', 'period_start', 'period_end',
-                   'line_items', 'expense_splits', 'paid_at', 'pdf_url', 'viewed_at']
+  const allowed = [
+    'status', 'notes', 'due_date', 'period_start', 'period_end',
+    'line_items', 'expense_splits', 'paid_at', 'pdf_url', 'viewed_at',
+    'approved_at', 'sent_at', 'email_sent_at',
+    'paid_amount', 'payment_method', 'payment_reference',
+  ]
   for (const k of allowed) {
     if (k in body) updates[k] = body[k]
   }
+
+  // Auto-set timestamps on status transitions
+  const now = new Date().toISOString()
+  if (body.status === 'approved' && !('approved_at' in body)) updates.approved_at = now
+  if (body.status === 'sent'     && !('sent_at'     in body)) { updates.sent_at = now; updates.email_sent_at = now }
+  if (body.status === 'paid'     && !('paid_at'     in body)) updates.paid_at = now
 
   if ('line_items' in updates || 'expense_splits' in updates) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

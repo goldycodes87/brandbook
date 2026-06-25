@@ -11,21 +11,25 @@ export function getAumFactor(sex: string | null | undefined): number {
   return AUM_FACTORS[sex.toLowerCase()] ?? 1.0
 }
 
-/** Calendar days that an assignment overlaps with a period (both ends inclusive). */
+/** Calendar days that an assignment overlaps with a window. Same-day window = 1 day. */
 export function calcOverlapDays(
   assignStart: string,
   assignEnd: string | null,   // null = still active
-  periodStart: string,
-  periodEnd: string,
+  windowStart: string,
+  windowEnd: string,
 ): number {
-  const as = new Date(assignStart + 'T00:00:00')
-  const ae = assignEnd ? new Date(assignEnd + 'T00:00:00') : new Date(periodEnd + 'T00:00:00')
-  const ps = new Date(periodStart + 'T00:00:00')
-  const pe = new Date(periodEnd + 'T00:00:00')
-  const start = as > ps ? as : ps
-  const end   = ae < pe ? ae : pe
-  const days  = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
-  return days > 0 ? days : 0
+  const aStart = new Date(assignStart + 'T00:00:00')
+  const aEnd   = assignEnd ? new Date(assignEnd + 'T00:00:00') : new Date(windowEnd + 'T00:00:00')
+  const wStart = new Date(windowStart + 'T00:00:00')
+  const wEnd   = new Date(windowEnd + 'T00:00:00')
+
+  const overlapStart = aStart > wStart ? aStart : wStart
+  const overlapEnd   = aEnd   < wEnd   ? aEnd   : wEnd
+
+  if (overlapEnd < overlapStart) return 0
+  if (overlapEnd.getTime() === overlapStart.getTime()) return 1
+
+  return Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 /**

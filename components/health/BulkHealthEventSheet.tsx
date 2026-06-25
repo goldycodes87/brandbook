@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { ContextBanner } from '@/components/ui/ContextBanner'
@@ -14,6 +15,7 @@ type GroupType =
   | 'heifers_only'
   | 'steers_only'
   | 'calves_only'
+  | 'yearlings'
   | 'by_ear_tag_color'
   | 'custom'
 
@@ -29,7 +31,8 @@ const GROUPS: GroupTile[] = [
   { value: 'bulls_only',   label: 'Bulls',         sub: 'Sex = bull' },
   { value: 'heifers_only', label: 'Heifers',       sub: 'Sex = heifer' },
   { value: 'steers_only',  label: 'Steers',        sub: 'Sex = steer' },
-  { value: 'calves_only',  label: 'Calves',        sub: 'Sex = calf' },
+  { value: 'calves_only',  label: 'Calves',        sub: 'All calves' },
+  { value: 'yearlings',    label: 'Yearlings',     sub: 'Weaned + < 2 yrs' },
   { value: 'by_ear_tag_color', label: 'By Ear Tag Color', sub: 'Filter by color' },
   { value: 'custom',       label: 'Custom List',   sub: 'Tag numbers' },
 ]
@@ -42,6 +45,8 @@ function addDays(dateStr: string, days: number): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+interface Lease { id: string; property_name: string }
+
 export function BulkHealthEventSheet() {
   const router = useRouter()
   const [open, setOpen]         = useState(false)
@@ -49,8 +54,10 @@ export function BulkHealthEventSheet() {
   const [group, setGroup]       = useState<GroupType | null>(null)
   const [earTagColor, setEarTagColor] = useState('')
   const [customTags, setCustomTags]   = useState('')
+  const [leaseFilter, setLeaseFilter] = useState<string>('')
+  const [leases, setLeases]           = useState<Lease[]>([])
   const [preview, setPreview]   = useState<{ count: number; label: string } | null>(null)
-  const [previewing, setPreviewing]   = useState(false)
+  const [previewing, setPreviewing] = useState(false)
 
   // Form fields
   const [eventDate, setEventDate]           = useState(new Date().toISOString().slice(0, 10))
@@ -60,13 +67,21 @@ export function BulkHealthEventSheet() {
   const [withdrawalDays, setWithdrawalDays] = useState('')
   const [administeredBy, setAdministeredBy] = useState('')
   const [notes, setNotes]                   = useState('')
-  const [saving, setSaving]                 = useState(false)
-  const [error, setError]                   = useState('')
-  const [success, setSuccess]               = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+  const [success, setSuccess]   = useState(false)
 
   const clearDate = withdrawalDays && eventDate
     ? addDays(eventDate, Number(withdrawalDays))
     : null
+
+  // Load leases for optional lease filter
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/leases?status=active').then(r => r.json()).then(d => {
+      setLeases(d.data ?? [])
+    }).catch(() => {})
+  }, [open])
 
   const reset = () => {
     setOpen(false)
@@ -74,6 +89,7 @@ export function BulkHealthEventSheet() {
     setGroup(null)
     setEarTagColor('')
     setCustomTags('')
+    setLeaseFilter('')
     setPreview(null)
     setEventDate(new Date().toISOString().slice(0, 10))
     setDrugName('')
@@ -86,30 +102,20 @@ export function BulkHealthEventSheet() {
     setSuccess(false)
   }
 
-  const handlePreview = async () => {
-    if (!group) return
-    setPreviewing(true)
-    setError('')
-    try {
-      const body: Record<string, unknown> = { group_type: group }
-      if (group === 'by_ear_tag_color') body.group_value = earTagColor
-      if (group === 'custom') body.custom_animal_ids = [] // we'll resolve from tags in save
-      const res  = await apiPost('/api/health/bulk/preview', body)
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Preview failed'); return }
-      setPreview({ count: data.count, label: data.label })
-      setStep('details')
-    } catch {
-      setError('Connection error')
-    } finally {
-      setPreviewing(false)
-    }
-  }
-
-  const proceedToDetails = () => {
+  const proceedToDetails = async () => {
     if (!group) return
     if (group === 'by_ear_tag_color' && !earTagColor) { setError('Select a color'); return }
     setError('')
+    setPreviewing(true)
+    try {
+      const body: Record<string, unknown> = { group_type: group }
+      if (group === 'by_ear_tag_color') body.group_value = earTagColor
+      if (leaseFilter) body.lease_filter = leaseFilter
+      const res  = await apiPost('/api/health/bulk/preview', body)
+      const data = await res.json()
+      if (res.ok) setPreview({ count: data.count, label: data.label })
+    } catch { /* non-fatal */ }
+    finally { setPreviewing(false) }
     setStep('details')
   }
 
@@ -135,6 +141,7 @@ export function BulkHealthEventSheet() {
         notes:           notes || null,
       }
       if (group === 'by_ear_tag_color') body.group_value = earTagColor
+      if (leaseFilter) body.lease_filter = leaseFilter
       if (group === 'custom') {
         const tags = customTags.split(/[\n,]+/).map(t => t.trim()).filter(Boolean)
         body.custom_tag_numbers = tags
@@ -153,6 +160,16 @@ export function BulkHealthEventSheet() {
       setSaving(false)
     }
   }
+
+  const activeFilterLabel = (() => {
+    if (!group) return null
+    const groupLabel = GROUPS.find(g => g.value === group)?.label
+    const leaseLabel = leaseFilter ? leases.find(l => l.id === leaseFilter)?.property_name : null
+    if (leaseLabel && groupLabel) return `${groupLabel} on ${leaseLabel}`
+    if (leaseLabel) return `On ${leaseLabel}`
+    if (group && group !== 'whole_herd') return groupLabel
+    return null
+  })()
 
   return (
     <>
@@ -181,24 +198,61 @@ export function BulkHealthEventSheet() {
                   {step === 'group' ? 'Select the animal group to treat' : 'Enter treatment details'}
                 </p>
               </div>
-              {step === 'details' && (
-                <button
-                  type="button"
-                  className="type-helper"
-                  style={{ color: 'var(--accent)' }}
-                  onClick={() => { setStep('group'); setError('') }}
-                >
-                  ← Change group
+              <div className="flex items-center gap-3">
+                {step === 'details' && (
+                  <button
+                    type="button"
+                    className="type-helper"
+                    style={{ color: 'var(--accent)' }}
+                    onClick={() => { setStep('group'); setError('') }}
+                  >
+                    ← Change group
+                  </button>
+                )}
+                <button type="button" onClick={reset}>
+                  <X size={18} style={{ color: 'var(--text-muted)' }} />
                 </button>
-              )}
+              </div>
             </div>
 
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
 
-            {/* Step 1: Group selection */}
+            {/* Step 1: Group + lease selection */}
             {step === 'group' && (
               <div className="flex flex-col gap-4">
+
+                {/* Lease filter (optional) */}
+                {leases.length > 0 && (
+                  <Field label="Lease (optional)" helper="Scope to animals currently on a specific lease">
+                    <Select value={leaseFilter} onChange={e => setLeaseFilter(e.target.value)}>
+                      <option value="">All leases</option>
+                      {leases.map(l => (
+                        <option key={l.id} value={l.id}>{l.property_name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
+
+                {/* Active filter chip */}
+                {activeFilterLabel && (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold"
+                      style={{ background: 'var(--warning-bg, #fff7ed)', color: 'var(--warning-fg, #c2410c)', border: '1px solid var(--warning-border, #fed7aa)' }}
+                    >
+                      Filtered: {activeFilterLabel}
+                      <button
+                        type="button"
+                        onClick={() => { setGroup(null); setLeaseFilter('') }}
+                        style={{ marginLeft: 4 }}
+                      >
+                        <X size={10} />
+                      </button>
+                    </span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
                   {GROUPS.map(g => (
                     <button
@@ -268,12 +322,12 @@ export function BulkHealthEventSheet() {
             {/* Step 2: Treatment details */}
             {step === 'details' && (
               <div className="flex flex-col gap-4">
-                {preview && (
+                {preview ? (
                   <ContextBanner tone="info" eyebrow="GROUP PREVIEW">
-                    {preview.label} — <strong>{preview.count ?? '?'} animals</strong>
+                    {preview.label}{leaseFilter && leases.find(l => l.id === leaseFilter) ? ` on ${leases.find(l => l.id === leaseFilter)!.property_name}` : ''}{' '}
+                    — <strong>{preview.count} animals</strong>
                   </ContextBanner>
-                )}
-                {!preview && group && (
+                ) : group && (
                   <div
                     className="rounded-[var(--radius-md)] px-3 py-2 type-helper"
                     style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}

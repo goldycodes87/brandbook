@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Resend } from 'resend'
+import { generateInvoicePdfBuffer } from '@/lib/generate-invoice-pdf'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -20,125 +21,213 @@ export async function POST(_req: NextRequest, { params }: Params) {
   if (error || !invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
 
   const owner = invoice.owner
-  if (!owner?.email)  return NextResponse.json({ error: 'Owner has no email address' }, { status: 400 })
+  if (!owner?.email) return NextResponse.json({ error: 'Owner has no email address' }, { status: 400 })
 
   const { data: ranch } = await supabase.from('ranch_settings').select('*').limit(1).maybeSingle()
-  const ranchName = ranch?.ranch_name || 'Brand Book Ranch'
+  const ranchName  = ranch?.ranch_name  || 'Legacy Land & Cattle'
+  const logoUrl    = ranch?.logo_url    || ''
+  const appUrl     = process.env.NEXT_PUBLIC_APP_URL || 'https://brandbook-zeta-eight.vercel.app'
 
-  const token   = owner.portal_token
-  const appUrl  = process.env.NEXT_PUBLIC_APP_URL || 'https://brandbook.app'
-  const portalUrl = token ? `${appUrl}/owner/${token}` : appUrl
-
-  const fmtDate  = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'
   const fmtMoney = (n: number) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const fmtDate  = (d: string | null) => d
+    ? new Date(d.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : 'Upon Receipt'
 
-  const lineRows = (invoice.line_items ?? []).map((li: { description: string; amount: number }) =>
-    `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${li.description}</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right">${fmtMoney(li.amount)}</td></tr>`
-  ).join('')
+  const ownerFirstName = (owner.owner_name || owner.name || 'there').split(' ')[0]
+  const ownerDisplay   = owner.company_name || owner.owner_name || owner.name || 'Customer'
+  const baseAmount     = Number(invoice.total_amount)
+  const surcharge      = Math.round(baseAmount * 0.03 * 100) / 100
+  const totalWithFee   = Math.round((baseAmount + surcharge) * 100) / 100
 
-  const expRows = (invoice.expense_splits ?? []).map((e: { description: string; owner_amount: number }) =>
-    `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${e.description}</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right">${fmtMoney(e.owner_amount)}</td></tr>`
-  ).join('')
+  // ── Square payment link ───────────────────────────────────────────────────
+  let paymentUrl: string | null = invoice.square_payment_link || null
 
-  const ownerDisplay = owner.company_name || owner.owner_name || owner.name
-
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px">
-<div style="max-width:600px;margin:0 auto;background:white;border-radius:8px;overflow:hidden">
-  <div style="background:#111;padding:24px 32px;display:flex;align-items:center;justify-content:space-between">
-    <div style="color:white;font-size:22px;font-weight:700">${ranchName}</div>
-    <div style="color:#ea580c;font-size:12px;font-weight:700;letter-spacing:2px">INVOICE</div>
-  </div>
-  <div style="padding:32px">
-    <table style="width:100%;margin-bottom:24px"><tr>
-      <td style="vertical-align:top">
-        <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;color:#999;font-weight:700">BILLED TO</p>
-        <p style="margin:0;font-weight:600;font-size:15px">${ownerDisplay}</p>
-        ${owner.email ? `<p style="margin:4px 0 0;font-size:13px;color:#666">${owner.email}</p>` : ''}
-        ${owner.phone ? `<p style="margin:2px 0 0;font-size:13px;color:#666">${owner.phone}</p>` : ''}
-      </td>
-      <td style="vertical-align:top;text-align:right">
-        <p style="margin:0 0 4px;font-size:13px;font-family:monospace;color:#666">${invoice.invoice_number}</p>
-        <p style="margin:0 0 4px;font-size:13px;color:#666">Period: ${fmtDate(invoice.period_start)} – ${fmtDate(invoice.period_end)}</p>
-        ${invoice.due_date ? `<p style="margin:0;font-size:13px;color:#e53e3e;font-weight:600">Due: ${fmtDate(invoice.due_date)}</p>` : ''}
-      </td>
-    </tr></table>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
-      <thead><tr style="background:#f9f9f9">
-        <th style="padding:10px 8px;text-align:left;font-size:11px;text-transform:uppercase;color:#999;border-bottom:2px solid #eee">Description</th>
-        <th style="padding:10px 8px;text-align:right;font-size:11px;text-transform:uppercase;color:#999;border-bottom:2px solid #eee">Amount</th>
-      </tr></thead>
-      <tbody>
-        ${lineRows}${expRows}
-        <tr>
-          <td style="padding:16px 8px 4px;font-weight:700;font-size:15px;border-top:2px solid #111">TOTAL DUE</td>
-          <td style="padding:16px 8px 4px;text-align:right;font-weight:700;font-size:20px;color:#ea580c;border-top:2px solid #111">${fmtMoney(invoice.total_amount)}</td>
-        </tr>
-      </tbody>
-    </table>
-    ${invoice.notes ? `<p style="color:#666;font-size:13px;margin-top:16px">Notes: ${invoice.notes}</p>` : ''}
-    <div style="text-align:center;margin-top:32px">
-      <a href="${portalUrl}" style="display:inline-block;background:#ea580c;color:white;text-decoration:none;padding:14px 32px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:1px">VIEW INVOICE</a>
-    </div>
-    ${ranch?.email || ranch?.phone ? `<p style="color:#999;font-size:12px;text-align:center;margin-top:24px">Questions? Contact us${ranch.phone ? ` at ${ranch.phone}` : ''}${ranch.email ? ` · ${ranch.email}` : ''}</p>` : ''}
-  </div>
-</div>
-</body></html>`
-
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: sendError } = await resend.emails.send({
-    from: 'Brand Book <noreply@brandbook.app>',
-    to:   owner.email,
-    subject: `Invoice ${invoice.invoice_number} from ${ranchName}`,
-    html,
-  })
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (sendError) return NextResponse.json({ error: (sendError as any).message ?? 'Email send failed' }, { status: 500 })
-
-  const now = new Date().toISOString()
-
-  // Optionally auto-create Square payment link
-  let squareLink: string | null = null
-  if (process.env.SQUARE_ACCESS_TOKEN && process.env.SQUARE_LOCATION_ID) {
+  if (!paymentUrl && process.env.SQUARE_ACCESS_TOKEN && process.env.SQUARE_LOCATION_ID) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { SquareClient, SquareEnvironment } = require('square') as {
         SquareClient: new (opts: { token: string; environment: string }) => {
-          checkout: {
-            paymentLinks: {
-              create: (body: unknown) => Promise<{ paymentLink?: { url?: string } }>
-            }
-          }
+          checkout: { paymentLinks: { create: (b: unknown) => Promise<{ paymentLink?: { url?: string } }> } }
         }
         SquareEnvironment: { Production: string; Sandbox: string }
       }
       const sqClient = new SquareClient({
         token:       process.env.SQUARE_ACCESS_TOKEN,
-        environment: process.env.SQUARE_ENVIRONMENT === 'production' ? SquareEnvironment.Production : SquareEnvironment.Sandbox,
+        environment: process.env.SQUARE_ENVIRONMENT === 'production'
+          ? SquareEnvironment.Production : SquareEnvironment.Sandbox,
       })
-      const ownerLabel = owner.company_name || owner.owner_name || owner.name || 'Owner'
+      // Include 3% card fee in link total
+      const totalCents = BigInt(Math.round(totalWithFee * 100))
       const result = await sqClient.checkout.paymentLinks.create({
         idempotencyKey: `send-${id}-${Date.now()}`,
         quickPay: {
-          name:       `Invoice ${invoice.invoice_number} — ${ownerLabel}`,
-          priceMoney: { amount: BigInt(Math.round((invoice.total_amount ?? 0) * 100)), currency: 'USD' },
+          name:       `Invoice ${invoice.invoice_number} — ${ownerDisplay}`,
+          priceMoney: { amount: totalCents, currency: 'USD' },
           locationId: process.env.SQUARE_LOCATION_ID,
         },
       })
-      if (result.paymentLink?.url) squareLink = result.paymentLink.url
+      if (result.paymentLink?.url) paymentUrl = result.paymentLink.url
     } catch { /* non-fatal */ }
   }
 
+  // ── Build line items HTML ─────────────────────────────────────────────────
+  type LI = { description: string; amount: number; is_header?: boolean; share_note?: string }
+  const lineItems = (invoice.line_items ?? []) as LI[]
+
+  const lineItemRows = lineItems.map((item: LI) => {
+    if (item.is_header) {
+      return `<tr><td colspan="2" style="padding:10px 12px 4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#ea580c;border-top:1px solid #fde8d8;background:#fff8f5">${item.description}</td></tr>`
+    }
+    return `<tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">
+        ${item.description}
+        ${item.share_note ? `<br><span style="font-size:11px;color:#999">${item.share_note}</span>` : ''}
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;white-space:nowrap">
+        ${fmtMoney(Number(item.amount))}
+      </td>
+    </tr>`
+  }).join('')
+
+  // ── Branded email HTML ────────────────────────────────────────────────────
+  const emailHtml = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;background:white">
+
+  <!-- HEADER -->
+  <div style="background:#1a1a1a;padding:32px 40px;text-align:center">
+    ${logoUrl
+      ? `<img src="${logoUrl}" style="height:60px" alt="${ranchName}">`
+      : `<div style="color:white;font-size:20px;font-weight:900;letter-spacing:-0.5px">${ranchName}</div>`}
+  </div>
+
+  <!-- HERO -->
+  <div style="background:#1a1a1a;padding:24px 40px 40px;text-align:center;border-bottom:3px solid #ea580c">
+    <div style="color:#ea580c;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">
+      Invoice #${invoice.invoice_number}
+    </div>
+    <div style="color:white;font-size:48px;font-weight:900;letter-spacing:-2px">
+      ${fmtMoney(baseAmount)}
+    </div>
+    <div style="color:#999;font-size:14px;margin-top:8px">
+      Due ${fmtDate(invoice.due_date)}
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div style="padding:40px">
+    <p style="font-size:16px;margin:0 0 16px;color:#333">Hi ${ownerFirstName},</p>
+    <p style="font-size:15px;line-height:1.6;color:#555;margin:0 0 24px">
+      Please find your grazing invoice attached as a PDF. A summary is below.
+    </p>
+
+    <!-- LINE ITEMS -->
+    <table style="width:100%;border-collapse:collapse;margin:0 0 24px;font-size:14px">
+      <thead>
+        <tr>
+          <th style="background:#f5f5f5;padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#666">Description</th>
+          <th style="background:#f5f5f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#666">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lineItemRows}
+        <tr>
+          <td style="padding:14px 12px 10px;font-weight:700;font-size:16px;border-top:2px solid #1a1a1a">Total Due</td>
+          <td style="padding:14px 12px 10px;font-weight:700;font-size:16px;text-align:right;border-top:2px solid #1a1a1a">${fmtMoney(baseAmount)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- PAY ONLINE -->
+    ${paymentUrl ? `
+    <a href="${paymentUrl}" style="display:block;background:#ea580c;color:white;text-decoration:none;text-align:center;padding:16px 32px;border-radius:8px;font-weight:700;font-size:16px;margin:0 0 12px;letter-spacing:0.5px">
+      PAY ONLINE →
+    </a>
+    <p style="text-align:center;font-size:12px;color:#999;margin:0 0 32px">
+      A 3% card processing fee applies to online payments. Total with fee: ${fmtMoney(totalWithFee)}
+    </p>
+    ` : ''}
+
+    <!-- PAY BY CHECK -->
+    <div style="background:#f9fafb;border-radius:8px;padding:20px;margin:0 0 24px">
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:12px;font-weight:600">Pay by Check</div>
+      <div style="font-size:14px;color:#333;line-height:1.8">
+        Make check payable to:<br>
+        <strong>${ranchName}</strong><br>
+        ${ranch?.address ? ranch.address + '<br>' : ''}
+        ${[ranch?.city, ranch?.state, ranch?.zip].filter(Boolean).join(', ')}
+      </div>
+    </div>
+
+    <p style="font-size:14px;color:#555;margin:0">
+      Questions? Reply to this email${ranch?.phone ? ` or call ${ranch.phone}` : ''}.
+    </p>
+
+    <!-- VIEW PORTAL -->
+    ${owner.portal_token ? `
+    <div style="text-align:center;margin-top:24px">
+      <a href="${appUrl}/owner/${owner.portal_token}" style="font-size:13px;color:#ea580c;text-decoration:none">
+        View your owner portal →
+      </a>
+    </div>
+    ` : ''}
+  </div>
+
+  <!-- FOOTER -->
+  <div style="background:#1a1a1a;padding:32px 40px;text-align:center;color:#666;font-size:12px">
+    <p style="margin:0 0 8px">${ranchName}${ranch?.address ? `<br>${ranch.address} · ${[ranch?.city, ranch?.state, ranch?.zip].filter(Boolean).join(', ')}` : ''}</p>
+    <p style="margin:0">
+      ${ranch?.phone ? `<a href="tel:${ranch.phone}" style="color:#ea580c;text-decoration:none">${ranch.phone}</a>` : ''}
+      ${ranch?.phone && ranch?.email ? ' &nbsp;•&nbsp; ' : ''}
+      ${ranch?.email ? `<a href="mailto:${ranch.email}" style="color:#ea580c;text-decoration:none">${ranch.email}</a>` : ''}
+    </p>
+    <p style="margin:16px 0 0;color:#444">© ${new Date().getFullYear()} ${ranchName}</p>
+  </div>
+
+</div>
+</body>
+</html>`
+
+  // ── Generate PDF buffer for attachment ────────────────────────────────────
+  let pdfBuffer: Buffer | null = null
+  try {
+    pdfBuffer = await generateInvoicePdfBuffer(id)
+  } catch { /* attach what we can */ }
+
+  // ── Send via Resend ───────────────────────────────────────────────────────
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const fromAddress = process.env.RESEND_FROM_EMAIL || `${ranchName} <billing@legacylandandcattleco.com>`
+
+  const emailPayload: Parameters<typeof resend.emails.send>[0] = {
+    from:    fromAddress,
+    to:      owner.email,
+    subject: `${ranchName} — Invoice ${invoice.invoice_number}`,
+    html:    emailHtml,
+  }
+
+  if (pdfBuffer) {
+    emailPayload.attachments = [{
+      filename: `Invoice-${invoice.invoice_number}.pdf`,
+      content:  pdfBuffer.toString('base64'),
+    }]
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: sendError } = await resend.emails.send(emailPayload)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (sendError) return NextResponse.json({ error: (sendError as any).message ?? 'Email send failed' }, { status: 500 })
+
+  // ── Update invoice status ─────────────────────────────────────────────────
+  const now = new Date().toISOString()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('invoices').update({
-    status:              'sent',
-    sent_at:             now,
-    email_sent_at:       now,
-    ...(squareLink ? { square_payment_link: squareLink } : {}),
+    status:        'sent',
+    sent_at:       now,
+    email_sent_at: now,
+    ...(paymentUrl ? { square_payment_link: paymentUrl } : {}),
   }).eq('id', id)
 
-  return NextResponse.json({ ok: true, square_link: squareLink })
+  return NextResponse.json({ ok: true, square_link: paymentUrl })
 }
