@@ -183,25 +183,23 @@ export async function POST(req: NextRequest) {
     console.log(`[expenses] lease=${lease.property_name} found=${expenses.length}`)
     if (!expenses.length) continue
 
-    // Fetch ALL assignments on this lease during expense quarter for animal-days
-    const { data: allAssignData } = await supabase
+    // Fetch ALL assignments on this lease during expense quarter with animal details.
+    // No owner filter — totalDays must include every owner's animals on this lease.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: allAssignData } = await (supabase as any)
       .from('grazing_assignments')
-      .select('animal_id, start_date, end_date')
+      .select('animal_id, start_date, end_date, animals(id, sex, owner_id, weaning_date, dam_id)')
       .eq('lease_id', leaseId)
       .lte('start_date', eEnd)
       .or(`end_date.is.null,end_date.gte.${eStart}`)
 
-    const allAssignments = (allAssignData ?? []) as AssignRow[]
+    type AssignWithAnimal = AssignRow & { animals: LeaseAnimalRow | null }
+    const allAssignments = (allAssignData ?? []) as AssignWithAnimal[]
 
-    // Fetch animal details for all assigned animals
-    const allAssignedIds = [...new Set(allAssignments.map(a => a.animal_id))]
-    let leaseAnimalMap = new Map<string, LeaseAnimalRow>()
-    if (allAssignedIds.length > 0) {
-      const { data: animalData } = await supabase
-        .from('animals')
-        .select('id, sex, owner_id, weaning_date, dam_id')
-        .in('id', allAssignedIds)
-      for (const a of (animalData ?? []) as LeaseAnimalRow[]) leaseAnimalMap.set(a.id, a)
+    // Build animal map from joined data (all owners on this lease)
+    const leaseAnimalMap = new Map<string, LeaseAnimalRow>()
+    for (const a of allAssignments) {
+      if (a.animals) leaseAnimalMap.set(a.animal_id, a.animals)
     }
 
     // Identify pair calves: unweaned calf whose dam is also assigned on this lease

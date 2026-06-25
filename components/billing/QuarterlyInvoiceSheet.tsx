@@ -153,12 +153,12 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col justify-end sm:items-center sm:justify-center">
+    <div className="fixed inset-0 z-[100] flex flex-col justify-end md:items-center md:justify-center">
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose} />
       <div
-        className="relative w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl flex flex-col"
+        className="relative w-full md:max-w-2xl rounded-t-2xl md:rounded-2xl flex flex-col"
         style={{
-          background: 'var(--surface-0, var(--bg))',
+          background: 'var(--surface-1)',
           border: '1px solid var(--border)',
           maxHeight: '90dvh',
         }}
@@ -183,8 +183,8 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
 
         {/* Body */}
         <div
-          className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-4"
-          style={{ WebkitOverflowScrolling: 'touch' }}
+          className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4"
+          style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 }}
         >
 
           {step === 3 && (
