@@ -26,10 +26,11 @@ export function calcOverlapDays(
   const overlapStart = aStart > wStart ? aStart : wStart
   const overlapEnd   = aEnd   < wEnd   ? aEnd   : wEnd
 
-  if (overlapEnd < overlapStart) return 0
-  if (overlapEnd.getTime() === overlapStart.getTime()) return 1
-
-  return Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24))
+  if (overlapStart <= overlapEnd) {
+    const days = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24))
+    return days === 0 ? 1 : days
+  }
+  return 0
 }
 
 /**
