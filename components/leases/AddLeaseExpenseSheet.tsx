@@ -86,6 +86,20 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
 
+const categoryDefaults: Record<string, boolean> = {
+  'Working Animals':       true,
+  'AI Technician Fee':     false,
+  'Semen Straws':          false,
+  'Preg Check':            false,
+  'Vet Bill':              false,
+  'Medication':            false,
+  'Veterinary Procedure':  false,
+  'Labor':                 false,
+  'Equipment Rental':      false,
+  'Fence Repair':          false,
+  'Pasture Treatment':     false,
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AddLeaseExpenseSheet({
@@ -257,7 +271,7 @@ export function AddLeaseExpenseSheet({
     >
       <div
         className="rounded-t-2xl md:rounded-2xl flex flex-col w-full md:max-w-lg"
-        style={{ background: 'var(--surface-0)', maxHeight: '92dvh' }}
+        style={{ background: 'var(--surface-0)', maxHeight: '92dvh', height: '92dvh', touchAction: 'pan-y' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -289,7 +303,7 @@ export function AddLeaseExpenseSheet({
         </div>
 
         {/* Body */}
-        <div className="flex-1 px-5 pb-4 flex flex-col gap-4" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0 }}>
+        <div className="flex-1 px-5 pb-4 flex flex-col gap-4" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0, flex: '1 1 0' }}>
 
           {/* ── STEP 1: Expense type ──────────────────────────────────────── */}
           {step === 1 && (
@@ -344,8 +358,8 @@ export function AddLeaseExpenseSheet({
                       setCategoryName(cat.name)
                       const ct = (cat.calculation_type || 'period') as 'period' | 'one_time'
                       setCalcType(ct)
+                      setIncludeCalves(categoryDefaults[cat.name] ?? false)
                       if (cat.name === 'Working Animals') {
-                        setIncludeCalves(true)
                         setWorkingItems([])
                         setOtherDetail('')
                         setDescription('')
