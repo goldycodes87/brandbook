@@ -286,7 +286,7 @@ export function DispositionSheet({
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 flex flex-col gap-4">
+        <div className="flex-1 px-4 pb-4 flex flex-col gap-4" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0 }}>
 
           {/* ── STEP 1: Disposition type selector ── */}
           {step === 1 && (

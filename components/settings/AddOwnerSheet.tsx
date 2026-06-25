@@ -288,8 +288,8 @@ export function AddOwnerSheet({ isOpen, onClose, onSuccess, initialData, mode }:
 
           {/* Scrollable body */}
           <div
-            className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3"
-            style={{ padding: '16px', WebkitOverflowScrolling: 'touch' }}
+            className="flex-1 flex flex-col gap-3"
+            style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0, padding: '16px' }}
           >
 
             {/* ── Section 1: CONTACT ───────────────────────────────────── */}

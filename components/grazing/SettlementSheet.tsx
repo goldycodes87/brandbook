@@ -195,7 +195,7 @@ export function SettlementSheet({ ownerId, ownerName, contract, onClose, onSaved
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain" style={{ padding: '20px' }}>
+        <div className="flex-1" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0, padding: '20px' }}>
           {saved ? (
             <div className="py-8 text-center">
               <Check size={32} style={{ color: 'var(--success-fg)', margin: '0 auto 12px' }} />

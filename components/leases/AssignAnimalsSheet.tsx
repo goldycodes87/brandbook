@@ -130,7 +130,7 @@ export function AssignAnimalsSheet({ isOpen, onClose, leaseId, leaseName, alread
         </div>
 
         {/* Animal list */}
-        <div className="flex-1 min-h-0 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex-1" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0 }}>
           {loading ? (
             <div className="flex flex-col gap-2 p-4">
               {[1, 2, 3, 4].map(i => (

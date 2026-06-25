@@ -216,7 +216,7 @@ export function BulkHealthEventSheet() {
             </div>
 
             {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
+            <div className="flex-1 px-4 pb-6" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0 }}>
 
             {/* Step 1: Group + lease selection */}
             {step === 'group' && (

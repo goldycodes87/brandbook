@@ -289,7 +289,7 @@ export function AddLeaseExpenseSheet({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4 flex flex-col gap-4">
+        <div className="flex-1 px-5 pb-4 flex flex-col gap-4" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0 }}>
 
           {/* ── STEP 1: Expense type ──────────────────────────────────────── */}
           {step === 1 && (

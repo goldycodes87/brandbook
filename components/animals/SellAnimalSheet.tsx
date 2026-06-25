@@ -115,7 +115,7 @@ export function SellAnimalSheet({ isOpen, onClose, animal, onSuccess }: SellAnim
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 flex flex-col gap-4">
+        <div className="flex-1 px-4 pb-4 flex flex-col gap-4" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0 }}>
           <ContextBanner tone="warning">
             This will mark <strong>{tagLabel}</strong> as sold and record the transaction.
           </ContextBanner>

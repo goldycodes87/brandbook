@@ -77,7 +77,7 @@ export function RemoveAnimalsSheet({ isOpen, onClose, leaseId, animal, onSuccess
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 p-5">
+        <div className="flex-1 flex flex-col gap-4 p-5" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0 }}>
           {/* Animal preview */}
           <div
             className="flex items-center gap-3 rounded-lg px-4 py-3"

@@ -224,8 +224,8 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
         </div>
 
         <div
-          className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4"
-          style={{ padding: '20px', WebkitOverflowScrolling: 'touch' }}
+          className="flex-1 flex flex-col gap-4"
+          style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0, padding: '20px' }}
         >
           <div className="grid grid-cols-2 gap-3">
             <Field label="Start date" required>
