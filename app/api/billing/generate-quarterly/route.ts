@@ -216,6 +216,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Debug: P&L pair-calf presence check
+    const _leaseName = (lease as { property_name: string }).property_name
+    const GREEN19 = '38aa511c-5492-4705-b48b-6b42f6e39ab1'
+    const GREEN45 = 'b0aed6a1-a98c-49f9-9eb7-9d89cebfecc2'
+    console.log(`[${_leaseName} PL] green19 found:`, allAssignments.some(a => a.animal_id === GREEN19))
+    console.log(`[${_leaseName} PL] green45 found:`, allAssignments.some(a => a.animal_id === GREEN45))
+    console.log(`[${_leaseName} PL] pairCalfIds:`, [...pairCalfIds])
+
     const leaseLineItems: LineItem[] = []
 
     for (const expense of expenses) {
