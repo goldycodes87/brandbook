@@ -272,6 +272,7 @@ export async function POST(req: NextRequest) {
         if (!includeCaivesInSplit && pairCalfIds.has(a.animal_id)) continue
 
         const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
+        console.log(`[animal days] ${(lease as { property_name: string }).property_name} | "${expense.category_name}" | animal=${a.animal_id} start=${a.start_date} end=${a.end_date ?? 'null'} window=${windowStart}→${windowEnd} days=${days}`)
         if (days <= 0) continue
 
         totalDays += days
