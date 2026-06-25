@@ -274,10 +274,12 @@ export async function POST(req: NextRequest) {
       let totalDays = 0
 
       for (const a of allAssignments) {
+        console.log('[loop entry]', a.animal_id)
         // Skip pair calves unless include_calves is set
         if (!includeCaivesInSplit && pairCalfIds.has(a.animal_id)) continue
 
         const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
+        console.log('[loop check]', a.animal_id, 'isPairCalf:', pairCalfIds.has(a.animal_id), 'days:', days, 'skipped:', days <= 0)
         console.log(`[animal days] ${(lease as { property_name: string }).property_name} | "${expense.category_name}" | animal=${a.animal_id} start=${a.start_date} end=${a.end_date ?? 'null'} window=${windowStart}→${windowEnd} days=${days}`)
         if (days <= 0) continue
 
