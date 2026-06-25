@@ -2,18 +2,29 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { calcOverlapDays } from '@/lib/lease-calculations'
 
 function fmtDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function quarterRange(year: number, quarter: number): { start: string; end: string } {
-  const startMonth = (quarter - 1) * 3  // 0-based
+  const startMonth = (quarter - 1) * 3
   const endMonth   = startMonth + 2
   const yy = 2000 + year
   const start = new Date(yy, startMonth, 1).toISOString().slice(0, 10)
   const end   = new Date(yy, endMonth + 1, 0).toISOString().slice(0, 10)
   return { start, end }
+}
+
+type LineItem = {
+  description: string
+  quantity: number | null
+  unit_price: number | null
+  amount: number
+  is_header?: boolean
+  share_note?: string
+  expense_type?: string
 }
 
 export async function POST(req: NextRequest) {
@@ -52,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   if (!owner) return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
 
-  // ── Step 2: Fetch active contract for rate ───────────────────────────────────
+  // ── Step 2: Fetch active contract for grazing rate ───────────────────────────
   const { data: contract } = await supabase
     .from('grazing_contracts')
     .select('rate_per_head_month, expense_share_pct, expense_share_method')
@@ -77,7 +88,7 @@ export async function POST(req: NextRequest) {
   const bStartLabel = fmtDate(bStart)
   const bEndLabel   = fmtDate(bEnd)
 
-  const lineItems: Array<{ description: string; quantity: number; unit_price: number; amount: number }> = []
+  const lineItems: LineItem[] = []
 
   if (ownerHead > 0 && monthlyRate > 0) {
     lineItems.push({
@@ -88,93 +99,213 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // ── Step 5: Fetch ALL active animals on all leases for herd % calc ───────────
-  // Count total animals on lease(s) during expense quarter to determine owner %
+  // ── Step 5: Expense quarter date range ──────────────────────────────────────
   const { start: eStart, end: eEnd } = quarterRange(expense_year, expense_quarter)
 
-  // Get all animals on any lease the owner participates in
-  const { data: ownerAssignments } = await supabase
-    .from('grazing_assignments')
-    .select('lease_id')
+  // ── Step 6: Find all leases where owner had animals during expense quarter ──
+  // Get owner's animals first (avoid non-existent owner_id on grazing_assignments)
+  const { data: ownerAnimals } = await supabase
+    .from('animals')
+    .select('id')
     .eq('owner_id', owner_id)
-    .or(`end_date.is.null,end_date.gte.${eStart}`)
+    .eq('status', 'active')
 
-  const ownerLeaseIds = [...new Set((ownerAssignments ?? []).map((a: { lease_id: string }) => a.lease_id))]
+  const ownerAnimalIds = (ownerAnimals ?? []).map((a: { id: string }) => a.id)
 
-  // ── Step 6: Fetch expense-quarter lease expenses ─────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: rawExpenses } = await (supabase as any)
-    .from('lease_expenses')
-    .select('id, lease_id, expense_type, category_name, description, total_amount, owner_id, animal_id')
-    .in(ownerLeaseIds.length > 0 ? 'lease_id' : 'id', ownerLeaseIds.length > 0 ? ownerLeaseIds : ['__none__'])
-    .gte('expense_date', eStart)
-    .lte('expense_date', eEnd)
+  type AssignRow = { animal_id: string; lease_id: string; start_date: string; end_date: string | null }
 
-  const expenses = (rawExpenses ?? []) as Array<{
+  let ownerAssignments: AssignRow[] = []
+  if (ownerAnimalIds.length > 0) {
+    const { data } = await supabase
+      .from('grazing_assignments')
+      .select('animal_id, lease_id, start_date, end_date')
+      .in('animal_id', ownerAnimalIds)
+      .lte('start_date', eEnd)
+      .or(`end_date.is.null,end_date.gte.${eStart}`)
+    ownerAssignments = (data ?? []) as AssignRow[]
+  }
+
+  const ownerLeaseIds = [...new Set(ownerAssignments.map(a => a.lease_id))]
+
+  // ── Step 7: Per-lease expense calculation ────────────────────────────────────
+  type ExpenseRow = {
     id: string; lease_id: string; expense_type: string
     category_name: string; description: string | null
     total_amount: number; owner_id: string | null; animal_id: string | null
-  }>
-
-  // For shared expenses, calculate owner's % per lease
-  const leaseOwnerPcts: Record<string, number> = {}
-  for (const leaseId of ownerLeaseIds) {
-    const { data: allAssign } = await supabase
-      .from('grazing_assignments')
-      .select('animal_id, owner_id')
-      .eq('lease_id', leaseId)
-      .or(`end_date.is.null,end_date.gte.${eStart}`)
-
-    const allAnimals   = (allAssign ?? []) as { animal_id: string; owner_id: string }[]
-    const totalOnLease = allAnimals.length
-    const ownerOnLease = allAnimals.filter(a => a.owner_id === owner_id).length
-    leaseOwnerPcts[leaseId] = totalOnLease > 0 ? ownerOnLease / totalOnLease : 0
+    period_start: string | null; period_end: string | null
+    expense_date: string | null
+    include_calves: boolean | null
+    expense_categories: { calculation_type: string | null } | null
   }
 
-  // Group expense line items
-  const expenseGroups: Record<string, { description: string; total: number }> = {}
+  type LeaseAnimalRow = { id: string; sex: string | null; owner_id: string | null; weaning_date: string | null; dam_id: string | null }
 
-  for (const exp of expenses) {
-    if (exp.expense_type === 'shared') {
-      const pct = leaseOwnerPcts[exp.lease_id] ?? 0
-      if (pct <= 0) continue
-      const ownerShare = exp.total_amount * pct
-      const key = exp.category_name
-      if (!expenseGroups[key]) expenseGroups[key] = { description: exp.category_name, total: 0 }
-      expenseGroups[key].total += ownerShare
-    } else if (exp.expense_type === 'owner_specific' && exp.owner_id === owner_id) {
-      const key = exp.category_name + '|' + (exp.description ?? '')
-      if (!expenseGroups[key]) expenseGroups[key] = { description: exp.description || exp.category_name, total: 0 }
-      expenseGroups[key].total += exp.total_amount
-    } else if (exp.expense_type === 'animal_specific' && exp.animal_id) {
-      // Check if animal belongs to this owner
-      const { data: animalRow } = await supabase
+  const leaseExpenseGroups: Array<{
+    lease_id: string
+    lease_name: string
+    line_items: LineItem[]
+  }> = []
+
+  for (const leaseId of ownerLeaseIds) {
+    // Fetch lease details
+    const { data: lease } = await supabase
+      .from('leases')
+      .select('id, property_name, is_home_ranch')
+      .eq('id', leaseId)
+      .maybeSingle()
+    if (!lease) continue
+
+    // Fetch expenses for this lease during expense quarter
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rawExpenses } = await (supabase as any)
+      .from('lease_expenses')
+      .select('id, lease_id, expense_type, category_name, description, total_amount, owner_id, animal_id, period_start, period_end, expense_date, include_calves, expense_categories(calculation_type)')
+      .eq('lease_id', leaseId)
+      .eq('quarter', expense_quarter)
+      .eq('year', expense_year)
+
+    const expenses = (rawExpenses ?? []) as ExpenseRow[]
+    if (!expenses.length) continue
+
+    // Fetch ALL assignments on this lease during expense quarter for animal-days
+    const { data: allAssignData } = await supabase
+      .from('grazing_assignments')
+      .select('animal_id, start_date, end_date')
+      .eq('lease_id', leaseId)
+      .lte('start_date', eEnd)
+      .or(`end_date.is.null,end_date.gte.${eStart}`)
+
+    const allAssignments = (allAssignData ?? []) as AssignRow[]
+
+    // Fetch animal details for all assigned animals
+    const allAssignedIds = [...new Set(allAssignments.map(a => a.animal_id))]
+    let leaseAnimalMap = new Map<string, LeaseAnimalRow>()
+    if (allAssignedIds.length > 0) {
+      const { data: animalData } = await supabase
         .from('animals')
-        .select('owner_id')
-        .eq('id', exp.animal_id)
-        .maybeSingle()
-      if ((animalRow as { owner_id: string | null } | null)?.owner_id !== owner_id) continue
-      const key = exp.category_name + '|' + exp.animal_id
-      if (!expenseGroups[key]) expenseGroups[key] = { description: exp.description || exp.category_name, total: 0 }
-      expenseGroups[key].total += exp.total_amount
+        .select('id, sex, owner_id, weaning_date, dam_id')
+        .in('id', allAssignedIds)
+      for (const a of (animalData ?? []) as LeaseAnimalRow[]) leaseAnimalMap.set(a.id, a)
+    }
+
+    // Identify pair calves: unweaned calf whose dam is also assigned on this lease
+    const assignedIdSet = new Set(allAssignments.map(a => a.animal_id))
+    const pairCalfIds = new Set<string>()
+    for (const [animalId, animal] of leaseAnimalMap) {
+      if (
+        animal.sex?.toLowerCase() === 'calf' &&
+        !animal.weaning_date &&
+        animal.dam_id &&
+        assignedIdSet.has(animal.dam_id)
+      ) {
+        pairCalfIds.add(animalId)
+      }
+    }
+
+    const leaseLineItems: LineItem[] = []
+
+    for (const expense of expenses) {
+      // Owner specific: only if this owner
+      if (expense.expense_type === 'owner_specific') {
+        if (expense.owner_id !== owner_id) continue
+        leaseLineItems.push({
+          description: expense.description || expense.category_name || 'Expense',
+          quantity:    1,
+          unit_price:  expense.total_amount,
+          amount:      expense.total_amount,
+          expense_type: 'owner_specific',
+        })
+        continue
+      }
+
+      // Animal specific: only if animal belongs to this owner
+      if (expense.expense_type === 'animal_specific') {
+        if (!expense.animal_id) continue
+        const { data: animalRow } = await supabase
+          .from('animals').select('owner_id').eq('id', expense.animal_id).maybeSingle()
+        if ((animalRow as { owner_id: string | null } | null)?.owner_id !== owner_id) continue
+        leaseLineItems.push({
+          description: expense.description || expense.category_name || 'Expense',
+          quantity:    1,
+          unit_price:  expense.total_amount,
+          amount:      expense.total_amount,
+          expense_type: 'animal_specific',
+        })
+        continue
+      }
+
+      // Shared: calculate by animal-days
+      const includeCaivesInSplit = Boolean(expense.include_calves)
+      const calcType = expense.expense_categories?.calculation_type || 'period'
+      let windowStart: string
+      let windowEnd: string
+      if (calcType === 'one_time') {
+        windowStart = expense.expense_date || eStart
+        windowEnd   = expense.expense_date || eEnd
+      } else {
+        windowStart = expense.period_start || eStart
+        windowEnd   = expense.period_end   || eEnd
+      }
+
+      let ownerDays = 0
+      let totalDays = 0
+
+      for (const a of allAssignments) {
+        // Skip pair calves unless include_calves is set
+        if (!includeCaivesInSplit && pairCalfIds.has(a.animal_id)) continue
+
+        const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
+        if (days <= 0) continue
+
+        totalDays += days
+
+        const animalOwner = leaseAnimalMap.get(a.animal_id)?.owner_id ?? null
+        if (animalOwner === owner_id) ownerDays += days
+      }
+
+      if (totalDays === 0 || ownerDays === 0) continue
+
+      const ownerShare = expense.total_amount * (ownerDays / totalDays)
+      const sharePct   = ((ownerDays / totalDays) * 100).toFixed(1)
+
+      leaseLineItems.push({
+        description:  expense.description || expense.category_name || 'Expense',
+        quantity:     1,
+        unit_price:   Math.round(ownerShare * 100) / 100,
+        amount:       Math.round(ownerShare * 100) / 100,
+        expense_type: 'shared',
+        share_note:   `${sharePct}% of $${Number(expense.total_amount).toFixed(2)}`,
+      })
+    }
+
+    if (leaseLineItems.length > 0) {
+      leaseExpenseGroups.push({
+        lease_id:   leaseId,
+        lease_name: (lease as { property_name: string }).property_name,
+        line_items: leaseLineItems,
+      })
     }
   }
 
-  for (const [, grp] of Object.entries(expenseGroups)) {
-    const amt = Math.round(grp.total * 100) / 100
-    if (amt <= 0) continue
+  // ── Step 8: Build final line items with lease section headers ────────────────
+  for (const group of leaseExpenseGroups) {
     lineItems.push({
-      description: `${grp.description} (Q${expense_quarter} ${2000 + expense_year})`,
-      quantity:    1,
-      unit_price:  amt,
-      amount:      amt,
+      description: `── ${group.lease_name.toUpperCase()} EXPENSES (Q${expense_quarter} ${2000 + expense_year}) ──`,
+      quantity:    null,
+      unit_price:  null,
+      amount:      0,
+      is_header:   true,
     })
+    for (const item of group.line_items) {
+      lineItems.push(item)
+    }
   }
 
-  const total = Math.round(lineItems.reduce((s, i) => s + i.amount, 0) * 100) / 100
-  const ownerName = owner.company_name || owner.owner_name || owner.name
+  const total       = Math.round(lineItems.reduce((s, i) => s + i.amount, 0) * 100) / 100
+  const ownerName   = owner.company_name || owner.owner_name || owner.name
+  const expenseCount = leaseExpenseGroups.reduce((s, g) => s + g.line_items.length, 0)
 
-  // ── Step 7: Get invoice number ───────────────────────────────────────────────
+  // ── Step 9: Get invoice number ───────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { count: existingCount } = await (supabase as any)
     .from('invoices')
@@ -183,10 +314,10 @@ export async function POST(req: NextRequest) {
     .gte('created_at', `20${String(billing_year).padStart(2, '0')}-01-01`)
     .lte('created_at', `20${String(billing_year).padStart(2, '0')}-12-31`)
 
-  const sequence = (existingCount ?? 0) + 1
-  const yy       = String(billing_year).padStart(2, '0')
-  const qq       = String(billing_quarter).padStart(2, '0')
-  const seq      = String(sequence).padStart(3, '0')
+  const sequence      = (existingCount ?? 0) + 1
+  const yy            = String(billing_year).padStart(2, '0')
+  const qq            = String(billing_quarter).padStart(2, '0')
+  const seq           = String(sequence).padStart(3, '0')
   const invoiceNumber = `${yy}${qq}${seq}`
 
   const preview = {
@@ -195,7 +326,7 @@ export async function POST(req: NextRequest) {
     head_count:       ownerHead,
     monthly_rate:     monthlyRate,
     quarterly_grazing: quarterlyGrazing,
-    expense_count:    expenses.length,
+    expense_count:    expenseCount,
     line_items:       lineItems,
     total,
   }
@@ -204,7 +335,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ preview })
   }
 
-  // ── Step 8: Create the invoice ───────────────────────────────────────────────
+  // ── Step 10: Create the invoice ──────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: invoice, error: invErr } = await (supabase as any)
     .from('invoices')

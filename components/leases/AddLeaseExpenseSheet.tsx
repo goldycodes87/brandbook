@@ -42,7 +42,16 @@ const REQUIRES_DESCRIPTION = [
   'Other (Animal Specific)',
 ]
 
-interface CategoryRow { id: string; name: string; expense_type: string }
+const WORKING_ITEMS = ['Wormer', 'Ear Tags', 'Branding', 'Vet Check', 'Wound Care', 'Vaccines', 'Other']
+
+function todayStr() { return new Date().toISOString().slice(0, 10) }
+function qtrStartStr() {
+  const now = new Date()
+  const qStart = Math.floor(now.getMonth() / 3) * 3
+  return new Date(now.getFullYear(), qStart, 1).toISOString().slice(0, 10)
+}
+
+interface CategoryRow { id: string; name: string; expense_type: string; calculation_type?: string | null }
 
 interface AumOwnerRow {
   owner_id: string | null
@@ -100,6 +109,11 @@ export function AddLeaseExpenseSheet({
   const [animals,       setAnimals]      = useState<LeaseAnimal[]>([])
   const [aumData,       setAumData]      = useState<{ by_owner: AumOwnerRow[] } | null>(null)
   const [includeCalves, setIncludeCalves] = useState(false)
+  const [calcType,      setCalcType]     = useState<'period' | 'one_time'>('period')
+  const [periodStart,   setPeriodStart]  = useState(qtrStartStr())
+  const [periodEnd,     setPeriodEnd]    = useState(todayStr())
+  const [workingItems,  setWorkingItems] = useState<string[]>([])
+  const [otherDetail,   setOtherDetail]  = useState('')
   const [saving,        setSaving]       = useState(false)
   const [error,         setError]        = useState('')
 
@@ -129,7 +143,7 @@ export function AddLeaseExpenseSheet({
       setCategoryId(initialData.category_id)
       setCategoryName(initialData.category_name)
       setDescription(initialData.description ?? '')
-      setExpenseDate(initialData.expense_date ?? new Date().toISOString().slice(0, 10))
+      setExpenseDate(initialData.expense_date ?? todayStr())
       setTotalAmount(String(initialData.total_amount ?? ''))
       setQuantity(initialData.qty != null ? String(initialData.qty) : '')
       setUnitCost(initialData.unit_cost != null ? String(initialData.unit_cost) : '')
@@ -137,6 +151,12 @@ export function AddLeaseExpenseSheet({
       setOwnerId(initialData.owner_id)
       setAnimalId(initialData.animal_id)
       setIncludeCalves(Boolean(initialData.include_calves))
+      const ct: 'period' | 'one_time' = initialData.period_start ? 'period' : 'one_time'
+      setCalcType(ct)
+      setPeriodStart(initialData.period_start ?? qtrStartStr())
+      setPeriodEnd(initialData.period_end ?? todayStr())
+      setWorkingItems([])
+      setOtherDetail('')
       setStep(2)
     } else {
       setStep(1)
@@ -144,7 +164,7 @@ export function AddLeaseExpenseSheet({
       setCategoryId(null)
       setCategoryName('')
       setDescription('')
-      setExpenseDate(new Date().toISOString().slice(0, 10))
+      setExpenseDate(todayStr())
       setTotalAmount('')
       setQuantity('')
       setUnitCost('')
@@ -153,11 +173,20 @@ export function AddLeaseExpenseSheet({
       setAnimalId(null)
       setAnimalSearch('')
       setIncludeCalves(false)
+      setCalcType('period')
+      setPeriodStart(qtrStartStr())
+      setPeriodEnd(todayStr())
+      setWorkingItems([])
+      setOtherDetail('')
     }
     setError('')
   }, [isOpen, leaseId, mode, initialData])
 
-  const descriptionRequired = REQUIRES_DESCRIPTION.includes(categoryName)
+  const descriptionRequired  = REQUIRES_DESCRIPTION.includes(categoryName)
+  const isWorkingAnimals     = categoryName === 'Working Animals'
+  const isAITech             = categoryName === 'AI Technician Fee'
+  const isPregCheck          = categoryName === 'Preg Check'
+  const showQtyField         = isAITech || isPregCheck
 
   // Auto-calc total for Semen Straws
   const isSemenStraws = categoryName === 'Semen Straws'
@@ -192,7 +221,9 @@ export function AddLeaseExpenseSheet({
         expense_type:    expenseType,
         description:     description.trim() || null,
         total_amount:    amt,
-        expense_date:    expenseDate || null,
+        expense_date:    calcType === 'one_time' ? (expenseDate || null) : (periodStart || null),
+        period_start:    calcType === 'period' ? (periodStart || null) : null,
+        period_end:      calcType === 'period' ? (periodEnd || null) : null,
         notes:           notes || null,
         owner_id:        expenseType === 'owner_specific'  ? (ownerId === 'null' ? null : ownerId)  : null,
         animal_id:       expenseType === 'animal_specific' ? animalId : null,
@@ -311,9 +342,18 @@ export function AddLeaseExpenseSheet({
                     onClick={() => {
                       setCategoryId(cat.id)
                       setCategoryName(cat.name)
-                      // Pre-fill description only for non-required categories
-                      if (!REQUIRES_DESCRIPTION.includes(cat.name)) setDescription(cat.name)
-                      else setDescription('')
+                      const ct = (cat.calculation_type || 'period') as 'period' | 'one_time'
+                      setCalcType(ct)
+                      if (cat.name === 'Working Animals') {
+                        setIncludeCalves(true)
+                        setWorkingItems([])
+                        setOtherDetail('')
+                        setDescription('')
+                      } else if (!REQUIRES_DESCRIPTION.includes(cat.name)) {
+                        setDescription(cat.name)
+                      } else {
+                        setDescription('')
+                      }
                     }}
                   >
                     {cat.name}
@@ -435,6 +475,57 @@ export function AddLeaseExpenseSheet({
                     </ContextBanner>
                   )}
                 </>
+              ) : isWorkingAnimals ? (
+                <>
+                  <Field label="Services performed">
+                    <div className="flex flex-col gap-2 mt-1">
+                      {WORKING_ITEMS.map(item => (
+                        <label
+                          key={item}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer"
+                          style={{ border: '1px solid var(--border)', background: 'var(--surface-1)' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={workingItems.includes(item)}
+                            onChange={e => {
+                              const next = e.target.checked
+                                ? [...workingItems, item]
+                                : workingItems.filter(i => i !== item)
+                              setWorkingItems(next)
+                              const parts = next.filter(i => i !== 'Other')
+                              if (next.includes('Other')) parts.push(otherDetail || 'Other')
+                              setDescription(next.length ? 'Working Animals — ' + parts.join(', ') : '')
+                            }}
+                          />
+                          <span className="type-label" style={{ color: 'var(--text)' }}>{item}</span>
+                        </label>
+                      ))}
+                      {workingItems.includes('Other') && (
+                        <Input
+                          placeholder="Describe…"
+                          value={otherDetail}
+                          onChange={e => {
+                            setOtherDetail(e.target.value)
+                            const parts = workingItems.filter(i => i !== 'Other')
+                            parts.push(e.target.value || 'Other')
+                            setDescription('Working Animals — ' + parts.join(', '))
+                          }}
+                        />
+                      )}
+                    </div>
+                  </Field>
+                  <Field label="Total amount ($)" required>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={totalAmount}
+                      onChange={e => setTotalAmount(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </Field>
+                </>
               ) : (
                 <>
                   <Field
@@ -467,12 +558,42 @@ export function AddLeaseExpenseSheet({
                       placeholder="0.00"
                     />
                   </Field>
+                  {showQtyField && (
+                    <Field label={isAITech ? "Cows AI'd" : 'Animals checked'}>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={quantity}
+                        onChange={e => setQuantity(e.target.value)}
+                        placeholder="0"
+                      />
+                      <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>
+                        Full amount billed to selected owner
+                      </p>
+                    </Field>
+                  )}
                 </>
               )}
 
-              <Field label="Expense date" required>
-                <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
-              </Field>
+              {calcType === 'one_time' ? (
+                <Field label="Date of Event *">
+                  <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
+                  <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Cost split equally among animals present on this date
+                  </p>
+                </Field>
+              ) : (
+                <Field label="Expense Period *">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} placeholder="Start" />
+                    <Input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} placeholder="End" />
+                  </div>
+                  <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Cost split pro-rated by days each animal was present during this period
+                  </p>
+                </Field>
+              )}
 
               {expenseType === 'shared' && (
                 <div
@@ -511,7 +632,9 @@ export function AddLeaseExpenseSheet({
                 return (
                   <div className="flex flex-col gap-3">
                     <ContextBanner tone="neutral">
-                      This expense will be split among all owners by herd&nbsp;%
+                      {calcType === 'one_time'
+                        ? `Split equally among animals present on ${expenseDate}`
+                        : `Split pro-rated by days present from ${periodStart} to ${periodEnd}`}
                     </ContextBanner>
                     <div
                       className="rounded-xl overflow-hidden"
