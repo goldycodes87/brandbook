@@ -258,7 +258,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Shared: calculate by animal-days
-      const includeCaivesInSplit = Boolean(expense.include_calves)
+      // Working Animals: include pair calves; everything else: exclude them
+      const includeCaivesInSplit = expense.include_calves ?? (expense.category_name === 'Working Animals')
       const calcType = expense.expense_categories?.calculation_type || 'period'
       let windowStart: string
       let windowEnd: string

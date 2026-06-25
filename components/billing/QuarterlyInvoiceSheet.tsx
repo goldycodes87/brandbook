@@ -161,6 +161,7 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
           background: 'var(--surface-1)',
           border: '1px solid var(--border)',
           maxHeight: '90dvh',
+          height: '90dvh',
           touchAction: 'pan-y',
         }}
       >
@@ -185,7 +186,7 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
         {/* Body */}
         <div
           className="flex-1 px-5 py-4 flex flex-col gap-4"
-          style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0 }}
+          style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0, flex: '1 1 0' }}
         >
 
           {step === 3 && (
