@@ -94,6 +94,14 @@ export async function POST(req: NextRequest) {
   const billableUnits    = ownerAnimalsFull.length - billingPairCalves.length
   const quarterlyGrazing = billableUnits * monthlyRate * 3
 
+  // Sex breakdown for preview display
+  const sexBreakdown: Record<string, number> = {}
+  for (const a of ownerAnimalsFull) {
+    const sex = (a.sex || 'other').toLowerCase()
+    sexBreakdown[sex] = (sexBreakdown[sex] || 0) + 1
+  }
+  console.log('[quarterly] total:', ownerAnimalsFull.length, '| pair calves:', billingPairCalves.length, '| billable:', billableUnits, '| breakdown:', sexBreakdown)
+
   // ── Step 4: Billing quarter date range ──────────────────────────────────────
   const { start: bStart, end: bEnd } = quarterRange(billing_year, billing_quarter)
   const bStartLabel = fmtDate(bStart)
@@ -172,6 +180,7 @@ export async function POST(req: NextRequest) {
       .eq('year', expense_year)
 
     const expenses = (rawExpenses ?? []) as ExpenseRow[]
+    console.log(`[expenses] lease=${lease.property_name} found=${expenses.length}`)
     if (!expenses.length) continue
 
     // Fetch ALL assignments on this lease during expense quarter for animal-days
@@ -212,6 +221,7 @@ export async function POST(req: NextRequest) {
     const leaseLineItems: LineItem[] = []
 
     for (const expense of expenses) {
+      console.log(`[expense] type=${expense.expense_type} cat="${expense.category_name}" desc="${expense.description}" amt=${expense.total_amount} calcType=${expense.expense_categories?.calculation_type}`)
       // Owner specific: only if this owner
       if (expense.expense_type === 'owner_specific') {
         if (expense.owner_id !== owner_id) continue
@@ -270,6 +280,7 @@ export async function POST(req: NextRequest) {
         if (animalOwner === owner_id) ownerDays += days
       }
 
+      console.log(`[shared] "${expense.category_name}" window=${windowStart}→${windowEnd} ownerDays=${ownerDays} totalDays=${totalDays}`)
       if (totalDays === 0 || ownerDays === 0) continue
 
       const ownerShare = expense.total_amount * (ownerDays / totalDays)
@@ -294,17 +305,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Step 8: Build final line items with lease section headers ────────────────
-  for (const group of leaseExpenseGroups) {
+  // ── Step 8: Build final line items ────────────────────────────────────────────
+  if (leaseExpenseGroups.length > 0) {
     lineItems.push({
-      description: `── ${group.lease_name.toUpperCase()} EXPENSES (Q${expense_quarter} ${2000 + expense_year}) ──`,
+      description: `── Q${expense_quarter} ${2000 + expense_year} LEASE EXPENSES ──`,
       quantity:    null,
       unit_price:  null,
       amount:      0,
       is_header:   true,
     })
-    for (const item of group.line_items) {
-      lineItems.push(item)
+    for (const group of leaseExpenseGroups) {
+      for (const item of group.line_items) {
+        lineItems.push({
+          ...item,
+          description: `${item.description} (${group.lease_name})`,
+        })
+      }
     }
   }
 
@@ -328,14 +344,16 @@ export async function POST(req: NextRequest) {
   const invoiceNumber = `${yy}${qq}${seq}`
 
   const preview = {
-    invoice_number:   invoiceNumber,
-    owner_name:       ownerName,
-    head_count:       billableUnits,
-    monthly_rate:     monthlyRate,
+    invoice_number:    invoiceNumber,
+    owner_name:        ownerName,
+    head_count:        billableUnits,
+    monthly_rate:      monthlyRate,
     quarterly_grazing: quarterlyGrazing,
-    expense_count:    expenseCount,
-    line_items:       lineItems,
+    expense_count:     expenseCount,
+    line_items:        lineItems,
     total,
+    sex_breakdown:     sexBreakdown,
+    pair_calves:       billingPairCalves.length,
   }
 
   if (dry_run) {

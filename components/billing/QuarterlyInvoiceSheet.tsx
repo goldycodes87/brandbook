@@ -32,6 +32,12 @@ interface InvoicePreview {
   expense_count: number
   line_items: LineItem[]
   total: number
+  sex_breakdown?: Record<string, number>
+  pair_calves?: number
+}
+
+const SEX_LABELS: Record<string, string> = {
+  cow: 'COWS', heifer: 'HEIFERS', bull: 'BULLS', steer: 'STEERS', calf: 'CALVES',
 }
 
 interface Props {
@@ -283,13 +289,34 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose, onSuccess }: Props) {
                   <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>INVOICE #</span>
                   <span className="font-mono text-sm" style={{ color: 'var(--text)' }}>{preview.invoice_number}</span>
                 </div>
+                {preview.sex_breakdown && Object.entries(preview.sex_breakdown)
+                  .filter(([, count]) => count > 0)
+                  .sort(([a], [b]) => {
+                    const order = ['cow', 'heifer', 'bull', 'steer', 'calf', 'other']
+                    return order.indexOf(a) - order.indexOf(b)
+                  })
+                  .map(([sex, count]) => (
+                    <div key={sex} className="flex justify-between">
+                      <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>
+                        {SEX_LABELS[sex] ?? sex.toUpperCase() + 'S'}
+                      </span>
+                      <span className="text-sm" style={{ color: 'var(--text)' }}>{count}</span>
+                    </div>
+                  ))
+                }
+                {(preview.pair_calves ?? 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>PAIR CALVES</span>
+                    <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                      -{preview.pair_calves} (billed w/ dam)
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
-                  <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>HEAD COUNT</span>
-                  <span className="text-sm" style={{ color: 'var(--text)' }}>{preview.head_count}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>RATE/HEAD/MO</span>
-                  <span className="text-sm" style={{ color: 'var(--text)' }}>{fmt(preview.monthly_rate)}</span>
+                  <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>BILLABLE UNITS</span>
+                  <span className="text-sm font-bold" style={{ color: 'var(--text)' }}>
+                    {preview.head_count} @ {fmt(preview.monthly_rate)}/mo
+                  </span>
                 </div>
               </div>
 
