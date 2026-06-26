@@ -176,8 +176,15 @@ export async function POST(_req: NextRequest, { params }: Params) {
   // ── Generate PDF buffer for attachment ────────────────────────────────────
   let pdfBuffer: Buffer | null = null
   try {
+    console.log('[send] generating PDF')
     pdfBuffer = await generateInvoicePdfBuffer(id)
-  } catch { /* attach what we can */ }
+    console.log('[send] PDF size:', pdfBuffer?.length, 'bytes')
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      console.error('[send] PDF buffer is empty')
+    }
+  } catch (e: unknown) {
+    console.error('[send] PDF generation failed:', (e as Error).message)
+  }
 
   // ── Send via Resend ───────────────────────────────────────────────────────
   const resend = new Resend(process.env.RESEND_API_KEY)
@@ -195,8 +202,13 @@ export async function POST(_req: NextRequest, { params }: Params) {
       filename: `Invoice-${invoice.invoice_number}.pdf`,
       content:  pdfBuffer.toString('base64'),
     }]
+    const att = emailPayload.attachments?.[0]
+    console.log('[send] attaching PDF:', att?.filename, String(att?.content).length, 'base64 chars')
+  } else {
+    console.warn('[send] no PDF attachment — sending without')
   }
 
+  console.log('[send] sending email to:', owner.email)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: sendError } = await resend.emails.send(emailPayload)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
