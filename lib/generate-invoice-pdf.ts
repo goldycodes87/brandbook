@@ -1,4 +1,9 @@
+import chromium from '@sparticuz/chromium-min'
+import puppeteer from 'puppeteer-core'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+const CHROMIUM_PACK_URL =
+  'https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar'
 
 type RawLineItem = {
   description: string; quantity?: number | null; unit_price?: number | null
@@ -6,7 +11,7 @@ type RawLineItem = {
 }
 
 function buildInvoiceHtml(invoice: Record<string, unknown>, ranch: Record<string, unknown> | null): string {
-  const ranchName    = (ranch?.ranch_name as string)    || 'Brand Book Ranch'
+  const ranchName    = (ranch?.ranch_name as string)    || 'Legacy Land & Cattle, LLC'
   const ranchAddress = [(ranch?.address as string), (ranch?.city as string), (ranch?.state as string), (ranch?.zip as string)].filter(Boolean).join(', ')
   const ranchPhone   = (ranch?.phone as string)   || ''
   const ranchEmail   = (ranch?.email as string)   || ''
@@ -44,7 +49,7 @@ function buildInvoiceHtml(invoice: Record<string, unknown>, ranch: Record<string
   }).join('')
 
   const headerLogoHtml = logoUrl
-    ? `<img src="${logoUrl}" style="max-height:64px;max-width:200px;object-fit:contain" alt="logo">`
+    ? `<img src="${logoUrl}" style="height:60px;max-width:200px;object-fit:contain" alt="${ranchName}">`
     : `<div style="font-size:28px;font-weight:800;color:#111;letter-spacing:-0.5px">${ranchName}</div>`
 
   const squareLinkSection = invoice.square_payment_link
@@ -154,6 +159,29 @@ function buildInvoiceHtml(invoice: Record<string, unknown>, ranch: Record<string
 </body></html>`
 }
 
+export async function generatePDF(html: string): Promise<Buffer> {
+  const executablePath = await chromium.executablePath(CHROMIUM_PACK_URL)
+
+  const browser = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless: chromium.headless,
+  })
+
+  const page = await browser.newPage()
+  await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 })
+
+  const pdfBuffer = await page.pdf({
+    format: 'Letter',
+    printBackground: true,
+    margin: { top: '0.5in', right: '0.5in', bottom: '0.5in', left: '0.5in' },
+  })
+
+  await browser.close()
+  return Buffer.from(pdfBuffer)
+}
+
 export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffer> {
   const supabase = createAdminClient()
 
@@ -170,7 +198,5 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
 
   const html = buildInvoiceHtml(invoice as Record<string, unknown>, ranch as Record<string, unknown> | null)
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const htmlPdfNode = require('html-pdf-node') as { generatePdf: (file: { content: string }, options: object) => Promise<Buffer> }
-  return htmlPdfNode.generatePdf({ content: html }, { format: 'A4' })
+  return generatePDF(html)
 }

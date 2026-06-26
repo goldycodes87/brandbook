@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { uploadToR2 } from '@/lib/r2'
+import { generatePDF } from '@/lib/generate-invoice-pdf'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -321,9 +322,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 </body>
 </html>`
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const htmlPdfNode = require('html-pdf-node') as { generatePdf: (file: { content: string }, options: object) => Promise<Buffer> }
-  const pdfBuffer = await htmlPdfNode.generatePdf({ content: html }, { format: 'A4' })
+  const pdfBuffer = await generatePDF(html)
 
   const pdfKey = `reports/grazing/${id}-${year}-annual.pdf`
   const pdfUrl = await uploadToR2(pdfKey, pdfBuffer, 'application/pdf')

@@ -9,7 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['html-pdf-node', 'puppeteer-core', 'square'],
+  serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium-min', 'square'],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

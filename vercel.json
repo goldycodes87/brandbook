@@ -2,5 +2,11 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "app/api/billing/[id]/pdf/route": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
 }
