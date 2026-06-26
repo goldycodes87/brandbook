@@ -13,7 +13,6 @@ const LIGHT_RED = rgb(0.957, 0.761, 0.761)
 const WHITE    = rgb(1, 1, 1)
 const DARK     = rgb(0.067, 0.067, 0.067)
 const GRAY     = rgb(0.333, 0.333, 0.333)
-const MID_GRAY = rgb(0.600, 0.600, 0.600)
 const BG_GRAY  = rgb(0.973, 0.973, 0.973)
 const RULE     = rgb(0.878, 0.878, 0.878)
 
@@ -252,9 +251,8 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
       continue
     }
 
-    const descLines  = wrapText(font, sanitize(li.description), 10, COL_DESC - 8)
-    const shareLines = li.share_note ? wrapText(font, sanitize(li.share_note), 8, COL_DESC - 8) : []
-    const rowH = Math.max(22, (descLines.length + shareLines.length) * 13 + 10)
+    const descLines = wrapText(font, sanitize(li.description), 10, COL_DESC - 8)
+    const rowH = Math.max(22, descLines.length * 13 + 10)
 
     page.drawLine({ start: { x: M, y: y + 1 }, end: { x: PW - M, y: y + 1 }, thickness: 0.5, color: RULE })
 
@@ -266,9 +264,6 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
 
     descLines.forEach((dl, idx) => {
       page.drawText(dl, { x: xDesc + 4, y: ty - idx * 13, size: 10, font, color: DARK })
-    })
-    shareLines.forEach((sl, idx) => {
-      page.drawText(sl, { x: xDesc + 4, y: ty - descLines.length * 13 - idx * 12, size: 8, font, color: MID_GRAY })
     })
 
     if (li.unit_price != null) {
@@ -282,26 +277,27 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
   }
 
   // ── Totals ──────────────────────────────────────────────────────────────────
-  y -= 6
+  y -= 10
   page.drawLine({ start: { x: M, y }, end: { x: PW - M, y }, thickness: 0.5, color: RULE })
 
   const TOT_X = PW - M - 240
 
-  y -= 16
+  y -= 22
   page.drawText('Subtotal', { x: TOT_X, y, size: 10, font, color: GRAY })
   rightText(page, font, fmt(subtotal), 10, PW - M, y, GRAY)
 
-  y -= 16
-  page.drawText('Tax', { x: TOT_X, y, size: 10, font, color: GRAY })
+  y -= 22
+  page.drawText('Sales Tax', { x: TOT_X, y, size: 10, font, color: GRAY })
   rightText(page, font, '$0.00', 10, PW - M, y, GRAY)
 
   // Total due box
-  y -= 6
-  page.drawRectangle({ x: TOT_X - 8, y: y - 8, width: PW - M - TOT_X + 8, height: 32, color: BG_GRAY })
-  page.drawLine({ start: { x: TOT_X - 8, y: y + 24 }, end: { x: PW - M, y: y + 24 }, thickness: 2, color: RED })
-  y -= 2
-  page.drawText('TOTAL DUE', { x: TOT_X, y, size: 12, font: fontBold, color: DARK })
-  rightText(page, fontBold, fmt(invoice.total_amount as number), 18, PW - M, y - 2, RED)
+  y -= 14
+  const totBoxH = 36
+  page.drawRectangle({ x: TOT_X - 8, y: y - totBoxH + 14, width: PW - M - TOT_X + 8, height: totBoxH, color: BG_GRAY })
+  page.drawLine({ start: { x: TOT_X - 8, y }, end: { x: PW - M, y }, thickness: 2, color: RED })
+  y -= 20
+  page.drawText('TOTAL DUE', { x: TOT_X, y, size: 13, font: fontBold, color: DARK })
+  rightText(page, fontBold, fmt(invoice.total_amount as number), 15, PW - M, y, RED)
 
   // ── Thank you ───────────────────────────────────────────────────────────────
   y -= 52
