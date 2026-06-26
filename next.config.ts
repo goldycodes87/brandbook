@@ -9,7 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['pdfmake', 'square'],
+  serverExternalPackages: ['square'],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
