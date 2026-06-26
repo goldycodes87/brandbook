@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib'
+import { PDFDocument, PDFImage, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 // ── Page constants (Letter) ─────────────────────────────────────────────────
@@ -24,6 +24,26 @@ type RawLineItem = {
   amount: number
   is_header?: boolean
   share_note?: string
+}
+
+function sanitize(s: string): string {
+  // Strip Unicode box-drawing chars (U+2500-U+257F) — not in WinAnsi font encoding
+  return s.replace(/[─-╿]/g, '-')
+}
+
+async function fetchLogoImage(pdfDoc: PDFDocument, url: string): Promise<PDFImage | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return null
+    const buf = Buffer.from(await res.arrayBuffer())
+    const ct = res.headers.get('content-type') || ''
+    if (ct.includes('png') || url.toLowerCase().includes('.png')) {
+      return await pdfDoc.embedPng(buf)
+    }
+    return await pdfDoc.embedJpg(buf)
+  } catch {
+    return null
+  }
 }
 
 function fmt(n: number): string {
@@ -88,7 +108,7 @@ export async function generatePDF(html: string): Promise<Buffer> {
     const wrapped = wrapText(font, line.trim(), 10, CW)
     for (const wl of wrapped) {
       if (y < M + LH) { page = pdfDoc.addPage([PW, PH]); y = PH - M }
-      page.drawText(wl, { x: M, y, size: 10, font, color: DARK })
+      page.drawText(sanitize(wl), { x: M, y, size: 10, font, color: DARK })
       y -= LH
     }
   }
@@ -130,18 +150,31 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
   const font    = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
+  const logoImg = r?.logo_url ? await fetchLogoImage(pdfDoc, r.logo_url) : null
+
   const page = pdfDoc.addPage([PW, PH])
   let y = PH - M
 
   // ── Header ─────────────────────────────────────────────────────────────────
-  page.drawText(ranchName, { x: M, y, size: 18, font: fontBold, color: DARK })
-  if (ranchAddr) {
-    y -= 16
-    page.drawText(ranchAddr, { x: M, y, size: 9, font, color: GRAY })
-  }
-  if (ranchPhone || ranchEmail) {
-    y -= 12
-    page.drawText([ranchPhone, ranchEmail].filter(Boolean).join(' · '), { x: M, y, size: 9, font, color: GRAY })
+  if (logoImg) {
+    const dims = logoImg.scaleToFit(200, 50)
+    page.drawImage(logoImg, { x: M, y: PH - M - dims.height, width: dims.width, height: dims.height })
+    // Contact info right-aligned below INVOICE word
+    let ry = PH - M - 44
+    if (ranchAddr) { rightText(page, font, ranchAddr, 8, PW - M, ry, GRAY); ry -= 12 }
+    if (ranchPhone || ranchEmail) {
+      rightText(page, font, [ranchPhone, ranchEmail].filter(Boolean).join(' · '), 8, PW - M, ry, GRAY)
+    }
+  } else {
+    page.drawText(ranchName, { x: M, y, size: 18, font: fontBold, color: DARK })
+    if (ranchAddr) {
+      y -= 16
+      page.drawText(ranchAddr, { x: M, y, size: 9, font, color: GRAY })
+    }
+    if (ranchPhone || ranchEmail) {
+      y -= 12
+      page.drawText([ranchPhone, ranchEmail].filter(Boolean).join(' · '), { x: M, y, size: 9, font, color: GRAY })
+    }
   }
 
   // INVOICE top-right
@@ -214,13 +247,13 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
     if (li.is_header) {
       y -= 2
       page.drawRectangle({ x: M, y: y - 20, width: CW, height: 20, color: BG_GRAY })
-      page.drawText(li.description, { x: xDesc + 4, y: y - 14, size: 9, font: fontBold, color: RED })
+      page.drawText(sanitize(li.description), { x: xDesc + 4, y: y - 14, size: 9, font: fontBold, color: RED })
       y -= 22
       continue
     }
 
-    const descLines  = wrapText(font, li.description, 10, COL_DESC - 8)
-    const shareLines = li.share_note ? wrapText(font, li.share_note, 8, COL_DESC - 8) : []
+    const descLines  = wrapText(font, sanitize(li.description), 10, COL_DESC - 8)
+    const shareLines = li.share_note ? wrapText(font, sanitize(li.share_note), 8, COL_DESC - 8) : []
     const rowH = Math.max(22, (descLines.length + shareLines.length) * 13 + 10)
 
     page.drawLine({ start: { x: M, y: y + 1 }, end: { x: PW - M, y: y + 1 }, thickness: 0.5, color: RULE })
