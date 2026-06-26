@@ -42,32 +42,16 @@ export async function POST(_req: NextRequest, { params }: Params) {
   // ── Square payment link ───────────────────────────────────────────────────
   let paymentUrl: string | null = invoice.square_payment_link || null
 
-  if (!paymentUrl && process.env.SQUARE_ACCESS_TOKEN && process.env.SQUARE_LOCATION_ID) {
+  if (!paymentUrl) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { SquareClient, SquareEnvironment } = require('square') as {
-        SquareClient: new (opts: { token: string; environment: string }) => {
-          checkout: { paymentLinks: { create: (b: unknown) => Promise<{ paymentLink?: { url?: string } }> } }
-        }
-        SquareEnvironment: { Production: string; Sandbox: string }
-      }
-      const sqClient = new SquareClient({
-        token:       process.env.SQUARE_ACCESS_TOKEN,
-        environment: process.env.SQUARE_ENVIRONMENT === 'production'
-          ? SquareEnvironment.Production : SquareEnvironment.Sandbox,
-      })
-      // Include 3% card fee in link total
-      const totalCents = BigInt(Math.round(totalWithFee * 100))
-      const result = await sqClient.checkout.paymentLinks.create({
-        idempotencyKey: `send-${id}-${Date.now()}`,
-        quickPay: {
-          name:       `Invoice ${invoice.invoice_number} — ${ownerDisplay}`,
-          priceMoney: { amount: totalCents, currency: 'USD' },
-          locationId: process.env.SQUARE_LOCATION_ID,
-        },
-      })
-      if (result.paymentLink?.url) paymentUrl = result.paymentLink.url
-    } catch { /* non-fatal */ }
+      const plRes = await fetch(`${appUrl}/api/billing/${id}/square-link`, { method: 'POST' })
+      console.log('[payment link] status:', plRes.status)
+      const plData = await plRes.json()
+      console.log('[payment link] response:', JSON.stringify(plData))
+      paymentUrl = plData.payment_link_url || null
+    } catch (e: unknown) {
+      console.error('[payment link error]', (e as Error).message)
+    }
   }
 
   // ── Build line items HTML ─────────────────────────────────────────────────
@@ -81,7 +65,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
     return `<tr>
       <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">
         ${item.description}
-        ${item.share_note ? `<br><span style="font-size:11px;color:#999">${item.share_note}</span>` : ''}
       </td>
       <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;white-space:nowrap">
         ${fmtMoney(Number(item.amount))}
