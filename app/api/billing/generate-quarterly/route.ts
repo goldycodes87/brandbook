@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
   // ── Step 8: Build final line items ────────────────────────────────────────────
   if (leaseExpenseGroups.length > 0) {
     lineItems.push({
-      description: `── Q${expense_quarter} ${2000 + expense_year} LEASE EXPENSES ──`,
+      description: `Q${expense_quarter} ${2000 + expense_year} LEASE EXPENSES`,
       quantity:    null,
       unit_price:  null,
       amount:      0,
