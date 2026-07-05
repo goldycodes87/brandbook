@@ -280,9 +280,12 @@ function FinancialsBreakdown({ costBasis, revenue, animalId, onRefresh }: { cost
   )
 }
 
-function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue }: {
+function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoUpload, uploadingPhoto, photoError }: {
   animal: Animal; onDelete: () => void; ranchName?: string;
   costBasis: CostBasis | null; revenue: Revenue | null
+  onPhotoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void
+  uploadingPhoto: boolean
+  photoError: string
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
@@ -305,17 +308,28 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue }: {
   return (
     <div className="flex flex-col gap-5 md:max-w-3xl">
       {/* Photo gallery */}
-      {(animal.photos?.length ?? 0) > 0 && (
-        <Panel title="PHOTOS" padding="sm">
-          <div className="flex gap-3 flex-wrap p-1">
-            {animal.photos!.map(url => (
-              <div key={url} className="w-28 h-28 rounded-[var(--radius-md)] overflow-hidden shrink-0" style={{ border: '1px solid var(--border)' }}>
-                <Image src={url} alt={animal.tag_number} width={112} height={112} className="object-cover w-full h-full" />
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+      <Panel title="PHOTOS" padding="sm">
+        <div className="flex gap-3 flex-wrap p-1 items-start">
+          {(animal.photos ?? []).map(url => (
+            <div key={url} className="w-28 h-28 rounded-[var(--radius-md)] overflow-hidden shrink-0" style={{ border: '1px solid var(--border)' }}>
+              <Image src={url} alt={animal.tag_number} width={112} height={112} className="object-cover w-full h-full" />
+            </div>
+          ))}
+          <label
+            className="w-28 h-28 rounded-[var(--radius-md)] flex flex-col items-center justify-center gap-1 cursor-pointer shrink-0"
+            style={{ border: `2px dashed var(--border)`, background: 'var(--surface-2)', opacity: uploadingPhoto ? 0.6 : 1 }}
+          >
+            <span className="text-2xl" style={{ color: 'var(--text-muted)' }}>+</span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{uploadingPhoto ? 'Uploading…' : 'Add Photo'}</span>
+            <input type="file" accept="image/*" className="sr-only" onChange={onPhotoUpload} disabled={uploadingPhoto} />
+          </label>
+        </div>
+        {photoError && (
+          <p className="type-helper px-3 py-2 mt-2 rounded" style={{ color: 'var(--danger-fg)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
+            {photoError}
+          </p>
+        )}
+      </Panel>
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1021,6 +1035,8 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   const [ranchName, setRanchName]     = useState<string | undefined>(undefined)
   const [costBasis, setCostBasis]     = useState<CostBasis | null>(null)
   const [revenue, setRevenue]         = useState<Revenue | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [photoError, setPhotoError]         = useState('')
 
   const fetchAnimal = useCallback(() => {
     apiGet(`/api/animals/${id}`)
@@ -1034,6 +1050,29 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   }, [id])
 
   useEffect(() => { fetchAnimal() }, [fetchAnimal])
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    setPhotoError('')
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`/api/animals/${id}/photos`, { method: 'POST', body: fd })
+      if (res.ok) {
+        fetchAnimal()
+      } else {
+        const data = await res.json()
+        setPhotoError(data.error ?? 'Upload failed')
+      }
+    } catch {
+      setPhotoError('Connection error — upload failed')
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = ''
+    }
+  }
 
   useEffect(() => {
     apiGet('/api/settings/ranch')
@@ -1117,7 +1156,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
 
       <Tabs value={tab} onChange={setTab} items={TABS} className="mb-5" />
 
-      {tab === 'overview'      && <OverviewTab  animal={animal} onDelete={() => router.push('/animals')} ranchName={ranchName} costBasis={costBasis} revenue={revenue} />}
+      {tab === 'overview'      && <OverviewTab  animal={animal} onDelete={() => router.push('/animals')} ranchName={ranchName} costBasis={costBasis} revenue={revenue} onPhotoUpload={handlePhotoUpload} uploadingPhoto={uploadingPhoto} photoError={photoError} />}
       {tab === 'health'        && <HealthTab    animal={animal} onLogEvent={() => setLogOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} onRefresh={fetchAnimal} onDispose={handleCalfDispose} />}
       {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} onRefresh={fetchAnimal} />}

@@ -28,7 +28,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   const ext    = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
   const key    = `animals/${id}/${randomUUID()}.${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
-  const url    = await uploadToR2(key, buffer, file.type)
+  const uploadedUrl = await uploadToR2(key, buffer, file.type)
+
+  if (!uploadedUrl) {
+    console.error('[photo] R2 upload returned no URL')
+    return NextResponse.json({ error: 'Upload failed — R2 returned no URL' }, { status: 500 })
+  }
+  console.log('[photo] R2 URL:', uploadedUrl)
 
   const { data: animal, error: fetchErr } = await supabase
     .from('animals')
@@ -38,12 +44,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 404 })
 
-  const photos = [...(animal.photos ?? []), url]
-  const { error } = await supabase.from('animals').update({ photos }).eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const updatedPhotos = [...(animal.photos ?? []), uploadedUrl]
+  const { error: updateError } = await supabase.from('animals').update({ photos: updatedPhotos }).eq('id', id)
+  if (updateError) {
+    console.error('[photo] DB save failed:', updateError.message)
+    return NextResponse.json({ error: 'Failed to save photo to animal record' }, { status: 500 })
+  }
 
-  console.log('[photos] success, total photos:', photos.length)
-  return NextResponse.json({ url, photos })
+  console.log('[photo] saved to animal:', id, 'photos:', updatedPhotos.length)
+  return NextResponse.json({ url: uploadedUrl, photos: updatedPhotos })
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
