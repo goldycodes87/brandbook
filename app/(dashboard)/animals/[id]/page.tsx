@@ -1052,22 +1052,32 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   useEffect(() => { fetchAnimal() }, [fetchAnimal])
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[photo client] file selected:', e.target.files?.[0]?.name, e.target.files?.[0]?.size)
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file) {
+      console.log('[photo client] no file selected')
+      return
+    }
     setUploadingPhoto(true)
     setPhotoError('')
+    console.log('[photo client] building FormData')
+    const formData = new FormData()
+    formData.append('file', file)
+    console.log('[photo client] POSTing to:', `/api/animals/${id}/photos`)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch(`/api/animals/${id}/photos`, { method: 'POST', body: fd })
-      if (res.ok) {
-        fetchAnimal()
-      } else {
-        const data = await res.json()
-        setPhotoError(data.error ?? 'Upload failed')
+      const res = await fetch(`/api/animals/${id}/photos`, { method: 'POST', body: formData, credentials: 'include' })
+      console.log('[photo client] response status:', res.status)
+      const data = await res.json()
+      console.log('[photo client] response data:', data)
+      if (!res.ok) {
+        setPhotoError(data.error || 'Upload failed')
+        return
       }
-    } catch {
-      setPhotoError('Connection error — upload failed')
+      await fetchAnimal()
+    } catch (err: unknown) {
+      const msg = (err as Error).message
+      console.error('[photo client] fetch error:', msg)
+      setPhotoError('Connection error: ' + msg)
     } finally {
       setUploadingPhoto(false)
       e.target.value = ''
