@@ -9,19 +9,34 @@ type Params = { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
-  console.log('[photos] route hit, animal id:', id)
-  console.log('[photos] R2 bucket:', !!process.env.CLOUDFLARE_R2_BUCKET_NAME)
-  console.log('[photos] R2 account:', !!process.env.CLOUDFLARE_R2_ACCOUNT_ID)
-  console.log('[photos] R2 key:', !!process.env.CLOUDFLARE_R2_ACCESS_KEY_ID)
-
   const supabase = createAdminClient()
 
-  const formData = await req.formData()
-  console.log('[photos] files received:', formData.getAll('file').length)
+  const contentType = req.headers.get('content-type') || ''
 
+  // ── New flow: client already uploaded to R2, just save the public URL ──────
+  if (contentType.includes('application/json')) {
+    const { url } = await req.json() as { url: string }
+    if (!url) return NextResponse.json({ error: 'url required' }, { status: 400 })
+
+    const { data: animal, error: fetchErr } = await supabase
+      .from('animals').select('photos').eq('id', id).single()
+    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 404 })
+
+    const updatedPhotos = [...(animal.photos ?? []), url]
+    const { error: updateError } = await supabase.from('animals').update({ photos: updatedPhotos }).eq('id', id)
+    if (updateError) {
+      console.error('[photo] DB save failed:', updateError.message)
+      return NextResponse.json({ error: 'Failed to save photo to animal record' }, { status: 500 })
+    }
+
+    console.log('[photo] saved presigned URL to animal:', id, 'photos:', updatedPhotos.length)
+    return NextResponse.json({ url, photos: updatedPhotos })
+  }
+
+  // ── Legacy flow: multipart upload via server (edit/new pages) ────────────
+  const formData = await req.formData()
   const file = formData.get('file')
   if (!file || !(file instanceof Blob)) {
-    console.log('[photos] no file in formData, keys:', [...formData.keys()])
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
   }
 
@@ -31,27 +46,18 @@ export async function POST(req: NextRequest, { params }: Params) {
   const uploadedUrl = await uploadToR2(key, buffer, file.type)
 
   if (!uploadedUrl) {
-    console.error('[photo] R2 upload returned no URL')
     return NextResponse.json({ error: 'Upload failed — R2 returned no URL' }, { status: 500 })
   }
-  console.log('[photo] R2 URL:', uploadedUrl)
 
   const { data: animal, error: fetchErr } = await supabase
-    .from('animals')
-    .select('photos')
-    .eq('id', id)
-    .single()
-
+    .from('animals').select('photos').eq('id', id).single()
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 404 })
 
   const updatedPhotos = [...(animal.photos ?? []), uploadedUrl]
   const { error: updateError } = await supabase.from('animals').update({ photos: updatedPhotos }).eq('id', id)
-  if (updateError) {
-    console.error('[photo] DB save failed:', updateError.message)
-    return NextResponse.json({ error: 'Failed to save photo to animal record' }, { status: 500 })
-  }
+  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
-  console.log('[photo] saved to animal:', id, 'photos:', updatedPhotos.length)
+  console.log('[photo] legacy upload saved, photos:', updatedPhotos.length)
   return NextResponse.json({ url: uploadedUrl, photos: updatedPhotos })
 }
 

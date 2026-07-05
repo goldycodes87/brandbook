@@ -1060,19 +1060,53 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
     }
     setUploadingPhoto(true)
     setPhotoError('')
-    console.log('[photo client] building FormData')
-    const formData = new FormData()
-    formData.append('file', file)
-    console.log('[photo client] POSTing to:', `/api/animals/${id}/photos`)
     try {
-      const res = await fetch(`/api/animals/${id}/photos`, { method: 'POST', body: formData, credentials: 'include' })
-      console.log('[photo client] response status:', res.status)
-      const data = await res.json()
-      console.log('[photo client] response data:', data)
-      if (!res.ok) {
-        setPhotoError(data.error || 'Upload failed')
+      // Step 1: Get presigned URL
+      console.log('[photo client] step 1: getting presigned URL')
+      const presignRes = await fetch(`/api/animals/${id}/photos/presign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ filename: file.name, content_type: file.type || 'image/jpeg' }),
+      })
+      console.log('[photo client] presign status:', presignRes.status)
+      if (!presignRes.ok) {
+        const err = await presignRes.json()
+        setPhotoError(err.error || 'Failed to get upload URL')
         return
       }
+      const { presigned_url, public_url } = await presignRes.json()
+      console.log('[photo client] presigned URL received, public_url:', public_url)
+
+      // Step 2: Upload directly to R2 (no Vercel body size limit)
+      console.log('[photo client] step 2: uploading to R2, size:', file.size)
+      const uploadRes = await fetch(presigned_url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'image/jpeg' },
+      })
+      console.log('[photo client] R2 upload status:', uploadRes.status)
+      if (!uploadRes.ok) {
+        setPhotoError('Upload to storage failed (' + uploadRes.status + ')')
+        return
+      }
+
+      // Step 3: Save URL to animal record
+      console.log('[photo client] step 3: saving URL to animal')
+      const saveRes = await fetch(`/api/animals/${id}/photos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ url: public_url }),
+      })
+      console.log('[photo client] save status:', saveRes.status)
+      const saveData = await saveRes.json()
+      console.log('[photo client] save data:', saveData)
+      if (!saveRes.ok) {
+        setPhotoError(saveData.error || 'Failed to save photo')
+        return
+      }
+
       await fetchAnimal()
     } catch (err: unknown) {
       const msg = (err as Error).message
