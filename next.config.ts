@@ -10,6 +10,15 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['square'],
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'pub-a76713f4122744ba98206ae0dda612a4.r2.dev',
+        pathname: '/**',
+      },
+    ],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
