@@ -27,11 +27,12 @@ export function AssignAnimalsSheet({ isOpen, onClose, leaseId, leaseName, alread
   const [loading, setLoading]       = useState(false)
   const [search, setSearch]         = useState('')
   const [selected, setSelected]     = useState<Set<string>>(new Set())
+  const [startDate, setStartDate]   = useState(new Date().toISOString().slice(0, 10))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]           = useState('')
 
   useEffect(() => {
-    if (!isOpen) { setSearch(''); setSelected(new Set()); setError(''); return }
+    if (!isOpen) { setSearch(''); setSelected(new Set()); setError(''); setStartDate(new Date().toISOString().slice(0, 10)); return }
     setLoading(true)
     fetch('/api/animals?status=active&limit=200')
       .then(r => r.json())
@@ -62,7 +63,7 @@ export function AssignAnimalsSheet({ isOpen, onClose, leaseId, leaseName, alread
       const res = await fetch(`/api/leases/${leaseId}/animals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ animal_ids: [...selected] }),
+        body: JSON.stringify({ animal_ids: [...selected], start_date: startDate }),
       })
       if (!res.ok) { const j = await res.json(); setError(j.error ?? 'Failed to assign'); return }
       onSuccess()
@@ -97,6 +98,23 @@ export function AssignAnimalsSheet({ isOpen, onClose, leaseId, leaseName, alread
           <button type="button" onClick={onClose}>
             <X size={20} style={{ color: 'var(--text-muted)' }} />
           </button>
+        </div>
+
+        {/* Start date */}
+        <div className="px-4 pt-3 pb-0 flex-shrink-0">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+              Assignment Start Date
+            </span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded"
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+            />
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Date these animals arrived on this lease</span>
+          </label>
         </div>
 
         {/* Search + select-all controls */}

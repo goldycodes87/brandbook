@@ -8,6 +8,7 @@ import { Toggle } from '@/components/ui/Toggle'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { apiPost, apiPatch } from '@/lib/fetch'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import type { Lease } from './LeaseSheet'
 
 interface GrazingPeriod {
@@ -82,6 +83,7 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
   const [search, setSearch]           = useState('')
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
+  const [confirmEndDate, setConfirmEndDate] = useState<string | null>(null)
 
   // Fetch animals assigned to this lease
   useEffect(() => {
@@ -186,7 +188,12 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
       }
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
-      onSuccess(); onClose()
+      // On create with an end_date, prompt to close open assignments
+      if (mode === 'create' && form.end_date) {
+        setConfirmEndDate(form.end_date)
+      } else {
+        onSuccess(); onClose()
+      }
     } catch { setError('Connection error') }
     finally { setSaving(false) }
   }
@@ -378,6 +385,26 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmEndDate}
+        onClose={() => { setConfirmEndDate(null); onSuccess(); onClose() }}
+        onConfirm={async () => {
+          if (confirmEndDate) {
+            await fetch(`/api/leases/${leaseId}/animals`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ end_date: confirmEndDate }),
+            })
+          }
+          setConfirmEndDate(null)
+          onSuccess()
+          onClose()
+        }}
+        title="Close open assignments?"
+        message={`Set end date for all currently assigned animals on this lease to ${confirmEndDate}? Animals removed early will keep their existing end date.`}
+        confirmLabel="YES, CLOSE ASSIGNMENTS"
+      />
     </div>
   )
 }

@@ -120,6 +120,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ ok: true }, { status: 201 })
 }
 
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const { id } = await params
+  const supabase = createAdminClient()
+  const { end_date } = await req.json() as { end_date: string }
+  if (!end_date) return NextResponse.json({ error: 'end_date required' }, { status: 400 })
+  const { error } = await supabase
+    .from('grazing_assignments')
+    .update({ end_date })
+    .eq('lease_id', id)
+    .is('end_date', null)
+    .lte('start_date', end_date)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createAdminClient()

@@ -34,9 +34,10 @@ interface Invoice {
   period_end: string | null
   due_date: string | null
   total_amount: number
-  status: 'draft' | 'sent' | 'paid'
+  status: 'draft' | 'approved' | 'sent' | 'paid'
   notes: string | null
   pdf_url: string | null
+  approved_at: string | null
   sent_at: string | null
   email_sent_at: string | null
   paid_at: string | null
@@ -67,9 +68,10 @@ function ownerDisplay(owner: Owner | null): string {
 
 function statusBadge(status: string) {
   switch (status) {
-    case 'paid':  return <Badge variant="success">PAID</Badge>
-    case 'sent':  return <Badge variant="info">SENT</Badge>
-    default:      return <Badge variant="neutral">DRAFT</Badge>
+    case 'paid':     return <Badge variant="success">PAID</Badge>
+    case 'sent':     return <Badge variant="info">SENT</Badge>
+    case 'approved': return <Badge variant="warning">APPROVED</Badge>
+    default:         return <Badge variant="neutral">DRAFT</Badge>
   }
 }
 
@@ -151,6 +153,7 @@ function InvoicePreview({ invoice }: { invoice: Invoice }) {
 function ActivityLog({ invoice }: { invoice: Invoice }) {
   const events = [
     { label: 'Created',  date: invoice.created_at },
+    { label: 'Approved', date: invoice.approved_at },
     { label: 'Sent',     date: invoice.sent_at },
     { label: 'Viewed',   date: invoice.viewed_at },
     { label: 'Paid',     date: invoice.paid_at },
@@ -216,6 +219,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setSending(false); setConfirmSend(false)
     }
+  }
+
+  const handleApprove = async () => {
+    setActionError('')
+    const res = await apiPatch(`/api/billing/${id}`, { status: 'approved', approved_at: new Date().toISOString() })
+    if (res.ok) load()
+    else { const j = await res.json(); setActionError(j.error ?? 'Approve failed') }
   }
 
   const handleMarkPaid = async () => {
@@ -327,6 +337,17 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         {invoice.status === 'draft' && (
           <>
             <Button intent="secondary" size="sm" onClick={() => setEditing(true)}>EDIT</Button>
+            <Button intent="primary" size="sm" onClick={handleApprove}>APPROVE INVOICE</Button>
+            <Button intent="ghost" size="sm" onClick={() => setConfirmSend(true)} leading={<Send size={14} />}>
+              SEND INVOICE
+            </Button>
+            <Button intent="ghost" size="sm" loading={generatingPdf} onClick={handleDownloadPdf} leading={<Download size={14} />}>
+              DOWNLOAD PDF
+            </Button>
+          </>
+        )}
+        {invoice.status === 'approved' && (
+          <>
             <Button intent="primary" size="sm" onClick={() => setConfirmSend(true)} leading={<Send size={14} />}>
               SEND INVOICE
             </Button>

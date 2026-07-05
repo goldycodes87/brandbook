@@ -42,13 +42,15 @@ export async function POST(_req: NextRequest, { params }: Params) {
   })
 
   const ownerLabel  = invoice.owner?.company_name || invoice.owner?.owner_name || invoice.owner?.name || 'Owner'
-  const amountCents = BigInt(Math.round((invoice.total_amount ?? 0) * 100))
+  const base        = Number(invoice.total_amount ?? 0)
+  const surcharge   = Math.round(base * 0.03 * 100) / 100
+  const totalWithFee = Math.round((base + surcharge) * 100)  // cents for Square
 
   const result = await client.checkout.paymentLinks.create({
     idempotencyKey: `inv-${id}-${Date.now()}`,
     quickPay: {
-      name:        `Invoice ${invoice.invoice_number} — ${ownerLabel}`,
-      priceMoney:  { amount: amountCents, currency: 'USD' },
+      name:        `Invoice ${invoice.invoice_number} — ${ownerLabel} (incl. 3% card fee)`,
+      priceMoney:  { amount: BigInt(totalWithFee), currency: 'USD' },
       locationId:  process.env.SQUARE_LOCATION_ID,
     },
   })
