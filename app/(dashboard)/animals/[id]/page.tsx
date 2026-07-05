@@ -289,6 +289,7 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
+  const [lightboxUrl, setLightboxUrl]     = useState<string | null>(null)
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -311,7 +312,12 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
       <Panel title="PHOTOS" padding="sm">
         <div className="flex gap-3 flex-wrap p-1 items-start">
           {(animal.photos ?? []).map(url => (
-            <div key={url} className="w-28 h-28 rounded-[var(--radius-md)] overflow-hidden shrink-0" style={{ border: '1px solid var(--border)' }}>
+            <div
+              key={url}
+              className="w-28 h-28 rounded-[var(--radius-md)] overflow-hidden shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+              style={{ border: '1px solid var(--border)' }}
+              onClick={() => setLightboxUrl(url)}
+            >
               <Image src={url} alt={animal.tag_number} width={112} height={112} className="object-cover w-full h-full" />
             </div>
           ))}
@@ -330,6 +336,26 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
           </p>
         )}
       </Panel>
+
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white text-3xl font-bold leading-none"
+            onClick={() => setLightboxUrl(null)}
+          >
+            ×
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Animal photo"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
