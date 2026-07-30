@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { AddLeaseExpenseSheet } from '@/components/leases/AddLeaseExpenseSheet'
+import { QuickExpenseSheet } from '@/components/expenses/QuickExpenseSheet'
 
 export function QuickExpenseButton() {
   const [open, setOpen] = useState(false)
@@ -29,11 +29,10 @@ export function QuickExpenseButton() {
         <Plus size={24} />
       </button>
 
-      <AddLeaseExpenseSheet
+      <QuickExpenseSheet
         isOpen={open}
         onClose={() => setOpen(false)}
         onSuccess={() => setOpen(false)}
-        defaultScope="whole_herd"
       />
     </>
   )
