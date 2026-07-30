@@ -26,7 +26,8 @@ import { CowCalfCard } from '@/components/animals/CowCalfCard'
 import { DispositionSheet } from '@/components/animals/DispositionSheet'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
 import { BullPerformanceSection } from '@/components/animals/BullPerformanceSection'
-import { apiGet, apiDelete, apiPatch } from '@/lib/fetch'
+import { PregCheckSheet } from '@/components/reproduction/PregCheckSheet'
+import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/fetch'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
@@ -280,6 +281,12 @@ function FinancialsBreakdown({ costBasis, revenue, animalId, onRefresh }: { cost
   )
 }
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
 function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoUpload, uploadingPhoto, photoError }: {
   animal: Animal; onDelete: () => void; ranchName?: string;
   costBasis: CostBasis | null; revenue: Revenue | null
@@ -290,6 +297,7 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
   const [lightboxUrl, setLightboxUrl]     = useState<string | null>(null)
+  const [pregCheckOpen, setPregCheckOpen] = useState(false)
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -305,6 +313,63 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
   const latestWeight = animal.weights.length
     ? [...animal.weights].sort((a, b) => new Date(b.weighed_at).getTime() - new Date(a.weighed_at).getTime())[0]
     : null
+
+  function BreedingStatusSection() {
+    const reproEvents = [...(animal.reproduction_events ?? [])]
+      .filter(e => e.event_type === 'bred' || e.event_type === 'preg_check')
+      .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
+
+    const latestPregCheck = reproEvents.find(e => e.event_type === 'preg_check')
+    const latestBred      = reproEvents.find(e => e.event_type === 'bred')
+    const daysSinceBred   = latestBred ? (Date.now() - new Date(latestBred.event_date).getTime()) / 86400000 : null
+    const bullName        = latestBred?.sire_library?.bull_name ?? latestBred?.sire_name_text ?? null
+    const estCalving      = latestBred?.expected_calving_date ?? (latestBred?.event_date ? addDays(latestBred.event_date, 283) : null)
+    const pregCheckDueEst = latestBred?.event_date ? addDays(latestBred.event_date, 45) : null
+
+    // Determine status based on most recent preg check vs most recent bred
+    const pregCheckIsNewer = latestPregCheck && latestBred
+      ? new Date(latestPregCheck.event_date) >= new Date(latestBred.event_date)
+      : !!latestPregCheck
+
+    let status: 'confirmed' | 'open' | 'bred' | 'not_bred' = 'not_bred'
+    if (pregCheckIsNewer && latestPregCheck?.preg_check_result === 'confirmed') status = 'confirmed'
+    else if (pregCheckIsNewer && latestPregCheck?.preg_check_result === 'open') status = 'open'
+    else if (latestBred && daysSinceBred != null && daysSinceBred <= 90) status = 'bred'
+
+    return (
+      <div className="rounded-xl p-4" style={{ border: '1.5px solid var(--border)', background: 'var(--surface-1)' }}>
+        <p className="type-section-label mb-2" style={{ color: 'var(--text-muted)' }}>BREEDING STATUS</p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            {status === 'confirmed' && (
+              <>
+                <Chip tone="success" size="md">CONFIRMED BRED</Chip>
+                {estCalving && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Due {fmtDate(estCalving)}</p>}
+                {bullName && <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Bull: {bullName}</p>}
+              </>
+            )}
+            {status === 'bred' && (
+              <>
+                <Chip tone="info" size="md">AI&apos;D {fmtDate(latestBred?.event_date)}</Chip>
+                {pregCheckDueEst && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Preg check due ~{fmtDate(pregCheckDueEst)}</p>}
+                {bullName && <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Bull: {bullName}</p>}
+              </>
+            )}
+            {status === 'open' && (
+              <>
+                <Chip tone="warning" size="md">OPEN</Chip>
+                {latestPregCheck?.event_date && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Last checked {fmtDate(latestPregCheck.event_date)}</p>}
+              </>
+            )}
+            {status === 'not_bred' && <Chip tone="neutral" size="md">NOT BRED</Chip>}
+          </div>
+          {(status === 'bred') && (
+            <Button intent="primary" size="sm" onClick={() => setPregCheckOpen(true)}>LOG PREG CHECK</Button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-5 md:max-w-3xl">
@@ -371,6 +436,9 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
           </div>
         ))}
       </div>
+
+      {/* Breeding Status — cows and heifers only */}
+      {(animal.sex === 'cow' || animal.sex === 'heifer') && BreedingStatusSection()}
 
       {/* Details */}
       <Panel title="DETAILS">
@@ -577,6 +645,23 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
         confirmLabel="DELETE ANIMAL"
         loading={deleting}
       />
+
+      {pregCheckOpen && (() => {
+        const latestBred = [...(animal.reproduction_events ?? [])]
+          .filter(e => e.event_type === 'bred')
+          .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())[0]
+        return (
+          <PregCheckSheet
+            isOpen
+            onClose={() => setPregCheckOpen(false)}
+            animal={{ id: animal.id, tag_number: animal.tag_number, name: animal.name, ear_tag_color: animal.ear_tag_color }}
+            bredDate={latestBred?.event_date}
+            bullName={latestBred?.sire_library?.bull_name ?? latestBred?.sire_name_text ?? undefined}
+            expectedCalvingDate={latestBred?.expected_calving_date ?? undefined}
+            onSuccess={() => { setPregCheckOpen(false) }}
+          />
+        )
+      })()}
     </div>
   )
 }

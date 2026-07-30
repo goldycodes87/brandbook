@@ -1512,6 +1512,7 @@ export type Database = {
           sire_library_id: string | null
           total_amount: number
           unit_cost: number | null
+          vendor: string | null
           year: number | null
         }
         Insert: {
@@ -1537,6 +1538,7 @@ export type Database = {
           sire_library_id?: string | null
           total_amount: number
           unit_cost?: number | null
+          vendor?: string | null
           year?: number | null
         }
         Update: {
@@ -1562,6 +1564,7 @@ export type Database = {
           sire_library_id?: string | null
           total_amount?: number
           unit_cost?: number | null
+          vendor?: string | null
           year?: number | null
         }
         Relationships: [
@@ -1892,8 +1895,56 @@ export type Database = {
         }
         Relationships: []
       }
+      reminders: {
+        Row: {
+          animal_id: string | null
+          created_at: string | null
+          dismissed_at: string | null
+          due_date: string
+          id: string
+          is_dismissed: boolean | null
+          notes: string | null
+          protocol_group_id: string | null
+          reminder_type: string | null
+          title: string | null
+        }
+        Insert: {
+          animal_id?: string | null
+          created_at?: string | null
+          dismissed_at?: string | null
+          due_date: string
+          id?: string
+          is_dismissed?: boolean | null
+          notes?: string | null
+          protocol_group_id?: string | null
+          reminder_type?: string | null
+          title?: string | null
+        }
+        Update: {
+          animal_id?: string | null
+          created_at?: string | null
+          dismissed_at?: string | null
+          due_date?: string
+          id?: string
+          is_dismissed?: boolean | null
+          notes?: string | null
+          protocol_group_id?: string | null
+          reminder_type?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_animal_id_fkey"
+            columns: ["animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reproduction_events: {
         Row: {
+          ai_cost: number | null
           ai_technician: string | null
           animal_id: string
           breed_method: Database["public"]["Enums"]["breed_method"] | null
@@ -1910,13 +1961,19 @@ export type Database = {
           notes: string | null
           preg_check_method: string | null
           preg_check_result: string | null
+          protocol_day: number | null
+          protocol_group_id: string | null
+          protocol_step: string | null
+          semen_inventory_id: string | null
           sire_id: string | null
           sire_library_id: string | null
           sire_name_text: string | null
+          straw_cost: number | null
           weaning_date: string | null
           weaning_weight_lbs: number | null
         }
         Insert: {
+          ai_cost?: number | null
           ai_technician?: string | null
           animal_id: string
           breed_method?: Database["public"]["Enums"]["breed_method"] | null
@@ -1933,13 +1990,19 @@ export type Database = {
           notes?: string | null
           preg_check_method?: string | null
           preg_check_result?: string | null
+          protocol_day?: number | null
+          protocol_group_id?: string | null
+          protocol_step?: string | null
+          semen_inventory_id?: string | null
           sire_id?: string | null
           sire_library_id?: string | null
           sire_name_text?: string | null
+          straw_cost?: number | null
           weaning_date?: string | null
           weaning_weight_lbs?: number | null
         }
         Update: {
+          ai_cost?: number | null
           ai_technician?: string | null
           animal_id?: string
           breed_method?: Database["public"]["Enums"]["breed_method"] | null
@@ -1956,9 +2019,14 @@ export type Database = {
           notes?: string | null
           preg_check_method?: string | null
           preg_check_result?: string | null
+          protocol_day?: number | null
+          protocol_group_id?: string | null
+          protocol_step?: string | null
+          semen_inventory_id?: string | null
           sire_id?: string | null
           sire_library_id?: string | null
           sire_name_text?: string | null
+          straw_cost?: number | null
           weaning_date?: string | null
           weaning_weight_lbs?: number | null
         }
@@ -1982,6 +2050,13 @@ export type Database = {
             columns: ["donor_dam_id"]
             isOneToOne: false
             referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reproduction_events_semen_inventory_id_fkey"
+            columns: ["semen_inventory_id"]
+            isOneToOne: false
+            referencedRelation: "semen_inventory"
             referencedColumns: ["id"]
           },
           {
@@ -2049,42 +2124,71 @@ export type Database = {
       }
       semen_inventory: {
         Row: {
+          cane: string | null
+          canister: string | null
           created_at: string | null
           id: string
+          is_sexed: boolean | null
           location: string | null
           notes: string | null
           price_per_straw: number | null
+          purchase_date: string | null
           reg_number: string | null
+          sire_library_id: string | null
           sire_name: string
           source: string | null
           straw_count: number | null
+          straw_size: string | null
           tank_id: string | null
+          tank_name: string | null
         }
         Insert: {
+          cane?: string | null
+          canister?: string | null
           created_at?: string | null
           id?: string
+          is_sexed?: boolean | null
           location?: string | null
           notes?: string | null
           price_per_straw?: number | null
+          purchase_date?: string | null
           reg_number?: string | null
+          sire_library_id?: string | null
           sire_name: string
           source?: string | null
           straw_count?: number | null
+          straw_size?: string | null
           tank_id?: string | null
+          tank_name?: string | null
         }
         Update: {
+          cane?: string | null
+          canister?: string | null
           created_at?: string | null
           id?: string
+          is_sexed?: boolean | null
           location?: string | null
           notes?: string | null
           price_per_straw?: number | null
+          purchase_date?: string | null
           reg_number?: string | null
+          sire_library_id?: string | null
           sire_name?: string
           source?: string | null
           straw_count?: number | null
+          straw_size?: string | null
           tank_id?: string | null
+          tank_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "semen_inventory_sire_library_id_fkey"
+            columns: ["sire_library_id"]
+            isOneToOne: false
+            referencedRelation: "sire_library"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sire_import_batches: {
         Row: {
@@ -2146,7 +2250,10 @@ export type Database = {
           community_status: string | null
           created_at: string | null
           epd_bw: number | null
+          epd_ced: number | null
+          epd_cem: number | null
           epd_cw: number | null
+          epd_doc: number | null
           epd_dollar_b: number | null
           epd_dollar_f: number | null
           epd_dollar_g: number | null
@@ -2157,6 +2264,7 @@ export type Database = {
           epd_raw_data: Json | null
           epd_rea: number | null
           epd_source: string | null
+          epd_stay: number | null
           epd_tm: number | null
           epd_updated_at: string | null
           epd_ww: number | null
@@ -2176,6 +2284,7 @@ export type Database = {
           pct_ww: number | null
           pct_yw: number | null
           photo_url: string | null
+          reg_number: string | null
           registration_number: string | null
           source: string | null
           stud: string | null
@@ -2195,7 +2304,10 @@ export type Database = {
           community_status?: string | null
           created_at?: string | null
           epd_bw?: number | null
+          epd_ced?: number | null
+          epd_cem?: number | null
           epd_cw?: number | null
+          epd_doc?: number | null
           epd_dollar_b?: number | null
           epd_dollar_f?: number | null
           epd_dollar_g?: number | null
@@ -2206,6 +2318,7 @@ export type Database = {
           epd_raw_data?: Json | null
           epd_rea?: number | null
           epd_source?: string | null
+          epd_stay?: number | null
           epd_tm?: number | null
           epd_updated_at?: string | null
           epd_ww?: number | null
@@ -2225,6 +2338,7 @@ export type Database = {
           pct_ww?: number | null
           pct_yw?: number | null
           photo_url?: string | null
+          reg_number?: string | null
           registration_number?: string | null
           source?: string | null
           stud?: string | null
@@ -2244,7 +2358,10 @@ export type Database = {
           community_status?: string | null
           created_at?: string | null
           epd_bw?: number | null
+          epd_ced?: number | null
+          epd_cem?: number | null
           epd_cw?: number | null
+          epd_doc?: number | null
           epd_dollar_b?: number | null
           epd_dollar_f?: number | null
           epd_dollar_g?: number | null
@@ -2255,6 +2372,7 @@ export type Database = {
           epd_raw_data?: Json | null
           epd_rea?: number | null
           epd_source?: string | null
+          epd_stay?: number | null
           epd_tm?: number | null
           epd_updated_at?: string | null
           epd_ww?: number | null
@@ -2274,6 +2392,7 @@ export type Database = {
           pct_ww?: number | null
           pct_yw?: number | null
           photo_url?: string | null
+          reg_number?: string | null
           registration_number?: string | null
           source?: string | null
           stud?: string | null

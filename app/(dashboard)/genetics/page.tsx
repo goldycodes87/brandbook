@@ -14,6 +14,7 @@ import { SireCard } from '@/components/genetics/SireCard'
 import { AddSireSheet } from '@/components/genetics/AddSireSheet'
 import { SireCompareModal } from '@/components/genetics/SireCompareModal'
 import { SirePerformanceCard } from '@/components/genetics/SirePerformanceCard'
+import { TankInventoryTab } from '@/components/genetics/TankInventoryTab'
 import type { SireLibraryRecord } from '@/components/genetics/SireCard'
 import type { SirePerformance } from '@/app/api/genetics/performance/route'
 import { apiGet } from '@/lib/fetch'
@@ -381,13 +382,7 @@ function GeneticsContent() {
 
       {tab === 'performance' && <SirePerformanceTab />}
       {tab === 'library'     && <SireLibraryTab />}
-      {tab === 'semen' && (
-        <EmptyState
-          variant="neutral"
-          title="Semen Inventory"
-          body="Track your AI semen straws, tanks, and usage. Coming soon."
-        />
-      )}
+      {tab === 'semen' && <TankInventoryTab />}
       {tab === 'embryos' && (
         <EmptyState
           variant="neutral"

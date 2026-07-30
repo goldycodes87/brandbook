@@ -68,6 +68,7 @@ export default async function ReproductionPage({
         subtitle="Breeding and calving records"
         actions={
           <>
+            <ButtonLink href="/reproduction/ai-session" intent="secondary" size="sm">LOG AI SESSION</ButtonLink>
             <ButtonLink href="/reproduction/calving" intent="primary" size="sm">+ CALVING ENTRY</ButtonLink>
           </>
         }

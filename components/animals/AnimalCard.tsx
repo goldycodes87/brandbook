@@ -34,6 +34,7 @@ export interface AnimalListItem {
   photos: string[] | null
   owner: Owner | null
   latest_weight: LatestWeight | null
+  breeding_status?: 'confirmed' | 'bred' | 'open' | null
 }
 
 function calcAge(dob: string | null): string {

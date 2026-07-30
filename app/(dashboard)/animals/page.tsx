@@ -54,9 +54,44 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
     return <p className="type-body" style={{ color: 'var(--danger-fg)' }}>{error.message}</p>
   }
 
+  // Fetch breeding status for cows/heifers on this page
+  const animalIds = (data ?? [])
+    .filter((a: { sex?: string | null }) => a.sex === 'cow' || a.sex === 'heifer')
+    .map((a: { id: string }) => a.id)
+
+  let breedingStatusMap: Record<string, 'confirmed' | 'bred' | 'open'> = {}
+  if (animalIds.length > 0) {
+    const { data: reproData } = await supabase
+      .from('reproduction_events')
+      .select('animal_id, event_type, event_date, preg_check_result')
+      .in('animal_id', animalIds)
+      .in('event_type', ['bred', 'preg_check'])
+      .order('event_date', { ascending: false })
+
+    // Compute latest status per animal
+    const seen = new Set<string>()
+    for (const ev of (reproData ?? [])) {
+      const aid = ev.animal_id as string
+      if (seen.has(aid)) continue
+      seen.add(aid)
+      if (ev.event_type === 'preg_check') {
+        if (ev.preg_check_result === 'confirmed') breedingStatusMap[aid] = 'confirmed'
+        else if (ev.preg_check_result === 'open') breedingStatusMap[aid] = 'open'
+      } else if (ev.event_type === 'bred') {
+        const days = (Date.now() - new Date(ev.event_date).getTime()) / 86400000
+        if (days <= 90) breedingStatusMap[aid] = 'bred'
+      }
+    }
+  }
+
   let animals: AnimalListItem[] = (data ?? []).map(a => {
     const ownerDisplayName = (a as { owner?: { name?: string } | null }).owner?.name ?? ranchName
-    return { ...a, latest_weight: null, owner_display_name: ownerDisplayName } as unknown as AnimalListItem
+    return {
+      ...a,
+      latest_weight:   null,
+      owner_display_name: ownerDisplayName,
+      breeding_status: breedingStatusMap[(a as { id: string }).id] ?? null,
+    } as unknown as AnimalListItem
   })
 
   if (isJsSort) {

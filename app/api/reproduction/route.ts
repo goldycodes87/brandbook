@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
     notes,
     create_calf,
     calf_data,
+    semen_inventory_id,
+    protocol_group_id,
+    protocol_step,
+    protocol_day,
+    ai_cost,
+    straw_cost,
   } = body
 
   if (!animal_id)  return NextResponse.json({ error: 'animal_id is required' }, { status: 400 })
@@ -109,8 +115,14 @@ export async function POST(req: NextRequest) {
     weaning_date: event_type === 'weaned' ? (weaning_date || event_date) : null,
     weaning_weight_lbs: event_type === 'weaned' ? (weaning_weight_lbs ?? null) : null,
     calf_id: event_type === 'weaned' ? (weaned_calf_id || null) : null,
-    donor_dam_id: donor_dam_id || null,
-    notes: notes || null,
+    donor_dam_id:       donor_dam_id || null,
+    notes:              notes || null,
+    semen_inventory_id: semen_inventory_id || null,
+    protocol_group_id:  protocol_group_id  || null,
+    protocol_step:      protocol_step      || null,
+    protocol_day:       protocol_day       ?? null,
+    ai_cost:            ai_cost            ?? null,
+    straw_cost:         straw_cost         ?? null,
   }
 
   if (!create_calf || !calf_data) {

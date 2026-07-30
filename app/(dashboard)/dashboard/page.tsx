@@ -14,6 +14,7 @@ import { ButtonLink } from '@/components/ui/Button'
 import { WeightLogSheet } from '@/components/weights/WeightLogSheet'
 import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
+import { RemindersWidget } from '@/components/dashboard/RemindersWidget'
 
 const DEFAULT_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'active_leases']
 
@@ -166,6 +167,10 @@ export default async function DashboardPage() {
           </>
         }
       />
+
+      <Suspense fallback={null}>
+        <RemindersWidget />
+      </Suspense>
 
       <Panel title="RECENT ACTIVITY">
         <ActivityFeed />

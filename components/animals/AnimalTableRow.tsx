@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { TR, TD } from '@/components/ui/Table'
-import { StatusChip } from '@/components/ui/Chip'
+import { StatusChip, Chip } from '@/components/ui/Chip'
 import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue } from '@/components/ui/tokens'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import type { AnimalListItem } from './AnimalCard'
@@ -22,6 +22,14 @@ export function AnimalTableRow({ a }: { a: AnimalListItem }) {
       <TD>{a.sex ? <StatusChip map={SEX_CHIP} value={getSexValue(a.sex, a.calf_sex)} size="sm" /> : '—'}</TD>
       <TD><BreedDisplay breeds={a.breeds} breed={a.breed} breedPercentage={a.breed_percentage} /></TD>
       <TD><StatusChip map={ANIMAL_STATUS_CHIP} value={a.status} size="sm" /></TD>
+      <TD>
+        {(a.sex === 'cow' || a.sex === 'heifer')
+          ? (a.breeding_status === 'confirmed' ? <Chip tone="success" size="sm">CONFIRMED</Chip>
+            : a.breeding_status === 'bred'      ? <Chip tone="info"    size="sm">BRED</Chip>
+            : a.breeding_status === 'open'      ? <Chip tone="warning" size="sm">OPEN</Chip>
+            : <span style={{ color: 'var(--text-muted)' }}>—</span>)
+          : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </TD>
       <TD>{a.owner_display_name ?? a.owner?.name ?? '—'}</TD>
     </TR>
   )

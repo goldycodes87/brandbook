@@ -21,6 +21,7 @@ const COLS = [
   { key: 'sex',        label: 'Sex' },
   { key: 'breed',      label: 'Breed' },
   { key: 'status',     label: 'Status' },
+  { key: '',           label: 'Breeding' },
   { key: 'owner',      label: 'Owner' },
 ]
 
