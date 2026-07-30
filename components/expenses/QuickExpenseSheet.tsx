@@ -458,7 +458,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
           <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
         </Field>
 
-        <ScopeSelector />
+        {ScopeSelector()}
 
         {leaseHint && (
           <ContextBanner tone="info">
@@ -598,7 +598,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
           )}
 
           {/* ── REVIEW (scan or describe) ────────────────────────────── */}
-          {mode === 'review' && <ItemReview />}
+          {mode === 'review' && ItemReview()}
 
           {/* ── MANUAL ENTRY ─────────────────────────────────────────── */}
           {mode === 'manual' && (
@@ -656,7 +656,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
                 </>
               )}
 
-              {expenseType === 'shared' && <ScopeSelector />}
+              {expenseType === 'shared' && ScopeSelector()}
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Amount ($)" required>
