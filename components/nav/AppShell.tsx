@@ -144,6 +144,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
 
+  if (pathname.startsWith('/chute')) return <>{children}</>
+
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
   const pageTitle = ROUTE_TITLES[pathname] ?? ROUTE_TITLES[Object.keys(ROUTE_TITLES).find(k => pathname.startsWith(k + '/')) ?? ''] ?? 'Brand Book'
 

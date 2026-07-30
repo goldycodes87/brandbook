@@ -164,7 +164,10 @@ export default async function AnimalsPage({ searchParams }: PageProps) {
         title="Animals"
         subtitle="Herd registry"
         actions={
-          <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
+          <div className="flex items-center gap-2">
+            <ButtonLink href="/chute" intent="secondary" size="sm">CHUTE MODE</ButtonLink>
+            <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
+          </div>
         }
       />
 
