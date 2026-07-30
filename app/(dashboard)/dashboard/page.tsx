@@ -16,6 +16,27 @@ import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 import { RemindersWidget } from '@/components/dashboard/RemindersWidget'
 
+function ChuteModeButton() {
+  return (
+    <Link href="/chute" className="block w-full">
+      <div
+        className="w-full flex items-center justify-center gap-3 rounded-2xl font-bold transition-opacity hover:opacity-90 active:scale-[0.99]"
+        style={{
+          background: 'linear-gradient(135deg, var(--accent) 0%, #c2410c 100%)',
+          color: 'white',
+          minHeight: 72,
+          fontSize: '1.25rem',
+          fontFamily: 'var(--font-display)',
+          letterSpacing: '0.08em',
+          boxShadow: '0 4px 20px rgba(234,88,12,0.35)',
+        }}
+      >
+        🐄 CHUTE MODE
+      </div>
+    </Link>
+  )
+}
+
 const DEFAULT_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'active_leases']
 
 const STAT_META: Record<string, { label: string; href: string; icon: React.ReactNode }> = {
@@ -145,6 +166,10 @@ export default async function DashboardPage() {
   return (
     <PageContainer variant="narrow">
       <PageHeader title="Dashboard" subtitle={subtitle} />
+
+      <div className="mb-6">
+        <ChuteModeButton />
+      </div>
 
       <Suspense fallback={
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
