@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/fetch'
+import { QuickExpenseButton } from '@/components/expenses/QuickExpenseButton'
 
 const NAV_ITEMS = [
   { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
@@ -227,6 +228,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Settings tab */}
         <BottomTab {...SETTINGS_ITEM} active={isActive(SETTINGS_ITEM.href)} />
       </nav>
+
+      <QuickExpenseButton />
 
       {/* More sheet overlay */}
       {moreOpen && (

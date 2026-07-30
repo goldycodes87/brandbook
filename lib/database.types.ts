@@ -770,6 +770,7 @@ export type Database = {
           lease_id: string
           moved_from_lease_id: string | null
           notes: string | null
+          removal_reason: string | null
           start_date: string
         }
         Insert: {
@@ -780,6 +781,7 @@ export type Database = {
           lease_id: string
           moved_from_lease_id?: string | null
           notes?: string | null
+          removal_reason?: string | null
           start_date: string
         }
         Update: {
@@ -790,6 +792,7 @@ export type Database = {
           lease_id?: string
           moved_from_lease_id?: string | null
           notes?: string | null
+          removal_reason?: string | null
           start_date?: string
         }
         Relationships: [
@@ -992,7 +995,7 @@ export type Database = {
         Row: {
           animal_ids: string[] | null
           created_at: string | null
-          end_date: string
+          end_date: string | null
           head_count: number
           id: string
           invoice_id: string | null
@@ -1008,7 +1011,7 @@ export type Database = {
         Insert: {
           animal_ids?: string[] | null
           created_at?: string | null
-          end_date: string
+          end_date?: string | null
           head_count: number
           id?: string
           invoice_id?: string | null
@@ -1024,7 +1027,7 @@ export type Database = {
         Update: {
           animal_ids?: string[] | null
           created_at?: string | null
-          end_date?: string
+          end_date?: string | null
           head_count?: number
           id?: string
           invoice_id?: string | null
@@ -1280,6 +1283,53 @@ export type Database = {
           },
         ]
       }
+      herd_snapshots: {
+        Row: {
+          animal_count: number | null
+          billable_units: number | null
+          created_at: string | null
+          herd_pct: number | null
+          id: string
+          owner_id: string | null
+          quarter: number
+          snapshot_date: string
+          total_animal_days: number | null
+          year: number
+        }
+        Insert: {
+          animal_count?: number | null
+          billable_units?: number | null
+          created_at?: string | null
+          herd_pct?: number | null
+          id?: string
+          owner_id?: string | null
+          quarter: number
+          snapshot_date: string
+          total_animal_days?: number | null
+          year: number
+        }
+        Update: {
+          animal_count?: number | null
+          billable_units?: number | null
+          created_at?: string | null
+          herd_pct?: number | null
+          id?: string
+          owner_id?: string | null
+          quarter?: number
+          snapshot_date?: string
+          total_animal_days?: number | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "herd_snapshots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_expenses: {
         Row: {
           category_id: string | null
@@ -1342,6 +1392,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          approved_at: string | null
           created_at: string | null
           due_date: string | null
           email_sent_at: string | null
@@ -1353,7 +1404,10 @@ export type Database = {
           line_items: Json | null
           notes: string | null
           owner_id: string
+          paid_amount: number | null
           paid_at: string | null
+          payment_link: string | null
+          payment_link_created_at: string | null
           payment_method: string | null
           payment_reference: string | null
           pdf_url: string | null
@@ -1367,6 +1421,7 @@ export type Database = {
           viewed_at: string | null
         }
         Insert: {
+          approved_at?: string | null
           created_at?: string | null
           due_date?: string | null
           email_sent_at?: string | null
@@ -1378,7 +1433,10 @@ export type Database = {
           line_items?: Json | null
           notes?: string | null
           owner_id: string
+          paid_amount?: number | null
           paid_at?: string | null
+          payment_link?: string | null
+          payment_link_created_at?: string | null
           payment_method?: string | null
           payment_reference?: string | null
           pdf_url?: string | null
@@ -1392,6 +1450,7 @@ export type Database = {
           viewed_at?: string | null
         }
         Update: {
+          approved_at?: string | null
           created_at?: string | null
           due_date?: string | null
           email_sent_at?: string | null
@@ -1403,7 +1462,10 @@ export type Database = {
           line_items?: Json | null
           notes?: string | null
           owner_id?: string
+          paid_amount?: number | null
           paid_at?: string | null
+          payment_link?: string | null
+          payment_link_created_at?: string | null
           payment_method?: string | null
           payment_reference?: string | null
           pdf_url?: string | null
@@ -1438,7 +1500,8 @@ export type Database = {
           expense_type: string | null
           id: string
           include_calves: boolean | null
-          lease_id: string
+          is_lease_specific: boolean | null
+          lease_id: string | null
           notes: string | null
           owner_id: string | null
           period_end: string | null
@@ -1462,7 +1525,8 @@ export type Database = {
           expense_type?: string | null
           id?: string
           include_calves?: boolean | null
-          lease_id: string
+          is_lease_specific?: boolean | null
+          lease_id?: string | null
           notes?: string | null
           owner_id?: string | null
           period_end?: string | null
@@ -1486,7 +1550,8 @@ export type Database = {
           expense_type?: string | null
           id?: string
           include_calves?: boolean | null
-          lease_id?: string
+          is_lease_specific?: boolean | null
+          lease_id?: string | null
           notes?: string | null
           owner_id?: string | null
           period_end?: string | null
@@ -2523,7 +2588,7 @@ export type Database = {
         | "vet_visit"
         | "illness"
         | "bcs_log"
-      invoice_status: "draft" | "sent" | "paid"
+      invoice_status: "draft" | "sent" | "paid" | "approved"
       repro_event_type:
         | "bred"
         | "preg_check"
@@ -2669,7 +2734,7 @@ export const Constants = {
         "illness",
         "bcs_log",
       ],
-      invoice_status: ["draft", "sent", "paid"],
+      invoice_status: ["draft", "sent", "paid", "approved"],
       repro_event_type: [
         "bred",
         "preg_check",

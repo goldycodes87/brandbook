@@ -25,6 +25,17 @@ type LineItem = {
   is_header?: boolean
   share_note?: string
   expense_type?: string
+  is_whole_herd?: boolean
+}
+
+type LeaseAnimalRow = {
+  id: string; sex: string | null; owner_id: string | null
+  weaning_date: string | null; dam_id: string | null
+}
+
+type AssignWithAnimal = {
+  animal_id: string; start_date: string; end_date: string | null
+  animals: LeaseAnimalRow | null
 }
 
 export async function POST(req: NextRequest) {
@@ -73,7 +84,7 @@ export async function POST(req: NextRequest) {
 
   const monthlyRate = contract?.rate_per_head_month ?? 0
 
-  // ── Step 3: Fetch active owner animals with pair-calf detection ─────────────
+  // ── Step 3: Fetch active owner animals ───────────────────────────────────────
   const { data: ownerAnimalsAll } = await supabase
     .from('animals')
     .select('id, sex, weaning_date, dam_id')
@@ -84,7 +95,6 @@ export async function POST(req: NextRequest) {
   const ownerAnimalsFull = (ownerAnimalsAll ?? []) as OwnerAnimal[]
   const ownerAnimalIdSet = new Set(ownerAnimalsFull.map(a => a.id))
 
-  // Pair calves: unweaned calves whose dam is also this owner's active animal
   const billingPairCalves = ownerAnimalsFull.filter(a =>
     a.sex?.toLowerCase() === 'calf' &&
     !a.weaning_date &&
@@ -94,12 +104,12 @@ export async function POST(req: NextRequest) {
   const billableUnits    = ownerAnimalsFull.length - billingPairCalves.length
   const quarterlyGrazing = billableUnits * monthlyRate * 3
 
-  // Sex breakdown for preview display
   const sexBreakdown: Record<string, number> = {}
   for (const a of ownerAnimalsFull) {
     const sex = (a.sex || 'other').toLowerCase()
     sexBreakdown[sex] = (sexBreakdown[sex] || 0) + 1
   }
+
   // ── Step 4: Billing quarter date range ──────────────────────────────────────
   const { start: bStart, end: bEnd } = quarterRange(billing_year, billing_quarter)
   const bStartLabel = fmtDate(bStart)
@@ -122,7 +132,138 @@ export async function POST(req: NextRequest) {
   // ── Step 5: Expense quarter date range ──────────────────────────────────────
   const { start: eStart, end: eEnd } = quarterRange(expense_year, expense_quarter)
 
-  // ── Step 6: Find all leases where owner had animals during expense quarter ──
+  // ── Step 6: WHOLE-HERD EXPENSES ─────────────────────────────────────────────
+  // Fetch all whole-herd expenses (is_lease_specific = false) for expense quarter
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: wholeHerdRaw } = await (supabase as any)
+    .from('lease_expenses')
+    .select('id, expense_type, category_name, description, total_amount, owner_id, animal_id, period_start, period_end, expense_date, include_calves, expense_categories(calculation_type, expense_type)')
+    .eq('is_lease_specific', false)
+    .eq('quarter', expense_quarter)
+    .eq('year', expense_year % 100)
+
+  type ExpenseRow = {
+    id: string; expense_type: string
+    category_name: string; description: string | null
+    total_amount: number; owner_id: string | null; animal_id: string | null
+    period_start: string | null; period_end: string | null
+    expense_date: string | null
+    include_calves: boolean | null
+    expense_categories: { calculation_type: string | null; expense_type: string | null } | null
+  }
+
+  const wholeHerdExpenses = (wholeHerdRaw ?? []) as ExpenseRow[]
+
+  // Fetch ALL grazing_assignments across all leases during expense quarter
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allAssignRaw } = await (supabase as any)
+    .from('grazing_assignments')
+    .select('animal_id, start_date, end_date, animals(id, sex, owner_id, weaning_date, dam_id)')
+    .lte('start_date', eEnd)
+    .or(`end_date.is.null,end_date.gte.${eStart}`)
+
+  const allAssignments = (allAssignRaw ?? []) as AssignWithAnimal[]
+
+  // Identify pair calves across all leases
+  const allAssignedIds = new Set(allAssignments.map(a => a.animal_id))
+  const pairCalfIds = new Set<string>()
+  for (const a of allAssignments) {
+    const an = a.animals
+    if (
+      an?.sex?.toLowerCase() === 'calf' &&
+      !an.weaning_date &&
+      an.dam_id &&
+      allAssignedIds.has(an.dam_id)
+    ) {
+      pairCalfIds.add(a.animal_id)
+    }
+  }
+
+  // Calculate owner-days per owner across all leases (exclude pair calves)
+  const ownerDaysMap: Record<string, number> = {}
+  for (const a of allAssignments) {
+    if (pairCalfIds.has(a.animal_id)) continue
+    const days = calcOverlapDays(a.start_date, a.end_date, eStart, eEnd)
+    if (days <= 0) continue
+    const key = a.animals?.owner_id ?? 'home'
+    ownerDaysMap[key] = (ownerDaysMap[key] ?? 0) + days
+  }
+
+  const totalHerdDays = Object.values(ownerDaysMap).reduce((s, d) => s + d, 0)
+  const ownerHerdDays = ownerDaysMap[owner_id] ?? 0
+  const ownerHerdPct  = totalHerdDays > 0 ? ownerHerdDays / totalHerdDays : 0
+
+  const wholeHerdLineItems: LineItem[] = []
+
+  for (const expense of wholeHerdExpenses) {
+    const expType =
+      expense.expense_categories?.expense_type ||
+      expense.expense_type ||
+      'shared'
+
+    if (expType === 'owner_specific') {
+      if (expense.owner_id !== owner_id) continue
+      wholeHerdLineItems.push({
+        description:  expense.description || expense.category_name || 'Expense',
+        quantity:     1,
+        unit_price:   expense.total_amount,
+        amount:       expense.total_amount,
+        expense_type: 'owner_specific',
+        is_whole_herd: true,
+      })
+      continue
+    }
+
+    if (expType === 'animal_specific') continue
+
+    // Shared: calculate using herd-wide animal-days
+    const includeCaivesInSplit = expense.include_calves ?? false
+    const calcType = expense.expense_categories?.calculation_type || 'period'
+    const windowStart = calcType === 'one_time' ? (expense.expense_date || eStart) : (expense.period_start || eStart)
+    const windowEnd   = calcType === 'one_time' ? (expense.expense_date || eEnd)   : (expense.period_end   || eEnd)
+
+    let shareAmt: number
+
+    if (includeCaivesInSplit) {
+      // Include pair calves in split
+      let ownerDaysC = 0
+      let totalDaysC = 0
+      for (const a of allAssignments) {
+        const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
+        if (days <= 0) continue
+        totalDaysC += days
+        if ((a.animals?.owner_id ?? null) === owner_id) ownerDaysC += days
+      }
+      shareAmt = totalDaysC > 0 ? expense.total_amount * (ownerDaysC / totalDaysC) : 0
+    } else {
+      // Recalculate over the expense window (excluding pair calves)
+      let ownerWinDays = 0
+      let totalWinDays = 0
+      for (const a of allAssignments) {
+        if (pairCalfIds.has(a.animal_id)) continue
+        const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
+        if (days <= 0) continue
+        totalWinDays += days
+        if ((a.animals?.owner_id ?? null) === owner_id) ownerWinDays += days
+      }
+      shareAmt = totalWinDays > 0 ? expense.total_amount * (ownerWinDays / totalWinDays) : 0
+    }
+
+    if (shareAmt <= 0) continue
+
+    const sharePct = (ownerHerdPct * 100).toFixed(1)
+    wholeHerdLineItems.push({
+      description:  expense.description || expense.category_name || 'Expense',
+      quantity:     1,
+      unit_price:   Math.round(shareAmt * 100) / 100,
+      amount:       Math.round(shareAmt * 100) / 100,
+      expense_type: 'shared',
+      share_note:   `${sharePct}% of $${Number(expense.total_amount).toFixed(2)}`,
+      is_whole_herd: true,
+    })
+  }
+
+  // ── Step 7: LEASE-SPECIFIC EXPENSES (existing per-lease logic) ───────────────
   const ownerAnimalIds = ownerAnimalsFull.map(a => a.id)
 
   type AssignRow = { animal_id: string; lease_id: string; start_date: string; end_date: string | null }
@@ -140,19 +281,6 @@ export async function POST(req: NextRequest) {
 
   const ownerLeaseIds = [...new Set(ownerAssignments.map(a => a.lease_id))]
 
-  // ── Step 7: Per-lease expense calculation ────────────────────────────────────
-  type ExpenseRow = {
-    id: string; lease_id: string; expense_type: string
-    category_name: string; description: string | null
-    total_amount: number; owner_id: string | null; animal_id: string | null
-    period_start: string | null; period_end: string | null
-    expense_date: string | null
-    include_calves: boolean | null
-    expense_categories: { calculation_type: string | null } | null
-  }
-
-  type LeaseAnimalRow = { id: string; sex: string | null; owner_id: string | null; weaning_date: string | null; dam_id: string | null }
-
   const leaseExpenseGroups: Array<{
     lease_id: string
     lease_name: string
@@ -160,7 +288,6 @@ export async function POST(req: NextRequest) {
   }> = []
 
   for (const leaseId of ownerLeaseIds) {
-    // Fetch lease details
     const { data: lease } = await supabase
       .from('leases')
       .select('id, property_name, is_home_ranch')
@@ -168,20 +295,20 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
     if (!lease) continue
 
-    // Fetch expenses for this lease during expense quarter
+    // Fetch ONLY lease-specific expenses for this lease
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: rawExpenses } = await (supabase as any)
       .from('lease_expenses')
       .select('id, lease_id, expense_type, category_name, description, total_amount, owner_id, animal_id, period_start, period_end, expense_date, include_calves, expense_categories(calculation_type)')
       .eq('lease_id', leaseId)
+      .eq('is_lease_specific', true)
       .eq('quarter', expense_quarter)
-      .eq('year', expense_year)
+      .eq('year', expense_year % 100)
 
     const expenses = (rawExpenses ?? []) as ExpenseRow[]
     if (!expenses.length) continue
 
-    // Fetch ALL assignments on this lease during expense quarter with animal details.
-    // No owner filter — totalDays must include every owner's animals on this lease.
+    // Fetch all assignments on this lease during expense quarter
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: allAssignData } = await (supabase as any)
       .from('grazing_assignments')
@@ -190,90 +317,70 @@ export async function POST(req: NextRequest) {
       .lte('start_date', eEnd)
       .or(`end_date.is.null,end_date.gte.${eStart}`)
 
-    type AssignWithAnimal = AssignRow & { animals: LeaseAnimalRow | null }
-    const allAssignments = (allAssignData ?? []) as AssignWithAnimal[]
+    const leaseAllAssignments = (allAssignData ?? []) as AssignWithAnimal[]
 
-    // Build animal map from joined data (all owners on this lease)
     const leaseAnimalMap = new Map<string, LeaseAnimalRow>()
-    for (const a of allAssignments) {
+    for (const a of leaseAllAssignments) {
       if (a.animals) leaseAnimalMap.set(a.animal_id, a.animals)
     }
 
-    // Identify pair calves: unweaned calf whose dam is also assigned on this lease
-    const assignedIdSet = new Set(allAssignments.map(a => a.animal_id))
-    const pairCalfIds = new Set<string>()
+    const leaseAssignedIds = new Set(leaseAllAssignments.map(a => a.animal_id))
+    const leasePairCalfIds = new Set<string>()
     for (const [animalId, animal] of leaseAnimalMap) {
       if (
         animal.sex?.toLowerCase() === 'calf' &&
         !animal.weaning_date &&
         animal.dam_id &&
-        assignedIdSet.has(animal.dam_id)
+        leaseAssignedIds.has(animal.dam_id)
       ) {
-        pairCalfIds.add(animalId)
+        leasePairCalfIds.add(animalId)
       }
     }
 
     const leaseName = (lease as { property_name: string }).property_name
-    console.log(`[${leaseName} start] allAssignments:`, allAssignments?.length, 'P&L cow:', allAssignments?.some(a => a.animal_id === '38aa511c-5492-4705-b48b-6b42f6e39ab1'))
-
     const leaseLineItems: LineItem[] = []
 
     for (const expense of expenses) {
-      // Owner specific: only if this owner
       if (expense.expense_type === 'owner_specific') {
         if (expense.owner_id !== owner_id) continue
         leaseLineItems.push({
-          description: expense.description || expense.category_name || 'Expense',
-          quantity:    1,
-          unit_price:  expense.total_amount,
-          amount:      expense.total_amount,
+          description:  expense.description || expense.category_name || 'Expense',
+          quantity:     1,
+          unit_price:   expense.total_amount,
+          amount:       expense.total_amount,
           expense_type: 'owner_specific',
         })
         continue
       }
 
-      // Animal specific: only if animal belongs to this owner
       if (expense.expense_type === 'animal_specific') {
         if (!expense.animal_id) continue
         const { data: animalRow } = await supabase
           .from('animals').select('owner_id').eq('id', expense.animal_id).maybeSingle()
         if ((animalRow as { owner_id: string | null } | null)?.owner_id !== owner_id) continue
         leaseLineItems.push({
-          description: expense.description || expense.category_name || 'Expense',
-          quantity:    1,
-          unit_price:  expense.total_amount,
-          amount:      expense.total_amount,
+          description:  expense.description || expense.category_name || 'Expense',
+          quantity:     1,
+          unit_price:   expense.total_amount,
+          amount:       expense.total_amount,
           expense_type: 'animal_specific',
         })
         continue
       }
 
-      // Shared: calculate by animal-days
-      // Working Animals: include pair calves; everything else: exclude them
       const includeCaivesInSplit = expense.include_calves ?? (expense.category_name === 'Working Animals')
       const calcType = expense.expense_categories?.calculation_type || 'period'
-      let windowStart: string
-      let windowEnd: string
-      if (calcType === 'one_time') {
-        windowStart = expense.expense_date || eStart
-        windowEnd   = expense.expense_date || eEnd
-      } else {
-        windowStart = expense.period_start || eStart
-        windowEnd   = expense.period_end   || eEnd
-      }
+      const windowStart = calcType === 'one_time' ? (expense.expense_date || eStart) : (expense.period_start || eStart)
+      const windowEnd   = calcType === 'one_time' ? (expense.expense_date || eEnd)   : (expense.period_end   || eEnd)
 
       let ownerDays = 0
       let totalDays = 0
 
-      for (const a of allAssignments) {
-        // Skip pair calves unless include_calves is set
-        if (!includeCaivesInSplit && pairCalfIds.has(a.animal_id)) continue
-
+      for (const a of leaseAllAssignments) {
+        if (!includeCaivesInSplit && leasePairCalfIds.has(a.animal_id)) continue
         const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
         if (days <= 0) continue
-
         totalDays += days
-
         const animalOwner = leaseAnimalMap.get(a.animal_id)?.owner_id ?? null
         if (animalOwner === owner_id) ownerDays += days
       }
@@ -294,18 +401,27 @@ export async function POST(req: NextRequest) {
     }
 
     if (leaseLineItems.length > 0) {
-      leaseExpenseGroups.push({
-        lease_id:   leaseId,
-        lease_name: leaseName,
-        line_items: leaseLineItems,
-      })
+      leaseExpenseGroups.push({ lease_id: leaseId, lease_name: leaseName, line_items: leaseLineItems })
     }
   }
 
-  // ── Step 8: Build final line items ────────────────────────────────────────────
+  // ── Step 8: Build final line items ───────────────────────────────────────────
+  if (wholeHerdLineItems.length > 0) {
+    lineItems.push({
+      description: `- Q${expense_quarter} ${2000 + expense_year} EXPENSES (WHOLE HERD) -`,
+      quantity:    null,
+      unit_price:  null,
+      amount:      0,
+      is_header:   true,
+    })
+    for (const item of wholeHerdLineItems) {
+      lineItems.push(item)
+    }
+  }
+
   if (leaseExpenseGroups.length > 0) {
     lineItems.push({
-      description: `Q${expense_quarter} ${2000 + expense_year} LEASE EXPENSES`,
+      description: `- Q${expense_quarter} ${2000 + expense_year} LEASE EXPENSES -`,
       quantity:    null,
       unit_price:  null,
       amount:      0,
@@ -313,17 +429,15 @@ export async function POST(req: NextRequest) {
     })
     for (const group of leaseExpenseGroups) {
       for (const item of group.line_items) {
-        lineItems.push({
-          ...item,
-          description: `${item.description} (${group.lease_name})`,
-        })
+        lineItems.push({ ...item, description: `${item.description} (${group.lease_name})` })
       }
     }
   }
 
   const total       = Math.round(lineItems.reduce((s, i) => s + i.amount, 0) * 100) / 100
   const ownerName   = owner.company_name || owner.owner_name || owner.name
-  const expenseCount = leaseExpenseGroups.reduce((s, g) => s + g.line_items.length, 0)
+  const expenseCount = wholeHerdLineItems.length +
+    leaseExpenseGroups.reduce((s, g) => s + g.line_items.length, 0)
 
   // ── Step 9: Get invoice number ───────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -351,6 +465,7 @@ export async function POST(req: NextRequest) {
     total,
     sex_breakdown:     sexBreakdown,
     pair_calves:       billingPairCalves.length,
+    herd_pct:          Math.round(ownerHerdPct * 1000) / 10,
   }
 
   if (dry_run) {

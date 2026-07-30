@@ -8,11 +8,14 @@ import { Toggle } from '@/components/ui/Toggle'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiPost, apiPatch, apiGet } from '@/lib/fetch'
 
+interface LeaseOption { id: string; property_name: string }
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface LeaseExpense {
   id: string
-  lease_id: string
+  lease_id: string | null
+  is_lease_specific?: boolean | null
   category_name: string
   category_id: string | null
   expense_type: string
@@ -71,15 +74,18 @@ const TYPE_CONFIG: Record<ExpenseType, { emoji: string; label: string; sub: stri
   animal_specific: { emoji: '🐄', label: 'ANIMAL SPECIFIC', sub: 'One animal' },
 }
 
+type Scope = 'whole_herd' | 'lease_specific'
+
 interface Props {
   isOpen: boolean
   onClose: () => void
-  leaseId: string
+  leaseId?: string
   leaseName?: string
   ranchName?: string
   onSuccess: () => void
   initialData?: LeaseExpense | null
   mode?: 'create' | 'edit'
+  defaultScope?: Scope
 }
 
 function fmt(n: number) {
@@ -102,11 +108,19 @@ const categoryDefaults: Record<string, boolean> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+function currentQtr() { const m = new Date().getMonth(); return Math.ceil((m + 1) / 3) as 1|2|3|4 }
+function currentYr()  { return new Date().getFullYear() % 100 }
+
 export function AddLeaseExpenseSheet({
-  isOpen, onClose, leaseId, leaseName, ranchName = 'My Ranch', onSuccess, initialData, mode = 'create',
+  isOpen, onClose, leaseId, leaseName, ranchName = 'My Ranch', onSuccess, initialData, mode = 'create', defaultScope,
 }: Props) {
   const [step,          setStep]         = useState<1 | 2 | 3 | 4>(1)
   const [expenseType,   setExpenseType]  = useState<ExpenseType>('shared')
+  const [scope,         setScope]        = useState<Scope>(defaultScope ?? (leaseId ? 'lease_specific' : 'whole_herd'))
+  const [expQtr,        setExpQtr]       = useState<1|2|3|4>(currentQtr())
+  const [expYear,       setExpYear]      = useState<number>(currentYr())
+  const [leases,        setLeases]       = useState<LeaseOption[]>([])
+  const [selectedLeaseId, setSelectedLeaseId] = useState<string | null>(null)
   const [categories,    setCategories]   = useState<Record<ExpenseType, CategoryRow[]>>({ shared: [], owner_specific: [], animal_specific: [] })
   const [categoryId,    setCategoryId]   = useState<string | null>(null)
   const [categoryName,  setCategoryName] = useState('')
@@ -143,17 +157,29 @@ export function AddLeaseExpenseSheet({
       setOwners(d.data ?? [])
     }).catch(() => {})
 
-    apiGet(`/api/leases/${leaseId}/animals`).then(r => r.json()).then(d => {
-      setAnimals(d.data ?? [])
-    }).catch(() => {})
+    if (leaseId) {
+      apiGet(`/api/leases/${leaseId}/animals`).then(r => r.json()).then(d => {
+        setAnimals(d.data ?? [])
+      }).catch(() => {})
 
-    apiGet(`/api/leases/${leaseId}/aum`).then(r => r.json()).then(d => {
-      if (!d.error) setAumData(d)
-    }).catch(() => {})
+      apiGet(`/api/leases/${leaseId}/aum`).then(r => r.json()).then(d => {
+        if (!d.error) setAumData(d)
+      }).catch(() => {})
+    } else {
+      // No lease: load all active animals for animal_specific, and leases for scope selector
+      apiGet('/api/animals?status=active&limit=300').then(r => r.json()).then(d => {
+        setAnimals(d.data ?? [])
+      }).catch(() => {})
+
+      apiGet('/api/leases').then(r => r.json()).then(d => {
+        setLeases(d.data ?? [])
+      }).catch(() => {})
+    }
 
     // Populate from initialData when editing
     if (mode === 'edit' && initialData) {
       setExpenseType((initialData.expense_type as ExpenseType) || 'shared')
+      setScope(initialData.is_lease_specific === false ? 'whole_herd' : 'lease_specific')
       setCategoryId(initialData.category_id)
       setCategoryName(initialData.category_name)
       setDescription(initialData.description ?? '')
@@ -175,6 +201,10 @@ export function AddLeaseExpenseSheet({
     } else {
       setStep(1)
       setExpenseType('shared')
+      setScope(defaultScope ?? (leaseId ? 'lease_specific' : 'whole_herd'))
+      setExpQtr(currentQtr())
+      setExpYear(currentYr())
+      setSelectedLeaseId(null)
       setCategoryId(null)
       setCategoryName('')
       setDescription('')
@@ -194,7 +224,7 @@ export function AddLeaseExpenseSheet({
       setOtherDetail('')
     }
     setError('')
-  }, [isOpen, leaseId, mode, initialData])
+  }, [isOpen, leaseId, mode, initialData, defaultScope])
 
   const descriptionRequired  = REQUIRES_DESCRIPTION.includes(categoryName)
   const isWorkingAnimals     = categoryName === 'Working Animals'
@@ -227,28 +257,51 @@ export function AddLeaseExpenseSheet({
     if (expenseType === 'animal_specific' && !animalId) { setError('Select an animal'); return }
     if (descriptionRequired && !description.trim()) { setError('Description is required for this expense type'); return }
 
+    const isWholeHerd = expenseType === 'shared' && scope === 'whole_herd'
+    const effectiveLeaseId = leaseId || selectedLeaseId
+
+    if (!isWholeHerd && !effectiveLeaseId) { setError('Select a lease for lease-specific expenses'); return }
+
     setSaving(true); setError('')
     try {
-      const payload: Record<string, unknown> = {
-        category_name:   categoryName,
-        category_id:     categoryId,
-        expense_type:    expenseType,
-        description:     description.trim() || null,
-        total_amount:    amt,
-        expense_date:    calcType === 'one_time' ? (expenseDate || null) : (periodStart || null),
-        period_start:    calcType === 'period' ? (periodStart || null) : null,
-        period_end:      calcType === 'period' ? (periodEnd || null) : null,
-        notes:           notes || null,
-        owner_id:        expenseType === 'owner_specific'  ? (ownerId === 'null' ? null : ownerId)  : null,
-        animal_id:       expenseType === 'animal_specific' ? animalId : null,
-        qty:             quantity ? parseFloat(quantity) : null,
-        unit_cost:       unitCost ? parseFloat(unitCost) : null,
-        include_calves:  expenseType === 'shared' ? includeCalves : false,
+      // For whole-herd: auto-derive period from selected quarter
+      let pStart = calcType === 'period' ? (periodStart || null) : null
+      let pEnd   = calcType === 'period' ? (periodEnd   || null) : null
+      if (isWholeHerd && calcType === 'period') {
+        const yr = 2000 + expYear
+        pStart = new Date(yr, (expQtr - 1) * 3, 1).toISOString().slice(0, 10)
+        pEnd   = new Date(yr, expQtr * 3, 0).toISOString().slice(0, 10)
       }
 
-      const url = mode === 'edit' && initialData
-        ? `/api/leases/${leaseId}/expenses/${initialData.id}`
-        : `/api/leases/${leaseId}/expenses`
+      const payload: Record<string, unknown> = {
+        category_name:    categoryName,
+        category_id:      categoryId,
+        expense_type:     expenseType,
+        description:      description.trim() || null,
+        total_amount:     amt,
+        expense_date:     calcType === 'one_time' ? (expenseDate || null) : (pStart || null),
+        period_start:     pStart,
+        period_end:       pEnd,
+        notes:            notes || null,
+        owner_id:         expenseType === 'owner_specific'  ? (ownerId === 'null' ? null : ownerId)  : null,
+        animal_id:        expenseType === 'animal_specific' ? animalId : null,
+        qty:              quantity ? parseFloat(quantity) : null,
+        unit_cost:        unitCost ? parseFloat(unitCost) : null,
+        include_calves:   expenseType === 'shared' ? includeCalves : false,
+        is_lease_specific: !isWholeHerd,
+        quarter:          isWholeHerd ? expQtr : undefined,
+        year:             isWholeHerd ? expYear : undefined,
+      }
+
+      let url: string
+      if (mode === 'edit' && initialData) {
+        url = isWholeHerd
+          ? `/api/expenses/${initialData.id}`
+          : `/api/leases/${effectiveLeaseId}/expenses/${initialData.id}`
+      } else {
+        url = isWholeHerd ? '/api/expenses' : `/api/leases/${effectiveLeaseId}/expenses`
+      }
+
       const res  = await (mode === 'edit' ? apiPatch(url, payload) : apiPost(url, payload))
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
@@ -305,7 +358,7 @@ export function AddLeaseExpenseSheet({
         {/* Body */}
         <div className="flex-1 px-5 pb-4 flex flex-col gap-4" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', minHeight: 0, flex: '1 1 0' }}>
 
-          {/* ── STEP 1: Expense type ──────────────────────────────────────── */}
+          {/* ── STEP 1: Expense type + scope ──────────────────────────────── */}
           {step === 1 && (
             <>
               <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>STEP 1 — EXPENSE TYPE</p>
@@ -331,6 +384,90 @@ export function AddLeaseExpenseSheet({
                   </button>
                 ))}
               </div>
+
+              {expenseType === 'shared' && (
+                <>
+                  <p className="type-section-label mt-1" style={{ color: 'var(--text-muted)' }}>EXPENSE SCOPE</p>
+                  <div className="flex flex-col gap-2">
+                    {([
+                      { val: 'whole_herd' as Scope, emoji: '🌾', label: 'WHOLE HERD', sub: 'Split across all owners by herd % for the quarter (default)' },
+                      { val: 'lease_specific' as Scope, emoji: '🏡', label: 'LEASE SPECIFIC', sub: 'Only split among animals on a specific lease' },
+                    ]).map(({ val, emoji, label, sub }) => (
+                      <button
+                        key={val}
+                        type="button"
+                        className="flex items-start gap-3 p-3 rounded-xl text-left transition-all"
+                        style={{
+                          border: `2px solid ${scope === val ? 'var(--accent)' : 'var(--border)'}`,
+                          background: scope === val ? 'var(--accent-soft)' : 'var(--surface-1)',
+                        }}
+                        onClick={() => setScope(val)}
+                      >
+                        <span className="text-2xl mt-0.5">{emoji}</span>
+                        <div>
+                          <p className="type-label font-bold text-xs" style={{ color: scope === val ? 'var(--accent)' : 'var(--text)' }}>{label}</p>
+                          <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{sub}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {scope === 'whole_herd' && (
+                    <>
+                      <p className="type-section-label mt-1" style={{ color: 'var(--text-muted)' }}>WHICH QUARTER?</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex rounded overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                          {([1,2,3,4] as const).map((q, i) => (
+                            <button
+                              key={q}
+                              type="button"
+                              onClick={() => setExpQtr(q)}
+                              className="px-3 py-1.5 text-xs font-semibold"
+                              style={{
+                                background: expQtr === q ? 'var(--accent)' : 'var(--surface-1)',
+                                color:      expQtr === q ? 'white' : 'var(--text-muted)',
+                                borderRight: i < 3 ? '1px solid var(--border)' : undefined,
+                              }}
+                            >Q{q}</button>
+                          ))}
+                        </div>
+                        <select
+                          value={expYear}
+                          onChange={e => setExpYear(Number(e.target.value))}
+                          className="text-sm rounded px-2 py-1.5"
+                          style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                        >
+                          {Array.from({ length: 4 }, (_, i) => currentYr() - i + 1).map(y => (
+                            <option key={y} value={y}>{2000 + y}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {scope === 'lease_specific' && !leaseId && (
+                    <Field label="Which lease?" required>
+                      <div className="flex flex-col gap-1.5 mt-1">
+                        {leases.map(l => (
+                          <button
+                            key={l.id}
+                            type="button"
+                            className="text-left px-3 py-2.5 rounded-lg"
+                            style={{
+                              border:     `1.5px solid ${selectedLeaseId === l.id ? 'var(--accent)' : 'var(--border)'}`,
+                              background: selectedLeaseId === l.id ? 'var(--accent-soft)' : 'var(--surface-1)',
+                              color:      selectedLeaseId === l.id ? 'var(--accent)' : 'var(--text)',
+                            }}
+                            onClick={() => setSelectedLeaseId(l.id)}
+                          >
+                            {l.property_name}
+                          </button>
+                        ))}
+                      </div>
+                    </Field>
+                  )}
+                </>
+              )}
             </>
           )}
 
@@ -642,48 +779,45 @@ export function AddLeaseExpenseSheet({
 
               {expenseType === 'shared' && (() => {
                 const amt = parseFloat(computedTotal) || 0
+                const isWH = scope === 'whole_herd'
                 const rows = aumData?.by_owner ?? []
                 return (
                   <div className="flex flex-col gap-3">
-                    <ContextBanner tone="neutral">
-                      {calcType === 'one_time'
-                        ? `Split equally among animals present on ${expenseDate}`
-                        : `Split pro-rated by days present from ${periodStart} to ${periodEnd}`}
-                    </ContextBanner>
-                    <div
-                      className="rounded-xl overflow-hidden"
-                      style={{ border: '1px solid var(--border)' }}
-                    >
-                      <div
-                        className="px-4 py-2 type-helper font-semibold"
-                        style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}
-                      >
-                        {categoryName} — {fmt(amt)}
-                      </div>
-                      {rows.map((row, i) => {
-                        const share = Math.round(amt * (row.percent_of_herd / 100) * 100) / 100
-                        return (
-                          <div
-                            key={row.owner_id ?? 'unassigned'}
-                            className="flex items-center justify-between px-4 py-3"
-                            style={{ borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : undefined }}
-                          >
-                            <div>
-                              <p className="type-data-sm font-medium" style={{ color: 'var(--text)' }}>{row.owner_name}</p>
-                              <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
-                                {row.billable} head · {row.percent_of_herd}%
-                              </p>
+                    {isWH ? (
+                      <ContextBanner tone="info">
+                        <strong>{fmt(amt)}</strong> will be split by herd % across all owners when Q{expQtr} {2000 + expYear} invoices are generated.
+                      </ContextBanner>
+                    ) : (
+                      <>
+                        <ContextBanner tone="neutral">
+                          {calcType === 'one_time'
+                            ? `Split equally among animals present on ${expenseDate}`
+                            : `Split pro-rated by days present from ${periodStart} to ${periodEnd}`}
+                        </ContextBanner>
+                        {rows.length > 0 && (
+                          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                            <div className="px-4 py-2 type-helper font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+                              {categoryName} — {fmt(amt)}
                             </div>
-                            <span className="font-bold" style={{ color: 'var(--gold-fg)' }}>{fmt(share)}</span>
+                            {rows.map((row, i) => {
+                              const share = Math.round(amt * (row.percent_of_herd / 100) * 100) / 100
+                              return (
+                                <div key={row.owner_id ?? 'unassigned'} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : undefined }}>
+                                  <div>
+                                    <p className="type-data-sm font-medium" style={{ color: 'var(--text)' }}>{row.owner_name}</p>
+                                    <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{row.billable} head · {row.percent_of_herd}%</p>
+                                  </div>
+                                  <span className="font-bold" style={{ color: 'var(--gold-fg)' }}>{fmt(share)}</span>
+                                </div>
+                              )
+                            })}
                           </div>
-                        )
-                      })}
-                      {rows.length === 0 && (
-                        <div className="px-4 py-3">
-                          <p className="type-helper" style={{ color: 'var(--text-muted)' }}>No herd breakdown available</p>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                        {rows.length === 0 && (
+                          <ContextBanner tone="neutral">No herd breakdown available for this lease</ContextBanner>
+                        )}
+                      </>
+                    )}
                   </div>
                 )
               })()}
@@ -729,12 +863,14 @@ export function AddLeaseExpenseSheet({
               size="sm"
               className="flex-1"
               disabled={
+                (step === 1 && expenseType === 'shared' && scope === 'lease_specific' && !leaseId && !selectedLeaseId) ||
                 (step === 2 && !categoryId) ||
                 (step === 2 && expenseType === 'owner_specific' && !ownerId) ||
                 (step === 2 && expenseType === 'animal_specific' && !animalId)
               }
               onClick={() => {
                 setError('')
+                if (step === 1 && expenseType === 'shared' && scope === 'lease_specific' && !leaseId && !selectedLeaseId) { setError('Select a lease'); return }
                 if (step === 2 && !categoryId) { setError('Select a category'); return }
                 if (step === 2 && expenseType === 'owner_specific' && !ownerId) { setError('Select an owner'); return }
                 if (step === 2 && expenseType === 'animal_specific' && !animalId) { setError('Select an animal'); return }

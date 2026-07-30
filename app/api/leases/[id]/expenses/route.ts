@@ -21,9 +21,12 @@ export async function GET(req: NextRequest, { params }: Params) {
     .eq('lease_id', id)
     .order('expense_date', { ascending: false })
 
-  if (year)         query = query.eq('year', Number(year))
-  if (quarter)      query = query.eq('quarter', Number(quarter))
-  if (expense_type) query = query.eq('expense_type', expense_type)
+  const is_lease_specific = sp.get('is_lease_specific')
+
+  if (year)              query = query.eq('year', Number(year))
+  if (quarter)           query = query.eq('quarter', Number(quarter))
+  if (expense_type)      query = query.eq('expense_type', expense_type)
+  if (is_lease_specific !== null) query = query.eq('is_lease_specific', is_lease_specific === 'true')
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -59,7 +62,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { data, error } = await (supabase as any)
     .from('lease_expenses')
     .insert({
-      lease_id:        id,
+      lease_id:         id,
+      is_lease_specific: true,
       category_name:   category_name,
       category_id:     category_id     || null,
       expense_type:    expense_type    || 'shared',

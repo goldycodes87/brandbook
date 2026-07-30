@@ -82,15 +82,17 @@ export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
   const [periods, setPeriods]   = useState<Period[]>([])
   const [summary, setSummary]   = useState<BillingSummary | null>(null)
   const [aumData, setAumData]   = useState<AumData | null>(null)
-  const [expenses, setExpenses] = useState<LeaseExpense[]>([])
+  const [expenses,          setExpenses]          = useState<LeaseExpense[]>([])
+  const [wholeHerdExpenses, setWholeHerdExpenses] = useState<LeaseExpense[]>([])
   const [loading, setLoading]   = useState(true)
   const [addOpen, setAddOpen]   = useState(false)
   const [editTarget, setEditTarget] = useState<Period | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Period | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [markingPaid, setMarkingPaid] = useState<string | null>(null)
-  const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
-  const [editExpense, setEditExpense] = useState<LeaseExpense | null>(null)
+  const [expenseSheetOpen,      setExpenseSheetOpen]      = useState(false)
+  const [wholeHerdSheetOpen,    setWholeHerdSheetOpen]    = useState(false)
+  const [editExpense,           setEditExpense]            = useState<LeaseExpense | null>(null)
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
   const [filterYear, setFilterYear]       = useState<string>(String(new Date().getFullYear()))
   const [filterQuarter, setFilterQuarter] = useState<string>('ALL')
@@ -102,23 +104,31 @@ export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const expParams = new URLSearchParams()
-      if (filterYear)              expParams.set('year', String(Number(filterYear) % 100))
-      if (filterQuarter !== 'ALL') expParams.set('quarter', filterQuarter)
-      if (filterType    !== 'ALL') expParams.set('expense_type', filterType.toLowerCase())
+      const leaseExpParams = new URLSearchParams()
+      if (filterYear)              leaseExpParams.set('year', String(Number(filterYear) % 100))
+      if (filterQuarter !== 'ALL') leaseExpParams.set('quarter', filterQuarter)
+      if (filterType    !== 'ALL') leaseExpParams.set('expense_type', filterType.toLowerCase())
+      leaseExpParams.set('is_lease_specific', 'true')
 
-      const [billingRes, aumRes, expRes] = await Promise.all([
+      const whExpParams = new URLSearchParams()
+      if (filterYear)              whExpParams.set('year', String(Number(filterYear) % 100))
+      if (filterQuarter !== 'ALL') whExpParams.set('quarter', filterQuarter)
+
+      const [billingRes, aumRes, expRes, whRes] = await Promise.all([
         fetch(`/api/leases/${leaseId}/billing`),
         fetch(`/api/leases/${leaseId}/aum`),
-        fetch(`/api/leases/${leaseId}/expenses?${expParams}`),
+        fetch(`/api/leases/${leaseId}/expenses?${leaseExpParams}`),
+        fetch(`/api/expenses?${whExpParams}`),
       ])
       const billing = await billingRes.json()
       const aum     = await aumRes.json()
       const exp     = await expRes.json()
+      const wh      = await whRes.json()
       setPeriods(billing.periods ?? [])
       setSummary(billing.summary ?? null)
       if (!aum.error) setAumData(aum)
       setExpenses(exp.data ?? [])
+      setWholeHerdExpenses(wh.data ?? [])
     } finally {
       setLoading(false)
     }
@@ -563,17 +573,102 @@ export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
           ))}
         </div>
 
-        <div className="ml-auto">
-          <Button intent="primary" size="sm" onClick={() => { setEditExpense(null); setExpenseSheetOpen(true) }}>
-            <Plus size={14} className="mr-1" />
-            LOG EXPENSE
-          </Button>
-        </div>
+        <div className="ml-auto" />
       </div>
 
+      {/* ── Whole-herd expenses ───────────────────────────────────────── */}
       <Panel
-        title="LEASE EXPENSES"
-        subtitle="Logged expenses for this lease"
+        title="WHOLE HERD EXPENSES"
+        subtitle="Apply to all owners across all leases by herd %"
+        actions={
+          <Button intent="primary" size="sm" onClick={() => { setEditExpense(null); setWholeHerdSheetOpen(true) }}>
+            <Plus size={14} className="mr-1" />
+            ADD EXPENSE
+          </Button>
+        }
+        padding="none"
+      >
+        {wholeHerdExpenses.length === 0 ? (
+          <div className="px-5 py-6 text-center">
+            <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+              No whole-herd expenses logged. Use &ldquo;Add Expense&rdquo; to log hay, mineral, labor, etc.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                    {['Date', 'Category', 'Description', 'Total', ''].map(h => (
+                      <th key={h} className="text-left px-4 py-2 type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {wholeHerdExpenses.map((exp, i) => (
+                    <tr key={exp.id} style={{ borderBottom: i < wholeHerdExpenses.length - 1 ? '1px solid var(--border)' : undefined }}>
+                      <td className="px-4 py-3 type-helper" style={{ color: 'var(--text-muted)' }}>
+                        {exp.expense_date ? fmtDate(exp.expense_date) : '—'}
+                      </td>
+                      <td className="px-4 py-3 font-medium" style={{ color: 'var(--text)' }}>{exp.category_name}</td>
+                      <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{exp.description || '—'}</td>
+                      <td className="px-4 py-3 font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(exp.total_amount)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => { setEditExpense(exp); setWholeHerdSheetOpen(true) }}>
+                            <Pencil size={14} style={{ color: 'var(--text-muted)' }} />
+                          </button>
+                          <button type="button" onClick={() => handleDeleteExpense(exp.id)} disabled={deletingExpenseId === exp.id}>
+                            <Trash2 size={14} style={{ color: 'var(--danger-fg)', opacity: deletingExpenseId === exp.id ? 0.5 : 1 }} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="md:hidden flex flex-col">
+              {wholeHerdExpenses.map((exp, i) => (
+                <div key={exp.id} className="px-4 py-4" style={{ borderBottom: i < wholeHerdExpenses.length - 1 ? '1px solid var(--border)' : undefined }}>
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{exp.category_name}</p>
+                      {exp.description && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{exp.description}</p>}
+                    </div>
+                    <span className="font-bold text-sm" style={{ color: 'var(--gold-fg)' }}>{fmt(exp.total_amount)}</span>
+                  </div>
+                  {exp.expense_date && <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{fmtDate(exp.expense_date)}</p>}
+                  <div className="flex items-center gap-2 mt-2">
+                    <Button intent="ghost" size="sm" onClick={() => { setEditExpense(exp); setWholeHerdSheetOpen(true) }}>EDIT</Button>
+                    <button type="button" className="ml-auto" onClick={() => handleDeleteExpense(exp.id)}>
+                      <Trash2 size={16} style={{ color: 'var(--danger-fg)' }} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-3 flex justify-between" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+              <span className="type-helper font-semibold" style={{ color: 'var(--text-muted)' }}>TOTAL WHOLE HERD</span>
+              <span className="font-bold" style={{ color: 'var(--gold-fg)' }}>
+                {fmt(wholeHerdExpenses.reduce((s, e) => s + e.total_amount, 0))}
+              </span>
+            </div>
+          </>
+        )}
+      </Panel>
+
+      {/* ── Lease-specific expenses ───────────────────────────────────── */}
+      <Panel
+        title="LEASE SPECIFIC EXPENSES"
+        subtitle="Only split among animals on this lease"
+        actions={
+          <Button intent="primary" size="sm" onClick={() => { setEditExpense(null); setExpenseSheetOpen(true) }}>
+            <Plus size={14} className="mr-1" />
+            ADD LEASE EXPENSE
+          </Button>
+        }
         padding="none"
       >
         {expenses.length === 0 ? (
@@ -694,6 +789,17 @@ export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
         onSuccess={load}
         initialData={editExpense}
         mode={editExpense ? 'edit' : 'create'}
+        defaultScope="lease_specific"
+      />
+
+      <AddLeaseExpenseSheet
+        isOpen={wholeHerdSheetOpen}
+        onClose={() => { setWholeHerdSheetOpen(false); setEditExpense(null) }}
+        ranchName={ranchName}
+        onSuccess={load}
+        initialData={editExpense?.is_lease_specific === false ? editExpense : null}
+        mode={editExpense?.is_lease_specific === false ? 'edit' : 'create'}
+        defaultScope="whole_herd"
       />
 
       <ConfirmDialog

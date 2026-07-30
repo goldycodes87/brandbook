@@ -61,6 +61,33 @@ export function calcPeriodLevelCost(
   return 0
 }
 
+/** Animal-days for a specific owner (includes pair calves in count). */
+export function calcOwnerDaysWithCalves(
+  assignments: Array<{ animal_id: string; start_date: string; end_date: string | null; animals?: { owner_id?: string | null } | null }>,
+  ownerId: string | null,
+  qStart: string,
+  qEnd: string,
+): number {
+  return assignments
+    .filter(a => {
+      const ao = a.animals?.owner_id ?? null
+      return ownerId === null ? ao === null : ao === ownerId
+    })
+    .reduce((sum, a) => sum + calcOverlapDays(a.start_date, a.end_date, qStart, qEnd), 0)
+}
+
+/** Total animal-days across all assignments (includes pair calves). */
+export function calcTotalDaysWithCalves(
+  assignments: Array<{ start_date: string; end_date: string | null }>,
+  qStart: string,
+  qEnd: string,
+): number {
+  return assignments.reduce(
+    (sum, a) => sum + calcOverlapDays(a.start_date, a.end_date, qStart, qEnd),
+    0,
+  )
+}
+
 export function getRateLabel(
   rateType: string | null,
   lease: {

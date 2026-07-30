@@ -83,7 +83,10 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
   const [search, setSearch]           = useState('')
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
-  const [confirmEndDate, setConfirmEndDate] = useState<string | null>(null)
+  const [confirmEndDate,    setConfirmEndDate]    = useState<string | null>(null)
+  const [openAnimals,       setOpenAnimals]       = useState<AnimalOption[]>([])
+  const [removalReason,     setRemovalReason]     = useState<'left_lease' | 'removed_from_care' | ''>('left_lease')
+  const [closingAssign,     setClosingAssign]     = useState(false)
 
   // Fetch animals assigned to this lease
   useEffect(() => {
@@ -188,9 +191,18 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
       }
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
-      // On create with an end_date, prompt to close open assignments
+      // On create with an end_date, check for open assignments
       if (mode === 'create' && form.end_date) {
-        setConfirmEndDate(form.end_date)
+        const openRes  = await fetch(`/api/leases/${leaseId}/animals`)
+        const openJson = await openRes.json()
+        const open = (openJson.data ?? []) as AnimalOption[]
+        if (open.length > 0) {
+          setOpenAnimals(open)
+          setRemovalReason('left_lease')
+          setConfirmEndDate(form.end_date)
+        } else {
+          onSuccess(); onClose()
+        }
       } else {
         onSuccess(); onClose()
       }
@@ -386,25 +398,85 @@ export function AddPeriodSheet({ isOpen, onClose, leaseId, lease, onSuccess, ini
         </div>
       </div>
 
-      <ConfirmDialog
-        isOpen={!!confirmEndDate}
-        onClose={() => { setConfirmEndDate(null); onSuccess(); onClose() }}
-        onConfirm={async () => {
-          if (confirmEndDate) {
-            await fetch(`/api/leases/${leaseId}/animals`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ end_date: confirmEndDate }),
-            })
-          }
-          setConfirmEndDate(null)
-          onSuccess()
-          onClose()
-        }}
-        title="Close open assignments?"
-        message={`Set end date for all currently assigned animals on this lease to ${confirmEndDate}? Animals removed early will keep their existing end date.`}
-        confirmLabel="YES, CLOSE ASSIGNMENTS"
-      />
+      {/* 3-option assignment close dialog */}
+      {!!confirmEndDate && (
+        <div
+          className="fixed inset-0 z-[120] flex items-end md:items-center justify-center md:p-4"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="w-full rounded-t-2xl md:rounded-2xl md:max-w-md flex flex-col"
+            style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '85dvh' }}
+          >
+            <div className="px-5 pt-5 pb-3 flex-shrink-0">
+              <p className="type-panel-title" style={{ color: 'var(--text)' }}>Close out assignments?</p>
+              <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>
+                This period ends {confirmEndDate}. There {openAnimals.length === 1 ? 'is' : 'are'} <strong>{openAnimals.length}</strong> animal{openAnimals.length !== 1 ? 's' : ''} still assigned with no end date.
+              </p>
+              <p className="type-helper mt-1" style={{ color: 'var(--text-muted)' }}>What would you like to do?</p>
+            </div>
+
+            <div className="flex-1 px-5 pb-4 flex flex-col gap-3 overflow-y-auto">
+              <button
+                type="button"
+                className="text-left px-4 py-3 rounded-xl transition-all"
+                style={{ border: '2px solid var(--border)', background: 'var(--surface-2)' }}
+                onClick={async () => {
+                  setClosingAssign(true)
+                  try {
+                    await fetch(`/api/leases/${leaseId}/animals`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ end_date: confirmEndDate }),
+                    })
+                    setConfirmEndDate(null)
+                    onSuccess(); onClose()
+                  } finally { setClosingAssign(false) }
+                }}
+                disabled={closingAssign}
+              >
+                <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>REMOVE FROM LEASE</p>
+                <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Set end date = {confirmEndDate} on all open assignments</p>
+                <div className="flex gap-2 mt-2">
+                  {(['left_lease', 'removed_from_care'] as const).map(r => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={e => { e.stopPropagation(); setRemovalReason(r) }}
+                      className="px-2 py-1 rounded text-xs font-semibold"
+                      style={{
+                        background: removalReason === r ? 'var(--accent)' : 'var(--surface-3)',
+                        color:      removalReason === r ? 'white' : 'var(--text-muted)',
+                        border:     `1px solid ${removalReason === r ? 'var(--accent)' : 'var(--border)'}`,
+                      }}
+                    >
+                      {r === 'left_lease' ? 'Left Lease' : 'Removed from Care'}
+                    </button>
+                  ))}
+                </div>
+              </button>
+
+              <div
+                className="text-left px-4 py-3 rounded-xl"
+                style={{ border: '2px solid var(--border)', background: 'var(--surface-2)', opacity: 0.7 }}
+              >
+                <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>MOVE TO ANOTHER LEASE</p>
+                <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Use the Animals tab on the target lease to reassign animals</p>
+              </div>
+
+              <button
+                type="button"
+                className="text-left px-4 py-3 rounded-xl transition-all"
+                style={{ border: '2px solid var(--border)', background: 'var(--surface-2)' }}
+                onClick={() => { setConfirmEndDate(null); onSuccess(); onClose() }}
+              >
+                <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>DO NOTHING</p>
+                <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Leave assignments open — update them manually later</p>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
