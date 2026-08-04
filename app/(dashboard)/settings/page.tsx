@@ -50,6 +50,9 @@ interface RanchSettings {
   default_ear_tag_color: string
   default_breed: string
   default_administered_by: string
+  ai_preg_check_days_out: string
+  default_ai_technician: string
+  ai_tech_fee_per_cow: string
 }
 
 interface Profile {
@@ -87,6 +90,7 @@ function RanchTab() {
     ranch_name: '', owner_name: '', address: '', city: '', state: '', zip: '',
     phone: '', email: '', timezone: 'America/Denver', logo_url: '', brand_photo_url: '',
     default_ear_tag_color: '', default_breed: '', default_administered_by: '',
+    ai_preg_check_days_out: '', default_ai_technician: '', ai_tech_fee_per_cow: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -278,6 +282,40 @@ function RanchTab() {
             </Field>
             <Field label="Default administered by" helper="Pre-fills the 'administered by' field on health events">
               <Input value={form.default_administered_by} onChange={set('default_administered_by')} placeholder="Your name or role" />
+            </Field>
+          </div>
+        </PanelSection>
+      </Panel>
+
+      <Panel title="AI BREEDING DEFAULTS" subtitle="Used by Chute Mode and AI session when not overridden">
+        <PanelSection>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Preg-check days after breeding" helper="Days to schedule a preg check after AI breeding">
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={form.ai_preg_check_days_out}
+                onChange={set('ai_preg_check_days_out')}
+                placeholder="45"
+              />
+            </Field>
+            <Field label="AI tech fee per cow ($)" helper="Default technician fee charged per cow bred">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.ai_tech_fee_per_cow}
+                onChange={set('ai_tech_fee_per_cow')}
+                placeholder="280.00"
+              />
+            </Field>
+            <Field label="Default AI technician" helper="Pre-fills the technician name on breeding records">
+              <Input
+                value={form.default_ai_technician}
+                onChange={set('default_ai_technician')}
+                placeholder="Technician name"
+              />
             </Field>
           </div>
         </PanelSection>
