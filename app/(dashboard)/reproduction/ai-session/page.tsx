@@ -93,13 +93,17 @@ function AISessionInner() {
   const [animalsLoading,setAnimalsLoading]= useState(false)
   const [selected,      setSelected]      = useState<Set<string>>(new Set())
 
+  // Ranch settings
+  const [aiTechFeePerCow,    setAiTechFeePerCow]    = useState(280)
+  const [aiPregCheckDaysOut, setAiPregCheckDaysOut] = useState(45)
+
   // Step 5 save state
   const [saving,        setSaving]        = useState(false)
   const [saveError,     setSaveError]     = useState('')
   const [done,          setDone]          = useState(false)
   const [doneData,      setDoneData]      = useState<{ count: number; remainingStraws: number; pregCheckDue: string; calvingWindow: string } | null>(null)
 
-  // Load semen inventory on mount
+  // Load semen inventory and ranch settings on mount
   useEffect(() => {
     const preselectSire = searchParams.get('sire')
     const preselectInv  = searchParams.get('inv')
@@ -116,6 +120,13 @@ function AISessionInner() {
         if (found) { setSelectedInv(found); setStep(2) }
       }
     }).catch(() => {}).finally(() => setInvLoading(false))
+
+    apiGet('/api/settings/ranch').then(r => r.json()).then(j => {
+      const s = j.data ?? {}
+      if (s.ai_tech_fee_per_cow    != null) setAiTechFeePerCow(parseFloat(s.ai_tech_fee_per_cow) || 280)
+      if (s.ai_preg_check_days_out != null) setAiPregCheckDaysOut(parseInt(s.ai_preg_check_days_out, 10) || 45)
+      if (s.default_ai_technician)          setTechName(prev => prev || s.default_ai_technician)
+    }).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load animals for step 3
@@ -181,13 +192,13 @@ function AISessionInner() {
   const notEnoughStraws = strawsNeeded > strawsAvailable
 
   const pricePerStraw = selectedInv?.price_per_straw ?? 0
-  const techFeePerCow = 280
+  const techFeePerCow = aiTechFeePerCow
   const totalTechFee  = selectedAnimals.length * techFeePerCow
   const totalStrawCost= selectedAnimals.length * pricePerStraw
   const grandTotal    = totalTechFee + totalStrawCost
 
-  const calvingDate   = sessionDate ? addDays(sessionDate, 283) : null
-  const pregCheckDue  = sessionDate ? addDays(sessionDate, 45)  : null
+  const calvingDate   = sessionDate ? addDays(sessionDate, 283)                 : null
+  const pregCheckDue  = sessionDate ? addDays(sessionDate, aiPregCheckDaysOut) : null
   const calvingWindow = sessionDate ? `${fmtDate(addDays(sessionDate, 273))} – ${fmtDate(addDays(sessionDate, 293))}` : ''
 
   // CIDR timeline dates

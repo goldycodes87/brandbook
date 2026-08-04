@@ -34,6 +34,7 @@ interface AnimalLookup {
   sex: string | null
   ear_tag_color: string | null
   ear_tag_number: string | null
+  owner_id: string | null
 }
 
 interface Lease { id: string; property_name: string }
@@ -92,6 +93,7 @@ interface ProcessedAnimal {
   savedEvents: SavedEvent[]
   applicableTasks: TaskType[]
   strawsUsed?: StrawsUsedEntry
+  extraDeleteUrls?: string[]
   error?: string
 }
 
@@ -158,6 +160,12 @@ function taskSummaryText(task: TaskType, td: TaskDataEntry): string | null {
 }
 
 const today = () => new Date().toISOString().slice(0, 10)
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
 
 // ── Setup Screen ───────────────────────────────────────────────────────────────
 
@@ -371,7 +379,7 @@ function NewAnimalSheet({ onSave, onClose }: {
       const j = await res.json()
       if (!res.ok) { setError(j.error ?? 'Save failed'); return }
       const a = j.data
-      onSave({ id: a.id, tag_number: a.tag_number, name: a.name ?? null, sex: a.sex, ear_tag_color: a.ear_tag_color, ear_tag_number: a.ear_tag_number ?? null })
+      onSave({ id: a.id, tag_number: a.tag_number, name: a.name ?? null, sex: a.sex, ear_tag_color: a.ear_tag_color, ear_tag_number: a.ear_tag_number ?? null, owner_id: a.owner_id ?? null })
     } catch {
       setError('Connection error')
     } finally {
@@ -1630,6 +1638,8 @@ export default function ChutePage() {
   const [technician,       setTechnician]       = useState('')
   const [date,             setDate]             = useState(today)
   const [resumeSession,    setResumeSession]    = useState<ChuteSession | null>(null)
+  const [aiTechFeePerCow,    setAiTechFeePerCow]    = useState(0)
+  const [aiPregCheckDaysOut, setAiPregCheckDaysOut] = useState(45)
 
   const [currentAnimal,    setCurrentAnimal]    = useState<AnimalLookup | null>(null)
   const [applicableTasks,  setApplicableTasks]  = useState<TaskType[]>([])
@@ -1644,6 +1654,12 @@ export default function ChutePage() {
     const existing = loadSession()
     if (existing) setResumeSession(existing)
     try { const t = localStorage.getItem(TECH_KEY); if (t) setTechnician(t) } catch {}
+    apiGet('/api/settings/ranch').then(r => r.json()).then(j => {
+      const s = j.data ?? {}
+      if (s.ai_tech_fee_per_cow    != null) setAiTechFeePerCow(parseFloat(s.ai_tech_fee_per_cow) || 0)
+      if (s.ai_preg_check_days_out != null) setAiPregCheckDaysOut(parseInt(s.ai_preg_check_days_out, 10) || 45)
+      if (s.default_ai_technician)  setTechnician(prev => prev || s.default_ai_technician)
+    }).catch(() => {})
   }, [])
 
   const handleStart = () => {
@@ -1697,6 +1713,7 @@ export default function ChutePage() {
     setSaving(true); setSaveError('')
 
     const savedEvents: SavedEvent[] = []
+    const extraDeleteUrls: string[] = []
     let error = ''
     let strawsUsed: StrawsUsedEntry | undefined
 
@@ -1718,11 +1735,14 @@ export default function ChutePage() {
       // BREEDING
       if (applicableTasks.includes('breeding') && !taskData.not_bred && (taskData.semen_inventory_id || taskData.natural_service)) {
         promises.push((async () => {
+          let straw: SemenStraw | undefined
+          let pricePerStraw = 0
+
           // Deduct straw from inventory
           if (taskData.semen_inventory_id) {
             const tankRes  = await apiGet('/api/genetics/tank')
             const tankJson = await tankRes.json()
-            const straw    = (tankJson.data ?? []).find((s: SemenStraw) => s.id === taskData.semen_inventory_id)
+            straw = (tankJson.data ?? []).find((s: SemenStraw) => s.id === taskData.semen_inventory_id)
             if (straw && straw.straw_count > 0) {
               await fetch('/api/genetics/tank', {
                 method: 'PATCH',
@@ -1730,19 +1750,81 @@ export default function ChutePage() {
                 credentials: 'include',
                 body: JSON.stringify({ id: straw.id, straw_count: straw.straw_count - 1 }),
               })
-              strawsUsed = { semen_inventory_id: straw.id, sire_name: straw.sire_name, prev_count: straw.straw_count }
+              strawsUsed   = { semen_inventory_id: straw.id, sire_name: straw.sire_name, prev_count: straw.straw_count }
+              pricePerStraw = straw.price_per_straw ?? 0
             }
           }
 
+          const isAi = !taskData.natural_service
           const res = await apiPost('/api/reproduction', {
-            animal_id: currentAnimal.id, event_type: 'bred', event_date: date,
-            conception_method: taskData.natural_service ? 'natural' : 'ai',
-            sire_name_text: taskData.sire_name_text || null,
-            sire_library_id: taskData.sire_library_id || null,
-            ai_technician: technician || null,
+            animal_id:          currentAnimal.id,
+            event_type:         'bred',
+            event_date:         date,
+            conception_method:  isAi ? 'ai' : 'natural',
+            sire_name_text:     taskData.sire_name_text     || null,
+            sire_library_id:    taskData.sire_library_id    || null,
+            semen_inventory_id: taskData.semen_inventory_id || null,
+            ai_technician:      technician                  || null,
+            ai_cost:            isAi && aiTechFeePerCow > 0 ? aiTechFeePerCow : null,
+            straw_cost:         pricePerStraw > 0            ? pricePerStraw   : null,
           })
           const j = await res.json()
           if (j.data?.id) savedEvents.push({ task: 'breeding', deleteUrl: `/api/reproduction/${j.data.id}` })
+
+          if (isAi) {
+            const pregCheckDue = addDays(date, aiPregCheckDaysOut)
+            const tagLabel     = `${currentAnimal.ear_tag_color ?? ''} ${currentAnimal.tag_number}`.trim()
+
+            // Preg-check reminder
+            await apiPost('/api/reminders', {
+              animal_id:     currentAnimal.id,
+              reminder_type: 'preg_check',
+              due_date:      pregCheckDue,
+              title:         `Preg check — ${tagLabel}`,
+            })
+
+            // Owner-specific expenses for animals with an owner
+            if (currentAnimal.owner_id) {
+              const qtr      = Math.ceil((new Date(date).getMonth() + 1) / 3)
+              const yr       = new Date(date).getFullYear() % 100
+              const bullName = taskData.sire_name_text || straw?.sire_name || 'AI breeding'
+
+              const expensePosts: Promise<Response>[] = []
+              if (aiTechFeePerCow > 0) {
+                expensePosts.push(apiPost('/api/expenses', {
+                  category_name:     'AI Technician Fee',
+                  expense_type:      'owner_specific',
+                  owner_id:          currentAnimal.owner_id,
+                  total_amount:      aiTechFeePerCow,
+                  expense_date:      date,
+                  quarter:           qtr,
+                  year:              yr,
+                  description:       `AI Tech Fee — ${bullName}`,
+                  is_lease_specific: false,
+                }))
+              }
+              if (pricePerStraw > 0) {
+                expensePosts.push(apiPost('/api/expenses', {
+                  category_name:     'Semen Straws',
+                  expense_type:      'owner_specific',
+                  owner_id:          currentAnimal.owner_id,
+                  total_amount:      pricePerStraw,
+                  expense_date:      date,
+                  quarter:           qtr,
+                  year:              yr,
+                  description:       `${bullName} semen straw`,
+                  sire_library_id:   taskData.sire_library_id || straw?.sire_library_id || null,
+                  is_lease_specific: false,
+                }))
+              }
+              if (expensePosts.length) {
+                const expenseResults = await Promise.all(expensePosts.map(p => p.then(r => r.json())))
+                for (const r of expenseResults) {
+                  if (r.data?.id) extraDeleteUrls.push(`/api/expenses/${r.data.id}`)
+                }
+              }
+            }
+          }
         })())
       }
 
@@ -1804,6 +1886,7 @@ export default function ChutePage() {
 
     const entry: ProcessedAnimal = {
       animal: currentAnimal, taskData, savedEvents, applicableTasks, strawsUsed,
+      extraDeleteUrls: extraDeleteUrls.length ? extraDeleteUrls : undefined,
     }
     setProcessed(prev => [...prev, entry])
     setCurrentAnimal(null); setTaskData({}); setScreen('animal')
@@ -1822,6 +1905,9 @@ export default function ChutePage() {
       }).catch(() => {})
     }
     await Promise.allSettled(last.savedEvents.map(e => apiDelete(e.deleteUrl)))
+    if (last.extraDeleteUrls?.length) {
+      await Promise.allSettled(last.extraDeleteUrls.map(url => apiDelete(url)))
+    }
   }
 
   const lastProcessed = processed.length > 0 ? processed[processed.length - 1] : null
