@@ -28,6 +28,18 @@ export async function GET(_req: NextRequest, { params }: Params) {
   // Vet costs — health_events has no drug_cost column yet (scaffold)
   const vetCosts = 0
 
+  // Breeding costs — sum ai_cost + straw_cost from actual breeding events (all animals)
+  const { data: bredEvents } = await supabase
+    .from('reproduction_events')
+    .select('ai_cost, straw_cost')
+    .eq('animal_id', id)
+    .eq('event_type', 'bred')
+
+  const breedingCosts = (bredEvents ?? []).reduce(
+    (sum, e) => sum + (e.ai_cost || 0) + (e.straw_cost || 0),
+    0,
+  )
+
   // Grazing costs
   let grazingCosts = 0
   if (animal.manual_grazing_cost_override != null) {
@@ -61,7 +73,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
   }
 
-  const totalInvested = baseCost + vetCosts + grazingCosts
+  const totalInvested = baseCost + vetCosts + breedingCosts + grazingCosts
 
   return NextResponse.json({
     base_cost: baseCost,
@@ -76,6 +88,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       embryo_cost: animal.embryo_cost || 0,
       implant_fee: animal.implant_fee || 0,
       vet_bills: vetCosts,
+      breeding_costs: breedingCosts,
       grazing: grazingCosts,
     },
   })

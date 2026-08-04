@@ -99,6 +99,7 @@ interface CostBasis {
     embryo_cost: number
     implant_fee: number
     vet_bills: number
+    breeding_costs: number
     grazing: number
   }
 }
@@ -214,13 +215,14 @@ function FinancialsBreakdown({ costBasis, revenue, animalId, onRefresh }: { cost
       </button>
       {costOpen && (
         <div className="rounded-[var(--radius-md)] p-3 flex flex-col gap-1.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-          {[
+          {([
             ['Purchase price', bd.purchase_price],
             ['AI / semen costs', bd.ai_cost + bd.semen_cost],
             ['Embryo / implant', bd.embryo_cost + bd.implant_fee],
             ['Vet bills', bd.vet_bills],
+            ...(bd.breeding_costs > 0 ? [['Breeding costs', bd.breeding_costs] as [string, number]] : []),
             ['Grazing costs', bd.grazing],
-          ].map(([label, val]) => (
+          ] as [string, number][]).map(([label, val]) => (
             <div key={String(label)} className="flex justify-between type-helper">
               <span style={{ color: 'var(--text-muted)' }}>{label}</span>
               <span style={{ fontWeight: 600 }}>${Math.round(Number(val)).toLocaleString()}</span>
