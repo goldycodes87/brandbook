@@ -1801,34 +1801,34 @@ export default function ChutePage() {
 
           const isAi = !taskData.natural_service
           const res = await apiPost('/api/reproduction', {
-            animal_id:          currentAnimal.id,
-            event_type:         'bred',
-            event_date:         date,
-            conception_method:  isAi ? 'ai' : 'natural',
-            sire_name_text:     taskData.sire_name_text     || null,
-            sire_library_id:    taskData.sire_library_id    || null,
-            semen_inventory_id: taskData.semen_inventory_id || null,
-            ai_technician:      technician                  || null,
-            ai_cost:            isAi && aiTechFeePerCow > 0 ? aiTechFeePerCow : null,
-            straw_cost:         pricePerStraw > 0            ? pricePerStraw   : null,
+            animal_id:             currentAnimal.id,
+            event_type:            'bred',
+            event_date:            date,
+            conception_method:     isAi ? 'ai' : 'natural',
+            sire_name_text:        taskData.sire_name_text     || null,
+            sire_library_id:       taskData.sire_library_id    || null,
+            semen_inventory_id:    taskData.semen_inventory_id || null,
+            ai_technician:         technician                  || null,
+            ai_cost:               isAi && aiTechFeePerCow > 0 ? aiTechFeePerCow : null,
+            straw_cost:            pricePerStraw > 0            ? pricePerStraw   : null,
+            expected_calving_date: addDays(date, 283),
           })
           const j = await res.json()
           const newEventId = j.data?.id ?? null
           if (newEventId) savedEvents.push({ task: 'breeding', deleteUrl: `/api/reproduction/${newEventId}` })
 
+          // Preg-check reminder for all breedings (AI and natural service)
+          const pregCheckDue = addDays(date, aiPregCheckDaysOut)
+          const tagLabel     = `${currentAnimal.ear_tag_color ?? ''} ${currentAnimal.tag_number}`.trim()
+          await apiPost('/api/reminders', {
+            animal_id:             currentAnimal.id,
+            reminder_type:         'preg_check',
+            due_date:              pregCheckDue,
+            title:                 `Preg check — ${tagLabel}`,
+            reproduction_event_id: newEventId,
+          })
+
           if (isAi) {
-            const pregCheckDue = addDays(date, aiPregCheckDaysOut)
-            const tagLabel     = `${currentAnimal.ear_tag_color ?? ''} ${currentAnimal.tag_number}`.trim()
-
-            // Preg-check reminder (linked to this breeding event)
-            await apiPost('/api/reminders', {
-              animal_id:            currentAnimal.id,
-              reminder_type:        'preg_check',
-              due_date:             pregCheckDue,
-              title:                `Preg check — ${tagLabel}`,
-              reproduction_event_id: newEventId,
-            })
-
             // Owner-specific expenses for animals with an owner
             if (currentAnimal.owner_id) {
               const qtr      = Math.ceil((new Date(date).getMonth() + 1) / 3)
