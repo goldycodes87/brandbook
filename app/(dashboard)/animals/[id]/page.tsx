@@ -856,6 +856,7 @@ function groupReproEvents(
 
 function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void; onDispose?: (calfId: string) => void }) {
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [editingReproEvent, setEditingReproEvent] = useState<ReproEventShape | null>(null)
 
   const events   = animal.reproduction_events ?? []
   const isFemale = animal.sex === 'cow' || animal.sex === 'heifer'
@@ -969,6 +970,7 @@ function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal
               key={op.bredEvent.id}
               bredEvent={op.bredEvent as ReproEventShape}
               pregCheckEvents={op.pregCheckEvents as ReproEventShape[]}
+              onEditEvent={ev => setEditingReproEvent(ev)}
             />
           ))}
 
@@ -986,6 +988,7 @@ function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal
                   weaningEvent={pg.weaningEvent as ReproEventShape | null}
                   sireLibraryEntry={sireLib}
                   onDispose={onDispose}
+                  onEditEvent={ev => setEditingReproEvent(ev)}
                 />
               )
             })}
@@ -994,6 +997,33 @@ function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal
           {/* Sire Comparison */}
           {pregnancies.length > 0 && <SireComparisonTable calfRecords={animal.calves ?? []} />}
         </>
+      )}
+
+      {editingReproEvent && (
+        <div
+          className="fixed inset-0 z-40 flex flex-col justify-end md:justify-center md:items-center md:p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={e => { if (e.target === e.currentTarget) setEditingReproEvent(null) }}
+        >
+          <div
+            className="rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] overflow-y-auto w-full md:max-w-lg"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '92dvh', padding: '24px 16px' }}
+          >
+            <p className="type-panel-title mb-1">Edit Reproduction Event</p>
+            <p className="type-helper mb-4" style={{ color: 'var(--text-muted)' }}>
+              Animal: <strong style={{ color: 'var(--text)' }}>#{animal.tag_number}{animal.name ? ` — ${animal.name}` : ''}</strong>
+            </p>
+            <ReproEventForm
+              animalId={animal.id}
+              animalSex={animal.sex ?? 'cow'}
+              eventId={editingReproEvent.id}
+              initialData={editingReproEvent}
+              onSuccess={() => { setEditingReproEvent(null); onRefresh() }}
+              onCancel={() => setEditingReproEvent(null)}
+              onDelete={() => { setEditingReproEvent(null); onRefresh() }}
+            />
+          </div>
+        </div>
       )}
     </div>
   )

@@ -10,8 +10,9 @@ import { Panel } from '@/components/ui/Panel'
 import { SireSelector } from '@/components/reproduction/SireSelector'
 import { EarTagColorPicker } from '@/components/reproduction/EarTagColorPicker'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
-import { apiGet, apiPost } from '@/lib/fetch'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 import { calcCalfBreeds, type BreedEntry } from '@/lib/breed-calculator'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 type EventType = 'bred' | 'preg_check' | 'calved' | 'weaned' | 'flushed' | 'bse' | 'semen_collection'
 type ConceptionMethod = 'natural' | 'ai' | 'embryo'
@@ -88,13 +89,31 @@ interface DamRef {
   name: string | null
 }
 
+interface InitialReproData {
+  event_type?: string | null
+  event_date?: string | null
+  conception_method?: string | null
+  sire_id?: string | null
+  sire_name_text?: string | null
+  sire_library_id?: string | null
+  ai_technician?: string | null
+  preg_check_result?: string | null
+  preg_check_method?: string | null
+  days_bred?: number | null
+  calving_ease_score?: number | null
+  notes?: string | null
+}
+
 export interface ReproEventFormProps {
   animalId: string
   animalSex: string
   animalRef?: DamRef
   defaultEventType?: EventType
+  eventId?: string
+  initialData?: InitialReproData
   onSuccess: (result: Record<string, unknown>) => void
   onCancel: () => void
+  onDelete?: () => void
 }
 
 export function ReproEventForm({
@@ -102,31 +121,36 @@ export function ReproEventForm({
   animalSex,
   animalRef,
   defaultEventType,
+  eventId,
+  initialData,
   onSuccess,
   onCancel,
+  onDelete,
 }: ReproEventFormProps) {
   const isBull    = animalSex === 'bull'
   const defaultEt = defaultEventType ?? (isBull ? 'bse' : 'bred')
 
-  const [eventType,        setEventType]        = useState<EventType>(defaultEt)
-  const [eventDate,        setEventDate]        = useState(new Date().toISOString().slice(0, 10))
-  const [conceptionMethod, setConceptionMethod] = useState<ConceptionMethod>('natural')
-  const [sireId,           setSireId]           = useState<string | null>(null)
-  const [sireName,         setSireName]         = useState<string | null>(null)
-  const [sireLibraryId,    setSireLibraryId]    = useState<string | null>(null)
-  const [aiTech,           setAiTech]           = useState('')
-  const [pregResult,       setPregResult]       = useState<PregCheckResult>('confirmed')
-  const [pregMethod,       setPregMethod]       = useState('ultrasound')
-  const [daysBred,         setDaysBred]         = useState('')
-  const [calveEase,        setCalveEase]        = useState('1')
+  const [eventType,        setEventType]        = useState<EventType>((initialData?.event_type as EventType | undefined) ?? defaultEt)
+  const [eventDate,        setEventDate]        = useState(initialData?.event_date ?? new Date().toISOString().slice(0, 10))
+  const [conceptionMethod, setConceptionMethod] = useState<ConceptionMethod>((initialData?.conception_method as ConceptionMethod | undefined) ?? 'natural')
+  const [sireId,           setSireId]           = useState<string | null>(initialData?.sire_id ?? null)
+  const [sireName,         setSireName]         = useState<string | null>(initialData?.sire_name_text ?? null)
+  const [sireLibraryId,    setSireLibraryId]    = useState<string | null>(initialData?.sire_library_id ?? null)
+  const [aiTech,           setAiTech]           = useState(initialData?.ai_technician ?? '')
+  const [pregResult,       setPregResult]       = useState<PregCheckResult>((initialData?.preg_check_result as PregCheckResult | undefined) ?? 'confirmed')
+  const [pregMethod,       setPregMethod]       = useState(initialData?.preg_check_method ?? 'ultrasound')
+  const [daysBred,         setDaysBred]         = useState(initialData?.days_bred != null ? String(initialData.days_bred) : '')
+  const [calveEase,        setCalveEase]        = useState(initialData?.calving_ease_score != null ? String(initialData.calving_ease_score) : '1')
   const [weanWeight,       setWeanWeight]       = useState('')
   const [weanedCalfId,     setWeanedCalfId]     = useState<string | null>(null)
   const [weanedCalfTag,    setWeanedCalfTag]    = useState('')
   const [weanCalfSearch,   setWeanCalfSearch]   = useState('')
   const [weanCalfResults,  setWeanCalfResults]  = useState<{ id: string; tag_number: string; name: string | null }[]>([])
   const [weanCalfSearching, setWeanCalfSearching] = useState(false)
-  const [notes,            setNotes]            = useState('')
+  const [notes,            setNotes]            = useState(initialData?.notes ?? '')
   const [saving,           setSaving]           = useState(false)
+  const [deleting,         setDeleting]         = useState(false)
+  const [confirmDelete,    setConfirmDelete]    = useState(false)
   const [error,            setError]            = useState('')
   const [successMsg,       setSuccessMsg]       = useState('')
 
@@ -231,6 +255,7 @@ export function ReproEventForm({
         payload = {
           ...payload,
           calving_ease_score: Number(calveEase),
+          ...(!eventId && {
           create_calf: true,
           calf_data: {
             tag_number:              calfTag.trim(),
@@ -250,6 +275,7 @@ export function ReproEventForm({
             donor_dam_id:            null,
             notes:                   calfNotes || null,
           },
+          }),
         }
       }
 
@@ -281,7 +307,9 @@ export function ReproEventForm({
         }
       }
 
-      const res  = await apiPost('/api/reproduction', payload)
+      const res  = eventId
+        ? await apiPatch(`/api/reproduction/${eventId}`, payload)
+        : await apiPost('/api/reproduction', payload)
       const json = await res.json()
       console.log('[weaning UI] result:', json)
       if (!res.ok) { setError(json.error ?? 'Save failed'); return }
@@ -295,19 +323,47 @@ export function ReproEventForm({
     }
   }
 
+  const handleDelete = async () => {
+    if (!eventId) return
+    setDeleting(true)
+    try {
+      const res = await apiDelete(`/api/reproduction/${eventId}`)
+      if (res.ok || res.status === 204) {
+        onDelete?.()
+      } else {
+        const json = await res.json().catch(() => ({}))
+        setError((json as { error?: string }).error ?? 'Delete failed')
+      }
+    } catch {
+      setError('Connection error — please try again')
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
   const eventItems = isBull ? BULL_EVENTS : COW_EVENTS
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Field label="Event type">
-        <SegmentedControl
-          value={eventType}
-          onChange={v => setEventType(v as EventType)}
-          items={eventItems}
-          block
-          size="sm"
-        />
-      </Field>
+      {eventId ? (
+        <Field label="Event type">
+          <div className="px-3 py-2 rounded-[var(--radius-md)] type-data-sm font-semibold"
+            style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+            {eventType.replace(/_/g, ' ').toUpperCase()}
+          </div>
+        </Field>
+      ) : (
+        <Field label="Event type">
+          <SegmentedControl
+            value={eventType}
+            onChange={v => setEventType(v as EventType)}
+            items={eventItems}
+            block
+            size="sm"
+          />
+        </Field>
+      )}
 
       <Field label="Date" required>
         <Input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required />
@@ -392,14 +448,14 @@ export function ReproEventForm({
             />
           </Field>
 
-          {animalRef && (
+          {!eventId && animalRef && (
             <ContextBanner tone="info" eyebrow="WILL CREATE">
               A new calf record will be created and linked to dam{' '}
               <strong>#{animalRef.tag_number}{animalRef.name ? ` — ${animalRef.name}` : ''}</strong>
             </ContextBanner>
           )}
 
-          <Panel title="CALF INFORMATION">
+          {!eventId && <Panel title="CALF INFORMATION">
             <div className="flex flex-col gap-4 pt-1">
               <Field label="Tag number" required>
                 <Input
@@ -503,7 +559,7 @@ export function ReproEventForm({
                 <Textarea value={calfNotes} onChange={e => setCalfNotes(e.target.value)} rows={2} placeholder="Observations…" />
               </Field>
             </div>
-          </Panel>
+          </Panel>}
         </>
       )}
 
@@ -603,6 +659,24 @@ export function ReproEventForm({
       <ActionFooter
         primary={<Button type="submit" intent="primary" loading={saving}>SAVE EVENT</Button>}
         secondary={<Button type="button" intent="ghost" onClick={onCancel}>CANCEL</Button>}
+      />
+
+      {eventId && (
+        <div className="flex justify-center mt-1">
+          <Button type="button" intent="danger" size="sm" loading={deleting} onClick={() => setConfirmDelete(true)}>
+            DELETE EVENT
+          </Button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete event?"
+        message="This reproduction event will be permanently deleted. This cannot be undone."
+        confirmLabel="DELETE"
+        loading={deleting}
       />
     </form>
   )

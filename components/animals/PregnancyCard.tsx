@@ -278,9 +278,10 @@ export function PregnancyCard({
 interface OpenPregnancyCardProps {
   bredEvent: ReproEventShape
   pregCheckEvents?: ReproEventShape[]
+  onEditEvent?: (event: ReproEventShape) => void
 }
 
-export function OpenPregnancyCard({ bredEvent, pregCheckEvents = [] }: OpenPregnancyCardProps) {
+export function OpenPregnancyCard({ bredEvent, pregCheckEvents = [], onEditEvent }: OpenPregnancyCardProps) {
   const sireLib    = bredEvent.sire_library
   const sireAnimal = bredEvent.sire
   const sireName   = bredEvent.sire_name_text
@@ -301,9 +302,21 @@ export function OpenPregnancyCard({ bredEvent, pregCheckEvents = [] }: OpenPregn
             </span>
           )}
         </div>
-        <span className="type-helper shrink-0" style={{ color: 'var(--text-muted)' }}>
-          Bred {fmtDate(bredEvent.event_date)}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="type-helper" style={{ color: 'var(--text-muted)' }}>
+            Bred {fmtDate(bredEvent.event_date)}
+          </span>
+          {onEditEvent && (
+            <button
+              type="button"
+              className="type-helper font-semibold"
+              style={{ color: 'var(--accent)' }}
+              onClick={() => onEditEvent(bredEvent)}
+            >
+              EDIT
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Preg check results */}

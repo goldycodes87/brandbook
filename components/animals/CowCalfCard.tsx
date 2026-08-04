@@ -32,6 +32,7 @@ interface CowCalfCardProps {
   sireLibraryEntry?: SireLibraryEntry | null
   calfWeights?: WeightRecord[]
   onDispose?: (calfId: string) => void
+  onEditEvent?: (event: ReproEventShape) => void
 }
 
 const EASE_LABELS: Record<number, string> = {
@@ -75,6 +76,7 @@ export function CowCalfCard({
   sireLibraryEntry,
   calfWeights = [],
   onDispose,
+  onEditEvent,
 }: CowCalfCardProps) {
   const [breedingExpanded, setBreedingExpanded] = useState(false)
 
@@ -309,6 +311,16 @@ export function CowCalfCard({
               <span className="type-helper text-center" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
                 {fmtDateShort(bredEvent.event_date)}
               </span>
+              {onEditEvent && (
+                <button
+                  type="button"
+                  className="type-helper"
+                  style={{ color: 'var(--accent)', fontSize: '10px', lineHeight: 1 }}
+                  onClick={() => onEditEvent(bredEvent)}
+                >
+                  edit
+                </button>
+              )}
             </div>
             <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
           </>
