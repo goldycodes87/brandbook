@@ -34,20 +34,31 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ data })
 }
 
-export async function POST(req: NextRequest) {
-  const body = await req.json()
+// ── Shared upsert logic ────────────────────────────────────────────────────────
+
+interface StrawEntry {
+  sire_library_id?: string | null
+  sire_name?: string | null
+  tank_name?: string | null
+  canister?: string | null
+  cane?: string | null
+  straw_count?: number
+  price_per_straw?: number | null
+  straw_size?: string | null
+  is_sexed?: boolean
+  purchase_date?: string | null
+  notes?: string | null
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function upsertStraw(supabase: any, entry: StrawEntry): Promise<{ data: unknown; isNew: boolean }> {
   const {
     sire_library_id, sire_name, tank_name, canister, cane,
     straw_count, price_per_straw, straw_size, is_sexed,
     purchase_date, notes,
-  } = body
+  } = entry
 
-  if (!sire_library_id && !sire_name) {
-    return NextResponse.json({ error: 'sire_library_id or sire_name required' }, { status: 400 })
-  }
-
-  const supabase = createAdminClient()
-
+  // If we have a sire_library_id, check for an existing inventory row and add to it
   if (sire_library_id) {
     const { data: existing } = await supabase
       .from('semen_inventory')
@@ -66,11 +77,12 @@ export async function POST(req: NextRequest) {
         .eq('id', existing.id)
         .select()
         .single()
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ data })
+      if (error) throw new Error(error.message)
+      return { data, isNew: false }
     }
   }
 
+  // New row — resolve sire_name from library if not provided
   let resolvedSireName = sire_name
   if (sire_library_id && !sire_name) {
     const { data: sl } = await supabase.from('sire_library').select('bull_name').eq('id', sire_library_id).single()
@@ -95,6 +107,42 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data }, { status: 201 })
+  if (error) throw new Error(error.message)
+  return { data, isNew: true }
+}
+
+// ── POST — single object OR array ─────────────────────────────────────────────
+
+export async function POST(req: NextRequest) {
+  const body = await req.json()
+  const supabase = createAdminClient()
+
+  // Batch mode: accept an array of straw-purchase objects
+  if (Array.isArray(body)) {
+    const results: unknown[] = []
+    for (const entry of body) {
+      if (!entry.sire_library_id && !entry.sire_name) {
+        return NextResponse.json({ error: 'Each entry requires sire_library_id or sire_name' }, { status: 400 })
+      }
+      try {
+        const { data } = await upsertStraw(supabase, entry)
+        results.push(data)
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 500 })
+      }
+    }
+    return NextResponse.json({ data: results })
+  }
+
+  // Single-object mode: original behavior, return codes preserved
+  if (!body.sire_library_id && !body.sire_name) {
+    return NextResponse.json({ error: 'sire_library_id or sire_name required' }, { status: 400 })
+  }
+
+  try {
+    const { data, isNew } = await upsertStraw(supabase, body)
+    return NextResponse.json({ data }, isNew ? { status: 201 } : undefined)
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 })
+  }
 }
