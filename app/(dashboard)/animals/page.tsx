@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { deriveReproStatus } from '@/lib/repro-status'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ButtonLink } from '@/components/ui/Button'
@@ -34,7 +35,7 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
       let q = supabase
         .from('animals')
         .select(
-          `id, tag_number, name, dob, sex, calf_sex, status, breed, breed_percentage, breeds, owner_id, ear_tag_color, photos,
+          `id, tag_number, name, dob, sex, calf_sex, status, breed, breed_percentage, breeds, owner_id, ear_tag_color, photos, breeding_eligible,
            owner:owner_id ( id, name )`,
           { count: 'exact' }
         )
@@ -59,38 +60,46 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
     .filter((a: { sex?: string | null }) => a.sex === 'cow' || a.sex === 'heifer')
     .map((a: { id: string }) => a.id)
 
-  let breedingStatusMap: Record<string, 'confirmed' | 'bred' | 'open'> = {}
+  type ListReproEvent = {
+    event_type: string; event_date: string; preg_check_result?: string | null
+    sire_name_text?: string | null; sire_library_id?: string | null
+    semen_inventory_id?: string | null; expected_calving_date?: string | null
+    sire_library?: { bull_name?: string | null } | null
+  }
+  const eventsByAnimal: Record<string, ListReproEvent[]> = {}
+
   if (animalIds.length > 0) {
     const { data: reproData } = await supabase
       .from('reproduction_events')
-      .select('animal_id, event_type, event_date, preg_check_result')
+      .select('animal_id, event_type, event_date, preg_check_result, sire_name_text, sire_library_id, semen_inventory_id, expected_calving_date, sire_library:sire_library_id(bull_name)')
       .in('animal_id', animalIds)
-      .in('event_type', ['bred', 'preg_check'])
+      .in('event_type', ['bred', 'preg_check', 'calved'])
       .order('event_date', { ascending: false })
 
-    // Compute latest status per animal
-    const seen = new Set<string>()
     for (const ev of (reproData ?? [])) {
       const aid = ev.animal_id as string
-      if (seen.has(aid)) continue
-      seen.add(aid)
-      if (ev.event_type === 'preg_check') {
-        if (ev.preg_check_result === 'confirmed') breedingStatusMap[aid] = 'confirmed'
-        else if (ev.preg_check_result === 'open') breedingStatusMap[aid] = 'open'
-      } else if (ev.event_type === 'bred') {
-        const days = (Date.now() - new Date(ev.event_date).getTime()) / 86400000
-        if (days <= 90) breedingStatusMap[aid] = 'bred'
-      }
+      if (!eventsByAnimal[aid]) eventsByAnimal[aid] = []
+      eventsByAnimal[aid].push(ev as ListReproEvent)
     }
   }
 
   let animals: AnimalListItem[] = (data ?? []).map(a => {
     const ownerDisplayName = (a as { owner?: { name?: string } | null }).owner?.name ?? ranchName
+    const aid = (a as { id: string }).id
+    const sex = (a as { sex?: string | null }).sex
+    const isFemale = sex === 'cow' || sex === 'heifer'
+    const repro = isFemale
+      ? deriveReproStatus(
+          a as { sex?: string | null; dob?: string | null; breeding_eligible?: boolean | null },
+          eventsByAnimal[aid] ?? [],
+        )
+      : null
     return {
       ...a,
       latest_weight:   null,
       owner_display_name: ownerDisplayName,
-      breeding_status: breedingStatusMap[(a as { id: string }).id] ?? null,
+      breeding_status: repro?.status ?? null,
+      repro,
     } as unknown as AnimalListItem
   })
 

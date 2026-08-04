@@ -6,6 +6,9 @@ import { Chip, StatusChip } from '@/components/ui/Chip'
 import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue } from '@/components/ui/tokens'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
+import type { ReproStatusResult, ReproStatus } from '@/lib/repro-status'
+
+export type { ReproStatus }
 
 interface LatestWeight {
   weight_lbs: number
@@ -34,7 +37,8 @@ export interface AnimalListItem {
   photos: string[] | null
   owner: Owner | null
   latest_weight: LatestWeight | null
-  breeding_status?: 'confirmed' | 'bred' | 'open' | null
+  breeding_status?: ReproStatus | null
+  repro?: ReproStatusResult | null
 }
 
 function calcAge(dob: string | null): string {

@@ -23,12 +23,19 @@ export function AnimalTableRow({ a }: { a: AnimalListItem }) {
       <TD><BreedDisplay breeds={a.breeds} breed={a.breed} breedPercentage={a.breed_percentage} /></TD>
       <TD><StatusChip map={ANIMAL_STATUS_CHIP} value={a.status} size="sm" /></TD>
       <TD>
-        {(a.sex === 'cow' || a.sex === 'heifer')
-          ? (a.breeding_status === 'confirmed' ? <Chip tone="success" size="sm">CONFIRMED</Chip>
-            : a.breeding_status === 'bred'      ? <Chip tone="info"    size="sm">BRED</Chip>
-            : a.breeding_status === 'open'      ? <Chip tone="warning" size="sm">OPEN</Chip>
-            : <span style={{ color: 'var(--text-muted)' }}>—</span>)
-          : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+        {(a.sex === 'cow' || a.sex === 'heifer') ? (() => {
+          const bs = a.breeding_status
+          if (bs === 'confirmed')      return <Chip tone="success" size="sm">CONFIRMED</Chip>
+          if (bs === 'bred')           return <Chip tone="info"    size="sm">BRED</Chip>
+          if (bs === 'recheck')        return <Chip tone="warning" size="sm">RECHECK</Chip>
+          if (bs === 'open')           return <Chip tone="warning" size="sm">OPEN</Chip>
+          if (bs === 'fresh_postpartum') {
+            const d = a.repro?.daysSinceCalved
+            const left = d != null ? 45 - d : null
+            return <Chip tone="neutral" size="sm">{left != null && left > 0 ? `OPEN IN ${left}D` : 'POSTPARTUM'}</Chip>
+          }
+          return <span style={{ color: 'var(--text-muted)' }}>—</span>
+        })() : <span style={{ color: 'var(--text-muted)' }}>—</span>}
       </TD>
       <TD>{a.owner_display_name ?? a.owner?.name ?? '—'}</TD>
     </TR>

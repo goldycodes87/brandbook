@@ -28,6 +28,7 @@ import { BreedDisplay } from '@/components/animals/BreedDisplay'
 import { BullPerformanceSection } from '@/components/animals/BullPerformanceSection'
 import { PregCheckSheet } from '@/components/reproduction/PregCheckSheet'
 import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/fetch'
+import { deriveReproStatus } from '@/lib/repro-status'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
@@ -64,6 +65,7 @@ interface Animal {
   implant_fee: number | null
   manual_grazing_cost_override: number | null
   beef_production_flagged_at: string | null
+  breeding_eligible: boolean | null
   photos: string[] | null
   brand_photo: string | null
   notes: string | null
@@ -315,26 +317,12 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
     : null
 
   function BreedingStatusSection() {
-    const reproEvents = [...(animal.reproduction_events ?? [])]
-      .filter(e => e.event_type === 'bred' || e.event_type === 'preg_check')
-      .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
+    const repro = deriveReproStatus(animal, animal.reproduction_events ?? [])
+    const { status, lastBred, expectedCalvingDate, lastPregCheckDate, blockReason } = repro
 
-    const latestPregCheck = reproEvents.find(e => e.event_type === 'preg_check')
-    const latestBred      = reproEvents.find(e => e.event_type === 'bred')
-    const daysSinceBred   = latestBred ? (Date.now() - new Date(latestBred.event_date).getTime()) / 86400000 : null
-    const bullName        = latestBred?.sire_library?.bull_name ?? latestBred?.sire_name_text ?? null
-    const estCalving      = latestBred?.expected_calving_date ?? (latestBred?.event_date ? addDays(latestBred.event_date, 283) : null)
-    const pregCheckDueEst = latestBred?.event_date ? addDays(latestBred.event_date, 45) : null
-
-    // Determine status based on most recent preg check vs most recent bred
-    const pregCheckIsNewer = latestPregCheck && latestBred
-      ? new Date(latestPregCheck.event_date) >= new Date(latestBred.event_date)
-      : !!latestPregCheck
-
-    let status: 'confirmed' | 'open' | 'bred' | 'not_bred' = 'not_bred'
-    if (pregCheckIsNewer && latestPregCheck?.preg_check_result === 'confirmed') status = 'confirmed'
-    else if (pregCheckIsNewer && latestPregCheck?.preg_check_result === 'open') status = 'open'
-    else if (latestBred && daysSinceBred != null && daysSinceBred <= 90) status = 'bred'
+    const bullName       = lastBred?.sireName ?? null
+    const bredDate       = lastBred?.date ?? null
+    const pregCheckDueEst = bredDate ? addDays(bredDate, 45) : null
 
     return (
       <div className="rounded-xl p-4" style={{ border: '1.5px solid var(--border)', background: 'var(--surface-1)' }}>
@@ -344,13 +332,20 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
             {status === 'confirmed' && (
               <>
                 <Chip tone="success" size="md">CONFIRMED BRED</Chip>
-                {estCalving && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Due {fmtDate(estCalving)}</p>}
+                {expectedCalvingDate && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Due {fmtDate(expectedCalvingDate)}</p>}
+                {bullName && <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Bull: {bullName}</p>}
+              </>
+            )}
+            {status === 'recheck' && (
+              <>
+                <Chip tone="warning" size="md">RECHECK PENDING</Chip>
+                {bredDate && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Bred {fmtDate(bredDate)}</p>}
                 {bullName && <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Bull: {bullName}</p>}
               </>
             )}
             {status === 'bred' && (
               <>
-                <Chip tone="info" size="md">AI&apos;D {fmtDate(latestBred?.event_date)}</Chip>
+                <Chip tone="info" size="md">AI&apos;D {fmtDate(bredDate)}</Chip>
                 {pregCheckDueEst && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Preg check due ~{fmtDate(pregCheckDueEst)}</p>}
                 {bullName && <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>Bull: {bullName}</p>}
               </>
@@ -358,12 +353,19 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
             {status === 'open' && (
               <>
                 <Chip tone="warning" size="md">OPEN</Chip>
-                {latestPregCheck?.event_date && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Last checked {fmtDate(latestPregCheck.event_date)}</p>}
+                {lastPregCheckDate && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>Last checked {fmtDate(lastPregCheckDate)}</p>}
               </>
             )}
-            {status === 'not_bred' && <Chip tone="neutral" size="md">NOT BRED</Chip>}
+            {status === 'fresh_postpartum' && (
+              <>
+                <Chip tone="neutral" size="md">POSTPARTUM</Chip>
+                {blockReason && <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>{blockReason}</p>}
+              </>
+            )}
+            {status === 'too_young'  && <Chip tone="neutral" size="md">TOO YOUNG</Chip>}
+            {status === 'held_back'  && <Chip tone="neutral" size="md">HELD BACK</Chip>}
           </div>
-          {(status === 'bred') && (
+          {(status === 'bred' || status === 'recheck') && (
             <Button intent="primary" size="sm" onClick={() => setPregCheckOpen(true)}>LOG PREG CHECK</Button>
           )}
         </div>
@@ -861,33 +863,36 @@ function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal
   const events   = animal.reproduction_events ?? []
   const isFemale = animal.sex === 'cow' || animal.sex === 'heifer'
 
-  // Current pregnancy status banner
+  const repro = deriveReproStatus(animal, events)
   let pregnancyBanner: React.ReactNode = null
-  if (isFemale && events.length > 0) {
-    const sorted      = [...events].sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
-    const lastBred    = sorted.find(e => e.event_type === 'bred')
-    const lastCalved  = sorted.find(e => e.event_type === 'calved')
-    const lastPreg    = sorted.find(e => e.event_type === 'preg_check')
-    const bredAfterCalved = lastBred && (!lastCalved || new Date(lastBred.event_date) > new Date(lastCalved.event_date))
-
-    if (bredAfterCalved && lastBred) {
-      const daysBred   = Math.floor((Date.now() - new Date(lastBred.event_date).getTime()) / 86400000)
-      const estCalving = lastBred.expected_calving_date
-      if (lastPreg?.preg_check_result === 'confirmed') {
-        pregnancyBanner = (
-          <ContextBanner tone="success" eyebrow="CONFIRMED PREGNANT">
-            Bred {daysBred} days ago{estCalving ? ` · Expected calving: ${fmtDate(estCalving)}` : ''}
-          </ContextBanner>
-        )
-      } else if (lastPreg?.preg_check_result === 'open') {
-        pregnancyBanner = <ContextBanner tone="warning" eyebrow="OPEN">Preg check negative — consider re-breeding</ContextBanner>
-      } else {
-        pregnancyBanner = (
-          <ContextBanner tone="info" eyebrow="BRED">
-            Bred {daysBred} days ago{estCalving ? ` · Est. calving: ${fmtDate(estCalving)}` : ''}
-          </ContextBanner>
-        )
-      }
+  if (isFemale) {
+    const { status, daysSinceBred, expectedCalvingDate, blockReason, lastPregCheckResult } = repro
+    if (status === 'confirmed') {
+      pregnancyBanner = (
+        <ContextBanner tone="success" eyebrow="CONFIRMED PREGNANT">
+          Bred {daysSinceBred} days ago{expectedCalvingDate ? ` · Expected calving: ${fmtDate(expectedCalvingDate)}` : ''}
+        </ContextBanner>
+      )
+    } else if (status === 'recheck') {
+      pregnancyBanner = (
+        <ContextBanner tone="warning" eyebrow="RECHECK PENDING">
+          Bred {daysSinceBred} days ago — awaiting recheck
+        </ContextBanner>
+      )
+    } else if (status === 'bred') {
+      pregnancyBanner = (
+        <ContextBanner tone="info" eyebrow="BRED">
+          Bred {daysSinceBred} days ago{expectedCalvingDate ? ` · Est. calving: ${fmtDate(expectedCalvingDate)}` : ''}
+        </ContextBanner>
+      )
+    } else if (status === 'open' && lastPregCheckResult === 'open') {
+      pregnancyBanner = <ContextBanner tone="warning" eyebrow="OPEN">Preg check negative — consider re-breeding</ContextBanner>
+    } else if (status === 'fresh_postpartum') {
+      pregnancyBanner = (
+        <ContextBanner tone="info" eyebrow="FRESH POSTPARTUM">
+          {blockReason}
+        </ContextBanner>
+      )
     }
   }
 
