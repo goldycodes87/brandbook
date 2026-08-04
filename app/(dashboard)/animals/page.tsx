@@ -61,7 +61,7 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
     .map((a: { id: string }) => a.id)
 
   type ListReproEvent = {
-    event_type: string; event_date: string; preg_check_result?: string | null
+    id: string; event_type: string; event_date: string; preg_check_result?: string | null
     sire_name_text?: string | null; sire_library_id?: string | null
     semen_inventory_id?: string | null; expected_calving_date?: string | null
     sire_library?: { bull_name?: string | null } | null
@@ -71,7 +71,7 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
   if (animalIds.length > 0) {
     const { data: reproData } = await supabase
       .from('reproduction_events')
-      .select('animal_id, event_type, event_date, preg_check_result, sire_name_text, sire_library_id, semen_inventory_id, expected_calving_date, sire_library:sire_library_id(bull_name)')
+      .select('id, animal_id, event_type, event_date, preg_check_result, sire_name_text, sire_library_id, semen_inventory_id, expected_calving_date, sire_library:sire_library_id(bull_name)')
       .in('animal_id', animalIds)
       .in('event_type', ['bred', 'preg_check', 'calved'])
       .order('event_date', { ascending: false })

@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
        ear_tag_color, ear_tag_number,
        photos, dob, created_at,
        owner_id, dam_id, sire_id,
-       conception_method,
+       conception_method, breeding_eligible,
        birth_weight_lbs, weaning_weight_lbs,
        purchase_date, notes`,
       { count: 'exact' }

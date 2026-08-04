@@ -12,7 +12,8 @@ import { Panel } from '@/components/ui/Panel'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
+import { deriveReproStatus, type ReproStatusResult } from '@/lib/repro-status'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,8 +43,9 @@ interface AnimalRow {
   dob: string | null
   ear_tag_color: string | null
   owner_id: string | null
+  breeding_eligible: boolean | null
   owner: { id: string; name: string } | null
-  lastBredDate?: string | null
+  repro?: ReproStatusResult | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -141,28 +143,35 @@ function AISessionInner() {
       const all: AnimalRow[] = [
         ...(cowRes.data ?? []),
         ...(heiferRes.data ?? []),
-      ].filter((a: AnimalRow) => {
-        if (!a.dob) return true
-        const ageDays = (Date.now() - new Date(a.dob).getTime()) / 86400000
-        return ageDays >= 427 // ~14 months
-      })
+      ]
 
-      // Fetch last bred dates for these animals
-      if (all.length) {
-        const ids = all.map((a: AnimalRow) => a.id)
-        const reproRes = await apiGet(`/api/reproduction?limit=500`).then(r => r.json())
-        const bredMap: Record<string, string> = {}
-        for (const ev of (reproRes.data ?? [])) {
-          if (ev.event_type === 'bred' && ids.includes(ev.animal?.id)) {
-            if (!bredMap[ev.animal.id] || ev.event_date > bredMap[ev.animal.id]) {
-              bredMap[ev.animal.id] = ev.event_date
-            }
-          }
-        }
-        setAnimals(all.map((a: AnimalRow) => ({ ...a, lastBredDate: bredMap[a.id] ?? null })))
-      } else {
-        setAnimals([])
+      if (!all.length) { setAnimals([]); return }
+
+      // Fetch repro events for these animals in one batch
+      const animalIds = all.map(a => a.id)
+      const reproRes = await apiGet(
+        `/api/reproduction?animal_ids=${animalIds.join(',')}&limit=500`
+      ).then(r => r.json())
+
+      // Group events by animal_id
+      const eventsByAnimal: Record<string, typeof reproRes.data> = {}
+      for (const ev of (reproRes.data ?? [])) {
+        const aid = ev.animal?.id as string
+        if (!aid) continue
+        if (!eventsByAnimal[aid]) eventsByAnimal[aid] = []
+        eventsByAnimal[aid].push(ev)
       }
+
+      // Compute repro status per animal
+      const withRepro = all.map((a: AnimalRow) => ({
+        ...a,
+        repro: deriveReproStatus(
+          { sex: a.sex, dob: a.dob, breeding_eligible: a.breeding_eligible },
+          (eventsByAnimal[a.id] ?? []).map((e: { id: string; event_type: string; event_date: string; preg_check_result?: string | null; sire_name_text?: string | null; sire_library?: { bull_name?: string | null } | null; sire_library_id?: string | null; semen_inventory_id?: string | null; expected_calving_date?: string | null }) => e),
+        ),
+      }))
+
+      setAnimals(withRepro)
     } finally { setAnimalsLoading(false) }
   }, [])
 
@@ -216,8 +225,23 @@ function AISessionInner() {
 
     try {
       await Promise.all(selectedAnimals.map(async animal => {
+        // If overriding an existing bred cycle, delete the old event first (cascade cleans up expenses + reminder)
+        const oldEventId = animal.repro?.lastBred?.eventId ?? null
+        if (oldEventId && animal.repro && !animal.repro.breedable) {
+          await apiDelete(`/api/reproduction/${oldEventId}`)
+          // Return straw for the overridden event if it had inventory
+          const oldInvId = animal.repro.lastBred?.semenInventoryId
+          if (oldInvId) {
+            const tankRes = await apiGet('/api/genetics/tank').then(r => r.json())
+            const oldStraw = (tankRes.data ?? []).find((s: SemenItem) => s.id === oldInvId)
+            if (oldStraw) {
+              await apiPatch('/api/genetics/tank', { id: oldInvId, straw_count: (oldStraw.straw_count ?? 0) + 1 })
+            }
+          }
+        }
+
         // 1. Create reproduction event
-        await apiPost('/api/reproduction', {
+        const reproRes = await apiPost('/api/reproduction', {
           animal_id:          animal.id,
           event_type:         'bred',
           event_date:         sessionDate,
@@ -232,41 +256,46 @@ function AISessionInner() {
           straw_cost:         pricePerStraw,
           notes:              `AI session — ${bullName}`,
         })
+        const reproJson = await reproRes.json()
+        const newEventId = reproJson.data?.id ?? null
 
-        // 2. Create preg check reminder
+        // 2. Create preg check reminder (linked to this breeding event)
         await apiPost('/api/reminders', {
-          animal_id:         animal.id,
-          reminder_type:     'preg_check',
-          due_date:          pregCheckDue,
-          title:             `Preg check — ${animal.ear_tag_color ?? ''} ${animal.tag_number}`.trim(),
-          protocol_group_id: groupId,
+          animal_id:             animal.id,
+          reminder_type:         'preg_check',
+          due_date:              pregCheckDue,
+          title:                 `Preg check — ${animal.ear_tag_color ?? ''} ${animal.tag_number}`.trim(),
+          protocol_group_id:     groupId,
+          reproduction_event_id: newEventId,
         })
 
         // 3. Create expenses for owned animals (owner_id != null)
         if (animal.owner_id) {
           await Promise.all([
             apiPost('/api/expenses', {
-              category_name:     'AI Technician Fee',
-              expense_type:      'owner_specific',
-              owner_id:          animal.owner_id,
-              total_amount:      techFeePerCow,
-              expense_date:      sessionDate,
-              quarter:           qtr,
-              year:              yr,
-              description:       `AI Tech Fee — ${bullName}`,
-              is_lease_specific: false,
+              category_name:        'AI Technician Fee',
+              expense_type:         'owner_specific',
+              owner_id:             animal.owner_id,
+              total_amount:         techFeePerCow,
+              expense_date:         sessionDate,
+              quarter:              qtr,
+              year:                 yr,
+              description:          `AI Tech Fee — ${bullName}`,
+              is_lease_specific:    false,
+              reproduction_event_id: newEventId,
             }),
             pricePerStraw > 0 && apiPost('/api/expenses', {
-              category_name:     'Semen Straws',
-              expense_type:      'owner_specific',
-              owner_id:          animal.owner_id,
-              total_amount:      pricePerStraw,
-              expense_date:      sessionDate,
-              quarter:           qtr,
-              year:              yr,
-              description:       `${bullName} semen straw`,
-              sire_library_id:   sireLibraryId,
-              is_lease_specific: false,
+              category_name:        'Semen Straws',
+              expense_type:         'owner_specific',
+              owner_id:             animal.owner_id,
+              total_amount:         pricePerStraw,
+              expense_date:         sessionDate,
+              quarter:              qtr,
+              year:                 yr,
+              description:          `${bullName} semen straw`,
+              sire_library_id:      sireLibraryId,
+              is_lease_specific:    false,
+              reproduction_event_id: newEventId,
             }),
           ].filter(Boolean))
         }
@@ -330,15 +359,23 @@ function AISessionInner() {
 
   // ── Step renderer ────────────────────────────────────────────────────────
 
-  // Group animals by owner
+  // Split into breedable vs not-breedable
+  const breedableAnimals    = animals.filter(a => a.repro == null || a.repro.breedable)
+  const notBreedableAnimals = animals.filter(a => a.repro != null && !a.repro.breedable)
+  const [showNotEligible, setShowNotEligible] = useState(false)
+
+  // Group breedable animals by owner
   const ownerMap: Record<string, { label: string; animals: AnimalRow[] }> = {}
-  for (const a of animals) {
+  for (const a of breedableAnimals) {
     const key   = a.owner_id ?? 'mine'
     const label = a.owner?.name ?? 'My Cattle'
     if (!ownerMap[key]) ownerMap[key] = { label, animals: [] }
     ownerMap[key].animals.push(a)
   }
   const ownerGroups = Object.entries(ownerMap)
+
+  // Animals being overridden (selected but not breedable)
+  const overrideAnimals = selectedAnimals.filter(a => a.repro && !a.repro.breedable)
 
   return (
     <PageContainer variant="narrow">
@@ -472,50 +509,95 @@ function AISessionInner() {
           {animalsLoading ? (
             <div className="flex flex-col gap-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
           ) : animals.length === 0 ? (
-            <ContextBanner tone="info">No eligible cows or heifers (14+ months) found.</ContextBanner>
+            <ContextBanner tone="info">No eligible cows or heifers found.</ContextBanner>
           ) : (
             <div className="flex flex-col gap-4">
-              {ownerGroups.map(([ownerId, group]) => {
-                const allSel = group.animals.every(a => selected.has(a.id))
-                return (
-                  <div key={ownerId}>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>{group.label.toUpperCase()}</p>
-                      <button type="button" className="type-helper" style={{ color: 'var(--accent)' }}
-                        onClick={() => toggleOwnerGroup(group.animals)}>
-                        {allSel ? 'Deselect All' : 'Select All'}
-                      </button>
+              {/* Breedable animals grouped by owner */}
+              {breedableAnimals.length === 0 && notBreedableAnimals.length > 0 ? (
+                <ContextBanner tone="info">All animals in this herd are currently not eligible for breeding.</ContextBanner>
+              ) : (
+                ownerGroups.map(([ownerId, group]) => {
+                  const allSel = group.animals.every(a => selected.has(a.id))
+                  return (
+                    <div key={ownerId}>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>{group.label.toUpperCase()}</p>
+                        <button type="button" className="type-helper" style={{ color: 'var(--accent)' }}
+                          onClick={() => toggleOwnerGroup(group.animals)}>
+                          {allSel ? 'Deselect All' : 'Select All'}
+                        </button>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {group.animals.map(a => {
+                          const isSel = selected.has(a.id)
+                          const ageDays = a.dob ? Math.floor((Date.now() - new Date(a.dob).getTime()) / 86400000) : null
+                          const ageMo   = ageDays ? Math.floor(ageDays / 30) : null
+                          return (
+                            <button key={a.id} type="button"
+                              onClick={() => toggleAnimal(a.id)}
+                              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
+                              style={{
+                                border:     `1.5px solid ${isSel ? 'var(--accent)' : 'var(--border)'}`,
+                                background: isSel ? 'var(--accent-soft)' : 'var(--surface-1)',
+                              }}>
+                              <input type="checkbox" readOnly checked={isSel} className="rounded" style={{ accentColor: 'var(--accent)' }} />
+                              <EarTagDot color={a.ear_tag_color} size="sm" />
+                              <div className="flex-1 min-w-0">
+                                <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>#{a.tag_number}</span>
+                                {a.name && <span className="ml-1 type-helper" style={{ color: 'var(--text-muted)' }}>{a.name}</span>}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {ageMo && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{ageMo}mo</span>}
+                                <Chip tone="neutral" size="sm">{a.sex === 'heifer' ? 'Heifer' : 'Cow'}</Chip>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
+                  )
+                })
+              )}
+
+              {/* Not eligible section — collapsed by default */}
+              {notBreedableAnimals.length > 0 && (
+                <div>
+                  <button type="button"
+                    onClick={() => setShowNotEligible(v => !v)}
+                    className="flex items-center gap-2 mb-2 w-full text-left"
+                    style={{ color: 'var(--text-muted)' }}>
+                    <span className="type-section-label">{showNotEligible ? '▾' : '▸'} NOT ELIGIBLE ({notBreedableAnimals.length})</span>
+                  </button>
+                  {showNotEligible && (
                     <div className="flex flex-col gap-1">
-                      {group.animals.map(a => {
+                      <p className="type-helper mb-1" style={{ color: 'var(--text-muted)' }}>Select to override — previous breeding record will be deleted.</p>
+                      {notBreedableAnimals.map(a => {
                         const isSel = selected.has(a.id)
-                        const ageDays = a.dob ? Math.floor((Date.now() - new Date(a.dob).getTime()) / 86400000) : null
-                        const ageMo   = ageDays ? Math.floor(ageDays / 30) : null
                         return (
                           <button key={a.id} type="button"
                             onClick={() => toggleAnimal(a.id)}
                             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
                             style={{
-                              border:     `1.5px solid ${isSel ? 'var(--accent)' : 'var(--border)'}`,
-                              background: isSel ? 'var(--accent-soft)' : 'var(--surface-1)',
+                              border:     `1.5px solid ${isSel ? '#f59e0b' : 'var(--border)'}`,
+                              background: isSel ? 'rgba(245,158,11,0.08)' : 'var(--surface-1)',
                             }}>
-                            <input type="checkbox" readOnly checked={isSel} className="rounded" style={{ accentColor: 'var(--accent)' }} />
+                            <input type="checkbox" readOnly checked={isSel} className="rounded"
+                              style={{ accentColor: '#f59e0b' }} />
                             <EarTagDot color={a.ear_tag_color} size="sm" />
                             <div className="flex-1 min-w-0">
                               <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>#{a.tag_number}</span>
                               {a.name && <span className="ml-1 type-helper" style={{ color: 'var(--text-muted)' }}>{a.name}</span>}
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {ageMo && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{ageMo}mo</span>}
-                              <Chip tone="neutral" size="sm">{a.sex === 'heifer' ? 'Heifer' : 'Cow'}</Chip>
-                            </div>
+                            {a.repro?.blockReason && (
+                              <span className="type-helper shrink-0" style={{ color: '#f59e0b', fontSize: '0.75rem' }}>{a.repro.blockReason}</span>
+                            )}
                           </button>
                         )
                       })}
                     </div>
-                  </div>
-                )
-              })}
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -578,12 +660,30 @@ function AISessionInner() {
             <strong>Expected calving window:</strong> {calvingWindow}
           </ContextBanner>
 
+          {overrideAnimals.length > 0 && (
+            <div className="rounded-lg px-4 py-3" style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-border)' }}>
+              <p className="type-helper font-semibold" style={{ color: 'var(--warning-fg)', marginBottom: 4 }}>
+                ⚠ {overrideAnimals.length} animal{overrideAnimals.length > 1 ? 's are' : ' is'} already bred — will be overridden
+              </p>
+              {overrideAnimals.map(a => (
+                <p key={a.id} className="type-helper" style={{ color: 'var(--warning-fg)' }}>
+                  #{a.tag_number} — {a.repro?.blockReason}
+                </p>
+              ))}
+              <p className="type-helper mt-2" style={{ color: 'var(--warning-fg)', opacity: 0.8 }}>
+                Previous breeding records and linked expenses will be deleted. Straws will be returned to inventory.
+              </p>
+            </div>
+          )}
+
           {saveError && (
             <p className="type-helper px-3 py-2 rounded" style={{ color: 'var(--danger-fg)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>{saveError}</p>
           )}
 
           <Button intent="primary" size="sm" loading={saving} onClick={handleSave}>
-            START AI SESSION — BREED {selectedAnimals.length} COWS
+            {overrideAnimals.length > 0
+              ? `OVERRIDE & BREED ${selectedAnimals.length} COWS`
+              : `START AI SESSION — BREED ${selectedAnimals.length} COWS`}
           </Button>
         </div>
       )}

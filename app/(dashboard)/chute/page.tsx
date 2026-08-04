@@ -3,8 +3,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Camera, ChevronRight, Undo2, CheckCircle, Plus } from 'lucide-react'
-import { apiGet, apiPost, apiDelete } from '@/lib/fetch'
+import { apiGet, apiPost, apiDelete, apiPatch } from '@/lib/fetch'
 import { EarTagDot } from '@/components/ui/EarTagDot'
+import { deriveReproStatus, type ReproStatusResult } from '@/lib/repro-status'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -32,9 +33,11 @@ interface AnimalLookup {
   tag_number: string
   name: string | null
   sex: string | null
+  dob?: string | null
   ear_tag_color: string | null
   ear_tag_number: string | null
   owner_id: string | null
+  breeding_eligible?: boolean | null
 }
 
 interface Lease { id: string; property_name: string }
@@ -1648,6 +1651,9 @@ export default function ChutePage() {
   const [processed,        setProcessed]        = useState<ProcessedAnimal[]>([])
   const [saving,           setSaving]           = useState(false)
   const [saveError,        setSaveError]        = useState('')
+  const [currentRepro,     setCurrentRepro]     = useState<ReproStatusResult | null>(null)
+  const [overrideDialog,   setOverrideDialog]   = useState<'confirm' | 'straw' | null>(null)
+  const [overrideReturnStraw, setOverrideReturnStraw] = useState(false)
 
   // Check for existing session + restore technician on mount
   useEffect(() => {
@@ -1687,13 +1693,35 @@ export default function ChutePage() {
     setResumeSession(null)
   }
 
-  const handleAnimalLoaded = (animal: AnimalLookup) => {
+  const handleAnimalLoaded = async (animal: AnimalLookup) => {
     const applicable = TASK_ORDER.filter(t => tasks.includes(t) && taskApplies(t, animal.sex))
     setCurrentAnimal(animal)
     setApplicableTasks(applicable)
     setTaskIndex(0)
     setTaskData({})
     setSaveError('')
+    setCurrentRepro(null)
+    setOverrideDialog(null)
+
+    if (applicable.includes('breeding')) {
+      try {
+        const res = await apiGet(`/api/reproduction?animal_id=${animal.id}&limit=50`)
+        const j = await res.json()
+        const repro = deriveReproStatus(
+          { sex: animal.sex, dob: animal.dob, breeding_eligible: animal.breeding_eligible },
+          (j.data ?? []).map((e: { id: string; event_type: string; event_date: string; preg_check_result?: string | null; sire_name_text?: string | null; sire_library?: { bull_name?: string | null } | null; sire_library_id?: string | null; semen_inventory_id?: string | null; expected_calving_date?: string | null }) => e),
+        )
+        setCurrentRepro(repro)
+        if (!repro.breedable && (repro.status === 'bred' || repro.status === 'confirmed' || repro.status === 'recheck')) {
+          setOverrideDialog('confirm')
+          setScreen('tasks')
+          return
+        }
+      } catch {
+        // non-fatal — proceed without guard
+      }
+    }
+
     if (applicable.length === 0) setScreen('confirm')
     else setScreen('tasks')
   }
@@ -1735,6 +1763,22 @@ export default function ChutePage() {
       // BREEDING
       if (applicableTasks.includes('breeding') && !taskData.not_bred && (taskData.semen_inventory_id || taskData.natural_service)) {
         promises.push((async () => {
+          // If overriding an existing bred cycle, delete old event first
+          if (currentRepro?.lastBred?.eventId) {
+            const oldEventId = currentRepro.lastBred.eventId
+            const oldInvId   = currentRepro.lastBred.semenInventoryId
+            await apiDelete(`/api/reproduction/${oldEventId}`)
+            // Optionally return straw to inventory
+            if (overrideReturnStraw && oldInvId) {
+              const tankRes  = await apiGet('/api/genetics/tank')
+              const tankJson = await tankRes.json()
+              const oldStraw = (tankJson.data ?? []).find((s: SemenStraw) => s.id === oldInvId)
+              if (oldStraw) {
+                await apiPatch('/api/genetics/tank', { id: oldInvId, straw_count: (oldStraw.straw_count ?? 0) + 1 })
+              }
+            }
+          }
+
           let straw: SemenStraw | undefined
           let pricePerStraw = 0
 
@@ -1769,18 +1813,20 @@ export default function ChutePage() {
             straw_cost:         pricePerStraw > 0            ? pricePerStraw   : null,
           })
           const j = await res.json()
-          if (j.data?.id) savedEvents.push({ task: 'breeding', deleteUrl: `/api/reproduction/${j.data.id}` })
+          const newEventId = j.data?.id ?? null
+          if (newEventId) savedEvents.push({ task: 'breeding', deleteUrl: `/api/reproduction/${newEventId}` })
 
           if (isAi) {
             const pregCheckDue = addDays(date, aiPregCheckDaysOut)
             const tagLabel     = `${currentAnimal.ear_tag_color ?? ''} ${currentAnimal.tag_number}`.trim()
 
-            // Preg-check reminder
+            // Preg-check reminder (linked to this breeding event)
             await apiPost('/api/reminders', {
-              animal_id:     currentAnimal.id,
-              reminder_type: 'preg_check',
-              due_date:      pregCheckDue,
-              title:         `Preg check — ${tagLabel}`,
+              animal_id:            currentAnimal.id,
+              reminder_type:        'preg_check',
+              due_date:             pregCheckDue,
+              title:                `Preg check — ${tagLabel}`,
+              reproduction_event_id: newEventId,
             })
 
             // Owner-specific expenses for animals with an owner
@@ -1792,29 +1838,31 @@ export default function ChutePage() {
               const expensePosts: Promise<Response>[] = []
               if (aiTechFeePerCow > 0) {
                 expensePosts.push(apiPost('/api/expenses', {
-                  category_name:     'AI Technician Fee',
-                  expense_type:      'owner_specific',
-                  owner_id:          currentAnimal.owner_id,
-                  total_amount:      aiTechFeePerCow,
-                  expense_date:      date,
-                  quarter:           qtr,
-                  year:              yr,
-                  description:       `AI Tech Fee — ${bullName}`,
-                  is_lease_specific: false,
+                  category_name:        'AI Technician Fee',
+                  expense_type:         'owner_specific',
+                  owner_id:             currentAnimal.owner_id,
+                  total_amount:         aiTechFeePerCow,
+                  expense_date:         date,
+                  quarter:              qtr,
+                  year:                 yr,
+                  description:          `AI Tech Fee — ${bullName}`,
+                  is_lease_specific:    false,
+                  reproduction_event_id: newEventId,
                 }))
               }
               if (pricePerStraw > 0) {
                 expensePosts.push(apiPost('/api/expenses', {
-                  category_name:     'Semen Straws',
-                  expense_type:      'owner_specific',
-                  owner_id:          currentAnimal.owner_id,
-                  total_amount:      pricePerStraw,
-                  expense_date:      date,
-                  quarter:           qtr,
-                  year:              yr,
-                  description:       `${bullName} semen straw`,
-                  sire_library_id:   taskData.sire_library_id || straw?.sire_library_id || null,
-                  is_lease_specific: false,
+                  category_name:        'Semen Straws',
+                  expense_type:         'owner_specific',
+                  owner_id:             currentAnimal.owner_id,
+                  total_amount:         pricePerStraw,
+                  expense_date:         date,
+                  quarter:              qtr,
+                  year:                 yr,
+                  description:          `${bullName} semen straw`,
+                  sire_library_id:      taskData.sire_library_id || straw?.sire_library_id || null,
+                  is_lease_specific:    false,
+                  reproduction_event_id: newEventId,
                 }))
               }
               if (expensePosts.length) {
@@ -1889,7 +1937,7 @@ export default function ChutePage() {
       extraDeleteUrls: extraDeleteUrls.length ? extraDeleteUrls : undefined,
     }
     setProcessed(prev => [...prev, entry])
-    setCurrentAnimal(null); setTaskData({}); setScreen('animal')
+    setCurrentAnimal(null); setTaskData({}); setCurrentRepro(null); setOverrideDialog(null); setOverrideReturnStraw(false); setScreen('animal')
   }
 
   const handleUndo = async () => {
@@ -2000,6 +2048,78 @@ export default function ChutePage() {
           onFinish={() => { clearSession(); router.push('/dashboard') }}
         />
       )}
+
+      {/* Re-breed guard: step 1 — confirm override */}
+      {overrideDialog === 'confirm' && currentAnimal && currentRepro && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6"
+          style={{ backgroundColor: 'rgba(0,0,0,0.92)' }}>
+          <div className="w-full max-w-sm flex flex-col gap-5">
+            <div className="text-center">
+              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>⚠️</div>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 900, color: '#f59e0b', letterSpacing: '0.05em', marginBottom: 8 }}>
+                ALREADY {currentRepro.status.toUpperCase()}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                #{currentAnimal.tag_number} is <strong style={{ color: '#f59e0b' }}>{currentRepro.status}</strong>
+                {currentRepro.lastBred ? ` — bred to ${currentRepro.lastBred.sireName ?? 'unknown'} on ${new Date(currentRepro.lastBred.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (currentRepro.lastBred?.semenInventoryId) {
+                  setOverrideDialog('straw')
+                } else {
+                  setOverrideReturnStraw(false)
+                  setOverrideDialog(null)
+                }
+              }}
+              className="w-full rounded-2xl font-bold"
+              style={{ backgroundColor: '#f59e0b', color: '#000', minHeight: 64, fontFamily: 'var(--font-display)', fontSize: '1rem', letterSpacing: '0.08em' }}>
+              OVERRIDE — REMOVE PREVIOUS
+            </button>
+            <button
+              onClick={() => {
+                setOverrideDialog(null)
+                setTaskData(prev => ({ ...prev, not_bred: true }))
+                handleTaskNext()
+              }}
+              className="w-full rounded-2xl font-bold"
+              style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.2)', minHeight: 64 }}>
+              SKIP BREEDING
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Re-breed guard: step 2 — straw disposition */}
+      {overrideDialog === 'straw' && currentAnimal && currentRepro?.lastBred?.semenInventoryId && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6"
+          style={{ backgroundColor: 'rgba(0,0,0,0.92)' }}>
+          <div className="w-full max-w-sm flex flex-col gap-5">
+            <div className="text-center">
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 900, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.05em', marginBottom: 8 }}>
+                RETURN ORIGINAL STRAW?
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.875rem', lineHeight: 1.5 }}>
+                The previous breeding used a straw from inventory. Return it?
+              </p>
+            </div>
+            <button
+              onClick={() => { setOverrideReturnStraw(true); setOverrideDialog(null) }}
+              className="w-full rounded-2xl font-bold"
+              style={{ backgroundColor: 'var(--accent)', color: 'white', minHeight: 64, fontFamily: 'var(--font-display)', fontSize: '1rem', letterSpacing: '0.08em' }}>
+              YES — RETURN STRAW (+1)
+            </button>
+            <button
+              onClick={() => { setOverrideReturnStraw(false); setOverrideDialog(null) }}
+              className="w-full rounded-2xl font-bold"
+              style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.2)', minHeight: 64 }}>
+              NO — DISCARD STRAW
+            </button>
+          </div>
+        </div>
+      )}
+
     </>
   )
 }

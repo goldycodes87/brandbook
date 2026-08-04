@@ -11,12 +11,13 @@ function addDays(dateStr: string, days: number): string {
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
-  const animal_id  = sp.get('animal_id')
-  const event_type = sp.get('event_type')
-  const date_from  = sp.get('date_from')
-  const date_to    = sp.get('date_to')
-  const limit      = Math.min(Number(sp.get('limit') ?? 50), 200)
-  const offset     = Number(sp.get('offset') ?? 0)
+  const animal_id   = sp.get('animal_id')
+  const animal_ids  = sp.get('animal_ids')  // comma-separated UUIDs for batch fetch
+  const event_type  = sp.get('event_type')
+  const date_from   = sp.get('date_from')
+  const date_to     = sp.get('date_to')
+  const limit       = Math.min(Number(sp.get('limit') ?? 50), 500)
+  const offset      = Number(sp.get('offset') ?? 0)
 
   const supabase = createAdminClient()
 
@@ -24,18 +25,24 @@ export async function GET(req: NextRequest) {
     .from('reproduction_events')
     .select(
       `id, event_type, event_date, breed_method, conception_method,
-       sire_name_text, expected_calving_date, calving_ease_score,
+       sire_name_text, sire_library_id, semen_inventory_id,
+       expected_calving_date, calving_ease_score,
        preg_check_result, preg_check_method, days_bred,
        weaning_date, weaning_weight_lbs, ai_technician, notes, created_at,
        animal:animal_id ( id, tag_number, name, ear_tag_color, sex ),
        sire:sire_id ( id, tag_number, name ),
-       calf:calf_id ( id, tag_number, name, sex )`,
+       calf:calf_id ( id, tag_number, name, sex ),
+       sire_library:sire_library_id ( bull_name )`,
       { count: 'exact' }
     )
     .order('event_date', { ascending: false })
     .range(offset, offset + limit - 1)
 
-  if (animal_id)  query = query.eq('animal_id', animal_id)
+  if (animal_id) query = query.eq('animal_id', animal_id)
+  if (animal_ids) {
+    const ids = animal_ids.split(',').map(s => s.trim()).filter(Boolean)
+    if (ids.length > 0) query = query.in('animal_id', ids)
+  }
   if (event_type) query = query.eq('event_type', event_type)
   if (date_from)  query = query.gte('event_date', date_from)
   if (date_to)    query = query.lte('event_date', date_to)

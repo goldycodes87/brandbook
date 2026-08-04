@@ -20,6 +20,7 @@ export interface ReproStatusResult {
     sireName: string | null
     semenInventoryId: string | null
     sireLibraryId: string | null
+    eventId: string | null
   } | null
   lastPregCheckResult: string | null
   lastPregCheckDate: string | null
@@ -36,6 +37,7 @@ export interface AnimalForRepro {
 }
 
 export interface ReproEventForStatus {
+  id?: string
   event_type: string
   event_date: string
   preg_check_result?: string | null
@@ -124,6 +126,7 @@ export function deriveReproStatus(
     sireName,
     semenInventoryId: latestBred.semen_inventory_id ?? null,
     sireLibraryId:    latestBred.sire_library_id    ?? null,
+    eventId:          latestBred.id                 ?? null,
   } : null
 
   // Is there a bred event more recent than the latest calving?

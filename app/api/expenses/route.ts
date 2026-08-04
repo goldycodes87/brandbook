@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     receipt_url, period_start, period_end, expense_type,
     owner_id, animal_id, notes, qty, unit_cost,
     sire_library_id, bull_name, include_calves,
-    quarter, year,
+    quarter, year, reproduction_event_id,
   } = body
 
   if (!category_name || total_amount === undefined || total_amount === null) {
@@ -73,9 +73,10 @@ export async function POST(req: NextRequest) {
       notes:            notes           || null,
       qty:              qty             != null ? Number(qty)       : null,
       unit_cost:        unit_cost       != null ? Number(unit_cost) : null,
-      sire_library_id:  sire_library_id || null,
-      bull_name:        bull_name       || null,
-      include_calves:   Boolean(include_calves),
+      sire_library_id:        sire_library_id        || null,
+      bull_name:              bull_name              || null,
+      include_calves:         Boolean(include_calves),
+      reproduction_event_id:  reproduction_event_id  || null,
     })
     .select('*')
     .single()

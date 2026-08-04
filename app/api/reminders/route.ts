@@ -30,19 +30,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { animal_id, reminder_type, due_date, title, notes, protocol_group_id } = body
+  const { animal_id, reminder_type, due_date, title, notes, protocol_group_id, reproduction_event_id } = body
   if (!due_date) return NextResponse.json({ error: 'due_date required' }, { status: 400 })
   const supabase = createAdminClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('reminders')
     .insert({
-      animal_id:         animal_id  || null,
-      reminder_type:     reminder_type || null,
+      animal_id:              animal_id              || null,
+      reminder_type:          reminder_type          || null,
       due_date,
-      title:             title || null,
-      notes:             notes || null,
-      protocol_group_id: protocol_group_id || null,
+      title:                  title                  || null,
+      notes:                  notes                  || null,
+      protocol_group_id:      protocol_group_id      || null,
+      reproduction_event_id:  reproduction_event_id  || null,
     })
     .select()
     .single()
