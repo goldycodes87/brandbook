@@ -259,8 +259,12 @@ export function AddLeaseExpenseSheet({
 
     const isWholeHerd = expenseType === 'shared' && scope === 'whole_herd'
     const effectiveLeaseId = leaseId || selectedLeaseId
+    const usesGlobalExpensesRoute =
+      isWholeHerd ||
+      expenseType === 'owner_specific' ||
+      expenseType === 'animal_specific'
 
-    if (!isWholeHerd && !effectiveLeaseId) { setError('Select a lease for lease-specific expenses'); return }
+    if (!usesGlobalExpensesRoute && !effectiveLeaseId) { setError('Select a lease for lease-specific expenses'); return }
 
     setSaving(true); setError('')
     try {
@@ -288,18 +292,18 @@ export function AddLeaseExpenseSheet({
         qty:              quantity ? parseFloat(quantity) : null,
         unit_cost:        unitCost ? parseFloat(unitCost) : null,
         include_calves:   expenseType === 'shared' ? includeCalves : false,
-        is_lease_specific: !isWholeHerd,
+        is_lease_specific: !usesGlobalExpensesRoute,
         quarter:          isWholeHerd ? expQtr : undefined,
         year:             isWholeHerd ? expYear : undefined,
       }
 
       let url: string
       if (mode === 'edit' && initialData) {
-        url = isWholeHerd
+        url = usesGlobalExpensesRoute
           ? `/api/expenses/${initialData.id}`
           : `/api/leases/${effectiveLeaseId}/expenses/${initialData.id}`
       } else {
-        url = isWholeHerd ? '/api/expenses' : `/api/leases/${effectiveLeaseId}/expenses`
+        url = usesGlobalExpensesRoute ? '/api/expenses' : `/api/leases/${effectiveLeaseId}/expenses`
       }
 
       const res  = await (mode === 'edit' ? apiPatch(url, payload) : apiPost(url, payload))
