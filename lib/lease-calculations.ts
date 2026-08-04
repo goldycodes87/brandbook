@@ -6,9 +6,11 @@ export const AUM_FACTORS: Record<string, number> = {
   bull: 1.5, cow: 1.0, heifer: 0.75, steer: 0.75, calf: 0.5,
 }
 
-export function getAumFactor(sex: string | null | undefined): number {
-  if (!sex) return 1.0
-  return AUM_FACTORS[sex.toLowerCase()] ?? 1.0
+export function getAumFactor(sex: string | null | undefined, weaningDate?: string | null): number {
+  const s = sex?.toLowerCase()
+  if (s === 'calf') return weaningDate ? 1.0 : 0
+  if (!s) return 1.0
+  return AUM_FACTORS[s] ?? 1.0
 }
 
 /** Calendar days that an assignment overlaps with a window. Same-day window = 1 day. */
@@ -42,10 +44,13 @@ export function calcAnimalCost(
   sex: string | null | undefined,
   rateType: string | null,
   rate: number,
+  weaningDate?: string | null,
 ): number {
+  // Unweaned calf bills with dam — no individual cost
+  if (sex?.toLowerCase() === 'calf' && !weaningDate) return 0
   if (rateType === 'per_head_day')                              return overlapDays * rate
   if (rateType === 'per_head' || rateType === 'per_head_month') return overlapDays * (rate / 30)
-  if (rateType === 'per_aum')                                   return overlapDays * getAumFactor(sex) * (rate / 30)
+  if (rateType === 'per_aum')                                   return overlapDays * getAumFactor(sex, weaningDate) * (rate / 30)
   return 0
 }
 

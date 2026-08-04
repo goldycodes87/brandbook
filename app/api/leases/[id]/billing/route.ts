@@ -162,7 +162,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
                    : rateType === 'per_head' || rateType === 'per_head_month' ? ratePerHead
                    : rateType === 'per_aum'  ? ratePerAum
                    : 0
-        share.cost += calcAnimalCost(overlapDays, animal.sex, rateType, rate)
+        share.cost += calcAnimalCost(overlapDays, animal.sex, rateType, rate, animal.weaning_date)
       }
     }
 

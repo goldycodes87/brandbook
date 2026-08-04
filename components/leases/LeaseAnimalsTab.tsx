@@ -14,6 +14,7 @@ interface LeaseAnimal {
   name: string | null
   ear_tag_color: string | null
   sex: string | null
+  weaning_date: string | null
   owner_name: string | null
   start_date: string | null
   end_date: string | null
@@ -21,11 +22,13 @@ interface LeaseAnimal {
 }
 
 const AUM_FACTOR: Record<string, number> = {
-  bull: 1.5, cow: 1.0, heifer: 0.75, steer: 0.75, calf: 0.5,
+  bull: 1.5, cow: 1.0, heifer: 0.75, steer: 0.75,
 }
 
-function aumFor(sex: string | null): number {
-  return sex ? (AUM_FACTOR[sex.toLowerCase()] ?? 1.0) : 1.0
+function aumFor(sex: string | null, weaningDate: string | null): number {
+  const s = sex?.toLowerCase()
+  if (s === 'calf') return weaningDate ? 1.0 : 0
+  return s ? (AUM_FACTOR[s] ?? 1.0) : 1.0
 }
 
 function fmtDate(d: string | null) {
@@ -65,7 +68,7 @@ export function LeaseAnimalsTab({ leaseId, leaseName, ranchName = '' }: Props) {
   const active = animals.filter(a => !a.end_date)
   const past   = animals.filter(a =>  a.end_date)
 
-  const totalAum = active.reduce((s, a) => s + aumFor(a.sex), 0)
+  const totalAum = active.reduce((s, a) => s + aumFor(a.sex, a.weaning_date), 0)
 
   if (loading) {
     return (
@@ -124,7 +127,8 @@ export function LeaseAnimalsTab({ leaseId, leaseName, ranchName = '' }: Props) {
 
       {/* Active animals */}
       {active.map(a => {
-        const aum = aumFor(a.sex)
+        const aum         = aumFor(a.sex, a.weaning_date)
+        const isUnweanedCalf = a.sex?.toLowerCase() === 'calf' && !a.weaning_date
         return (
           <div
             key={a.id}
@@ -160,10 +164,17 @@ export function LeaseAnimalsTab({ leaseId, leaseName, ranchName = '' }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="text-right">
-                <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{aum.toFixed(1)}</p>
-                <p className="type-helper leading-tight" style={{ color: 'var(--text-muted)' }}>AUM</p>
-              </div>
+              {isUnweanedCalf ? (
+                <div className="text-right">
+                  <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text-muted)' }}>$0</p>
+                  <p className="type-helper leading-tight" style={{ color: 'var(--text-muted)' }}>bills w/ dam</p>
+                </div>
+              ) : (
+                <div className="text-right">
+                  <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{aum.toFixed(1)}</p>
+                  <p className="type-helper leading-tight" style={{ color: 'var(--text-muted)' }}>AUM</p>
+                </div>
+              )}
               <Button intent="danger" size="sm" onClick={() => setRemoveTarget(a)}>
                 REMOVE
               </Button>
