@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
         purchased_as_pair: true,
         pair_animal_id:   cow.id,
         status:           'active',
+        origin:           'purchased',
       })
       .select()
       .single()

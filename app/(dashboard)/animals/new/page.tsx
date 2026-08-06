@@ -1,18 +1,11 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm, useFieldArray } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Mic, MicOff, Plus, Trash2, Upload, Check } from 'lucide-react'
-import { useEffect } from 'react'
+import { Check, Upload, ChevronLeft } from 'lucide-react'
 import { PageContainer } from '@/components/ui/PageContainer'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { Panel, PanelSection } from '@/components/ui/Panel'
-import { Field, Input, Textarea, Select } from '@/components/ui/Field'
+import { Field, Input, Select } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
-import { ActionFooter } from '@/components/ui/ActionFooter'
 import { Toggle } from '@/components/ui/Toggle'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
@@ -37,23 +30,23 @@ const EAR_TAG_COLORS = [
 function EarTagColorPicker({ value, onChange, invalid }: { value: string; onChange: (c: string) => void; invalid?: boolean }) {
   return (
     <div>
-      <div className="flex flex-wrap gap-2 mt-0.5">
+      <div className="flex flex-wrap gap-3 mt-1">
         {EAR_TAG_COLORS.map(c => (
           <button
             key={c.name}
             type="button"
             title={c.name}
             onClick={() => onChange(c.name)}
-            className="relative w-8 h-8 rounded-full transition-transform duration-100 active:scale-90"
+            className="relative w-10 h-10 rounded-full transition-transform duration-100 active:scale-90"
             style={{
               backgroundColor: c.hex,
               border: value?.toLowerCase() === c.name.toLowerCase() ? '3px solid var(--accent)' : '2px solid var(--border)',
-              boxShadow: value?.toLowerCase() === c.name.toLowerCase() ? '0 0 0 1px var(--accent)' : undefined,
+              boxShadow: value?.toLowerCase() === c.name.toLowerCase() ? '0 0 0 2px var(--accent)' : undefined,
             }}
           >
             {value?.toLowerCase() === c.name.toLowerCase() && (
               <Check
-                size={14}
+                size={16}
                 className="absolute inset-0 m-auto"
                 style={{ color: c.name === 'White' || c.name === 'Yellow' || c.name === 'Silver' ? '#000' : '#fff' }}
               />
@@ -68,34 +61,13 @@ function EarTagColorPicker({ value, onChange, invalid }: { value: string; onChan
   )
 }
 
-// ── Schema ────────────────────────────────────────────────────────────────────
-
-const schema = z.object({
-  tag_number:          z.string().min(1, 'Ear tag number is required'),
-  ear_tag_color:       z.string().min(1, 'Ear tag color is required'),
-  sex:                 z.string().min(1, 'Sex is required'),
-  name:                z.string().optional(),
-  dob:                 z.string().optional(),
-  dob_estimated:       z.boolean().optional(),
-  approximate_age:     z.string().optional(),
-  status:              z.string().optional(),
-  birth_weight_lbs:    z.string().optional(),
-  purchase_price:      z.string().optional(),
-  purchase_date:       z.string().optional(),
-  vendor:              z.string().optional(),
-  dam_id:              z.string().optional(),
-  sire_id:             z.string().optional(),
-  owner_id:            z.string().optional(),
-  notes:               z.string().optional(),
-  registration_numbers: z.array(z.object({
-    registry: z.string().min(1),
-    number:   z.string().min(1),
-  })).optional(),
-})
-
-type FormValues = z.infer<typeof schema>
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
 
 function toNum(v: string | undefined): number | null {
   if (!v || v.trim() === '') return null
@@ -103,229 +75,219 @@ function toNum(v: string | undefined): number | null {
   return isNaN(n) ? null : n
 }
 
-function toUuid(v: string | undefined): string | null {
+function toUuid(v: string | undefined | null): string | null {
   return v && v.trim() !== '' ? v : null
 }
 
-// Convert every "" / undefined value to null before sending to Postgres
-function sanitizePayload(obj: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [k, v === '' || v === undefined ? null : v])
-  )
-}
-
-type RecordingState = 'idle' | 'recording' | 'processing'
-
-interface VoiceResult {
-  transcript: string
-  fields: Record<string, unknown>
-}
-
-// Field labels for the confirmation modal
-const FIELD_LABELS: Record<string, string> = {
-  tag_number:       'Ear Tag #',
-  name:             'Name',
-  sex:              'Sex',
-  dob:              'Date of birth',
-  birth_weight_lbs: 'Birth weight',
-  purchase_price:   'Purchase price',
-  purchase_date:    'Purchase date',
-  vendor:           'Vendor',
-  notes:            'Notes',
-  breed:            'Breed',
-  breed_percentage: 'Breed %',
-}
-
-interface GrazingOwner {
-  id: string; name: string; profile_id: string | null
-  company_name?: string | null
-  owner_name?: string | null
-  default_ear_tag_color?: string | null
-  default_breed?: string | null
-}
-
-interface RanchDefaults { default_ear_tag_color?: string; default_breed?: string }
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type PairCalfSex = 'heifer_calf' | 'bull_calf' | 'calf'
 
 function blankPairCalf() {
-  return {
-    tag_number:       '',
-    calf_sex:         'heifer_calf' as PairCalfSex,
-    ear_tag_color:    '',
-    dob:              '',
-    dob_estimated:    true,
-    birth_weight_lbs: '',
-  }
+  return { tag_number: '', calf_sex: 'heifer_calf' as PairCalfSex, ear_tag_color: '', dob: '', dob_estimated: true, birth_weight_lbs: '' }
 }
+
+interface GrazingOwner {
+  id: string; name: string; profile_id: string | null
+  company_name?: string | null; owner_name?: string | null
+  default_ear_tag_color?: string | null; default_breed?: string | null
+}
+
+interface RanchDefaults { default_ear_tag_color?: string; default_breed?: string }
+
+type StepKey = 'source' | 'id' | 'age' | 'breed' | 'details' | 'pair_calf' | 'photo' | 'repro' | 'review'
+
+const STEP_TITLES: Record<StepKey, string> = {
+  source:   'Where did this animal come from?',
+  id:       'Identify the animal',
+  age:      'How old is it?',
+  breed:    'What breed?',
+  details:  'Additional details',
+  pair_calf:'Pair calf info',
+  photo:    'Add a photo',
+  repro:    'Reproductive status at arrival',
+  review:   'Review & Save',
+}
+
+// ── Big option button ─────────────────────────────────────────────────────────
+
+function BigBtn({ selected, onClick, emoji, label, sub }: {
+  selected: boolean; onClick: () => void
+  emoji?: string; label: string; sub?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-start gap-1 rounded-[var(--radius-lg)] p-4 text-left transition-all w-full relative"
+      style={{
+        border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+        backgroundColor: selected ? 'color-mix(in srgb, var(--accent) 8%, var(--surface-1))' : 'var(--surface-1)',
+      }}
+    >
+      {selected && (
+        <div className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'var(--accent)', color: '#fff', fontSize: '11px' }}>
+          ✓
+        </div>
+      )}
+      {emoji && <span style={{ fontSize: '22px' }}>{emoji}</span>}
+      <span className="type-section-label" style={{ color: selected ? 'var(--accent)' : 'var(--text)' }}>{label}</span>
+      {sub && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{sub}</span>}
+    </button>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function NewAnimalPage() {
   const router = useRouter()
-  const [saving, setSaving]                 = useState(false)
-  const [error, setError]                   = useState('')
-  const [owners, setOwners]                 = useState<GrazingOwner[]>([])
-  const [ranchDefaults, setRanchDefaults]   = useState<RanchDefaults>({})
-  const [recording, setRecording]           = useState<RecordingState>('idle')
-  const [voiceResult, setVoiceResult]       = useState<VoiceResult | null>(null)
-  const [showVoiceModal, setShowVoiceModal] = useState(false)
-  const [photoUrls, setPhotoUrls]           = useState<string[]>([])
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [breeds, setBreeds]                 = useState<BreedEntry[]>([])
-  const [breedError, setBreedError]         = useState('')
-  const [defaultsApplied, setDefaultsApplied] = useState<string | null>(null)
-  const [isPair, setIsPair]                 = useState(false)
-  const [pairCalf, setPairCalf]             = useState(blankPairCalf())
-  const [origin, setOrigin]                 = useState<'purchased' | 'home_raised'>('purchased')
-  const [aiCost, setAiCost]                 = useState('')
-  const [semenCost, setSemenCost]           = useState('')
-  const [embryoCost, setEmbryoCost]         = useState('')
-  const [implantFee, setImplantFee]         = useState('')
+
+  const [currentStep, setCurrentStep] = useState<StepKey>('source')
+
+  // Source
+  const [source, setSource] = useState<'purchased' | 'pair' | 'home_raised' | null>(null)
+
+  // ID
+  const [sex, setSex] = useState('')
+  const [tagNumber, setTagNumber] = useState('')
+  const [tagColor, setTagColor] = useState('')
+  const [animalName, setAnimalName] = useState('')
+  const [ownerId, setOwnerId] = useState<string | null>(null)
+
+  // Age
+  const [dob, setDob] = useState('')
+  const [dobEstimated, setDobEstimated] = useState(false)
+  const [approximateAge, setApproximateAge] = useState('')
+
+  // Breed
+  const [breeds, setBreeds] = useState<BreedEntry[]>([])
+  const [breedError, setBreedError] = useState('')
+
+  // Purchased details
+  const [purchaseDate, setPurchaseDate] = useState('')
+  const [purchasePrice, setPurchasePrice] = useState('')
+  const [vendor, setVendor] = useState('')
   const [brandInspectionUrl, setBrandInspectionUrl] = useState<string | null>(null)
-  const [uploadingDoc, setUploadingDoc]     = useState(false)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+
+  // Home-raised details
+  const [birthWeightLbs, setBirthWeightLbs] = useState('')
+  const [birthWeightEstimated, setBirthWeightEstimated] = useState(false)
   const [conceptionMethod, setConceptionMethod] = useState<'natural' | 'ai' | 'embryo'>('natural')
-  const mediaRef    = useRef<MediaRecorder | null>(null)
-  const chunksRef   = useRef<Blob[]>([])
+  const [aiCost, setAiCost] = useState('')
+  const [semenCost, setSemenCost] = useState('')
+  const [embryoCost, setEmbryoCost] = useState('')
+  const [implantFee, setImplantFee] = useState('')
+  const [damId, setDamId] = useState('')
+  const [sireId, setSireId] = useState('')
+
+  // Pair calf
+  const [pairCalf, setPairCalf] = useState(blankPairCalf())
+
+  // Photo
+  const [photoUrls, setPhotoUrls] = useState<string[]>([])
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const pendingIdRef = useRef<string | null>(null)
 
-  const { register, handleSubmit, setValue, watch, formState: { errors }, control } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { status: 'active', registration_numbers: [] },
-  })
+  // Repro at intake
+  const [arrivedBred, setArrivedBred] = useState<'open' | 'bred'>('open')
+  const [breedDate, setBreedDate] = useState('')
+  const [breedMethod, setBreedMethod] = useState<'natural' | 'ai'>('natural')
+  const [reproSireName, setReproSireName] = useState('')
+  const [expectedCalving, setExpectedCalving] = useState('')
+  const [calvingDateEdited, setCalvingDateEdited] = useState(false)
+  const [pregConfirmed, setPregConfirmed] = useState(false)
 
-  const earTagColor    = watch('ear_tag_color') ?? ''
-  const dobEstimated   = watch('dob_estimated') ?? false
+  // UI
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+  const [savedAnimalId, setSavedAnimalId] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
+
+  // Owners + ranch defaults
+  const [owners, setOwners] = useState<GrazingOwner[]>([])
+  const [ranchDefaults, setRanchDefaults] = useState<RanchDefaults>({})
+  const [defaultsApplied, setDefaultsApplied] = useState<string | null>(null)
 
   useEffect(() => {
-    apiGet('/api/grazing-owners').then(r => r.json()).then(d => { setOwners(Array.isArray(d.data) ? d.data : []) }).catch(() => {})
+    apiGet('/api/grazing-owners').then(r => r.json()).then(d => {
+      setOwners(Array.isArray(d.data) ? d.data : [])
+    }).catch(() => {})
     apiGet('/api/settings/ranch').then(r => r.json()).then(d => {
       const s = d.data ?? d
       setRanchDefaults({ default_ear_tag_color: s.default_ear_tag_color || undefined, default_breed: s.default_breed || undefined })
-      if (s.default_ear_tag_color) setValue('ear_tag_color', s.default_ear_tag_color)
+      if (s.default_ear_tag_color) setTagColor(s.default_ear_tag_color)
     }).catch(() => {})
-  }, [setValue])
+  }, [])
 
-  const handleOwnerChange = (ownerId: string | null) => {
-    setValue('owner_id', ownerId || undefined)
-
-    if (!ownerId) {
-      if (ranchDefaults.default_ear_tag_color) setValue('ear_tag_color', ranchDefaults.default_ear_tag_color)
-      if (ranchDefaults.default_breed && breeds.length === 0) {
-        setBreeds([{ breed: ranchDefaults.default_breed, pct: 100 }])
-      }
-      setDefaultsApplied(null)
-      return
+  // Auto-calc expected calving when breed date changes
+  useEffect(() => {
+    if (!calvingDateEdited && breedDate) {
+      setExpectedCalving(addDays(breedDate, 283))
     }
+  }, [breedDate, calvingDateEdited])
 
-    const owner = owners.find(o => o.id === ownerId)
-    if (!owner) return
-
-    if (owner.default_ear_tag_color) {
-      setValue('ear_tag_color', owner.default_ear_tag_color, { shouldDirty: true })
-    } else if (ranchDefaults.default_ear_tag_color) {
-      setValue('ear_tag_color', ranchDefaults.default_ear_tag_color, { shouldDirty: true })
-    }
-
-    if (owner.default_breed && breeds.length === 0) {
-      setBreeds([{ breed: owner.default_breed, pct: 100 }])
-    }
-
-    setDefaultsApplied(owner.company_name || owner.owner_name || owner.name)
-  }
-
+  // Clear defaults-applied banner
   useEffect(() => {
     if (!defaultsApplied) return
     const t = setTimeout(() => setDefaultsApplied(null), 3000)
     return () => clearTimeout(t)
   }, [defaultsApplied])
 
-  const { fields: regFields, append: addReg, remove: removeReg } = useFieldArray({
-    control,
-    name: 'registration_numbers',
-  })
+  // Steps depend on source + sex
+  const steps = useMemo<StepKey[]>(() => {
+    if (!source) return ['source']
+    const s: StepKey[] = ['source', 'id', 'age', 'breed', 'details']
+    if (source === 'pair') s.push('pair_calf')
+    s.push('photo')
+    if (sex === 'cow' || sex === 'heifer') s.push('repro')
+    s.push('review')
+    return s
+  }, [source, sex])
 
-  // Apply voice-extracted fields to the form with dirty/validate flags so RHF re-renders inputs
-  const applyVoiceFields = useCallback((fields: Record<string, unknown>) => {
-    const opts = { shouldValidate: true, shouldDirty: true } as const
+  const stepIdx = steps.indexOf(currentStep)
 
-    const fieldMap: Record<string, keyof FormValues> = {
-      tag_number:       'tag_number',
-      name:             'name',
-      sex:              'sex',
-      dob:              'dob',
-      birth_weight_lbs: 'birth_weight_lbs',
-      purchase_price:   'purchase_price',
-      purchase_date:    'purchase_date',
-      vendor:           'vendor',
-      notes:            'notes',
+  const handleOwnerChange = (newId: string | null) => {
+    setOwnerId(newId)
+    if (!newId) {
+      if (ranchDefaults.default_ear_tag_color) setTagColor(ranchDefaults.default_ear_tag_color)
+      if (ranchDefaults.default_breed && breeds.length === 0) setBreeds([{ breed: ranchDefaults.default_breed, pct: 100 }])
+      setDefaultsApplied(null)
+      return
     }
+    const owner = owners.find(o => o.id === newId)
+    if (!owner) return
+    if (owner.default_ear_tag_color) setTagColor(owner.default_ear_tag_color)
+    else if (ranchDefaults.default_ear_tag_color) setTagColor(ranchDefaults.default_ear_tag_color)
+    if (owner.default_breed && breeds.length === 0) setBreeds([{ breed: owner.default_breed, pct: 100 }])
+    setDefaultsApplied(owner.company_name || owner.owner_name || owner.name)
+  }
 
-    Object.entries(fieldMap).forEach(([apiKey, formKey]) => {
-      if (fields[apiKey] != null && fields[apiKey] !== '') {
-        setValue(formKey, String(fields[apiKey]), opts)
-      }
-    })
-
-    // Convert breed + breed_percentage from voice into BreedSelector entries
-    if (fields.breed) {
-      const pct = fields.breed_percentage ? Number(fields.breed_percentage) : 100
-      setBreeds([{ breed: String(fields.breed), pct: isNaN(pct) ? 100 : pct }])
+  const canProceed = (step: StepKey): boolean => {
+    switch (step) {
+      case 'source':   return source !== null
+      case 'id':       return tagNumber.trim() !== '' && tagColor !== '' && sex !== ''
+      case 'pair_calf': return pairCalf.tag_number.trim() !== ''
+      case 'repro':    return arrivedBred === 'open' || breedDate !== ''
+      default: return true
     }
+  }
 
-    setShowVoiceModal(false)
-    setVoiceResult(null)
-  }, [setValue])
+  const goNext = () => {
+    setSubmitted(true)
+    if (!canProceed(currentStep)) return
+    setSubmitted(false)
+    const next = steps[stepIdx + 1]
+    if (next) setCurrentStep(next)
+  }
 
-  const startRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : MediaRecorder.isTypeSupported('audio/mp4')
-          ? 'audio/mp4'
-          : ''
-      const ext = mimeType === 'audio/mp4' ? 'mp4' : 'webm'
-
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-      chunksRef.current = []
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      mr.onstop = async () => {
-        console.log('[voice] stop triggered')
-        console.log('[voice] chunks:', chunksRef.current.length)
-        stream.getTracks().forEach(t => t.stop())
-        setRecording('processing')
-        const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' })
-        console.log('[voice] blob size:', blob.size)
-        const fd = new FormData()
-        fd.append('audio', blob, `recording.${ext}`)
-        try {
-          console.log('[voice] sending to API')
-          const res = await apiPost('/api/voice/transcribe', fd)
-          console.log('[voice] response status:', res.status)
-          const result = await res.json()
-          console.log('[voice] result:', JSON.stringify(result))
-          if (!res.ok) {
-            console.error('[voice] API error:', result)
-            return
-          }
-          // Store result and show confirmation modal — don't apply blindly
-          setVoiceResult({ transcript: result.transcript, fields: result.fields ?? {} })
-          setShowVoiceModal(true)
-        } finally {
-          setRecording('idle')
-        }
-      }
-      mr.start()
-      mediaRef.current = mr
-      setRecording('recording')
-    } catch {
-      setRecording('idle')
-    }
-  }, [])
-
-  const stopRecording = useCallback(() => {
-    mediaRef.current?.stop()
-  }, [])
+  const goBack = () => {
+    setSubmitted(false)
+    const prev = steps[stepIdx - 1]
+    if (prev) setCurrentStep(prev)
+  }
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -333,17 +295,22 @@ export default function NewAnimalPage() {
     setUploadingPhoto(true)
     try {
       if (!pendingIdRef.current) {
-        const res = await apiPost('/api/animals', { tag_number: watch('tag_number') || `DRAFT-${Date.now()}`, sex: watch('sex') || 'calf', ear_tag_color: watch('ear_tag_color') || 'Yellow', status: 'active' })
+        const res = await apiPost('/api/animals', {
+          tag_number: tagNumber || `DRAFT-${Date.now()}`,
+          sex: sex || 'calf',
+          ear_tag_color: tagColor || 'Yellow',
+          status: 'active',
+        })
         if (!res.ok) return
-        const data = await res.json()
-        pendingIdRef.current = data.id
+        const d = await res.json()
+        pendingIdRef.current = d.data?.id ?? d.id
       }
       const fd = new FormData()
       fd.append('file', file)
       const res = await apiPost(`/api/animals/${pendingIdRef.current}/photos`, fd)
       if (res.ok) {
-        const data = await res.json()
-        setPhotoUrls(data.photos)
+        const d = await res.json()
+        setPhotoUrls(d.photos ?? [])
       }
     } finally {
       setUploadingPhoto(false)
@@ -354,70 +321,101 @@ export default function NewAnimalPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadingDoc(true)
-    try {
-      // We need an animal ID — use pendingIdRef if available, otherwise just store locally
-      // For now, store the file as a blob URL for display, and send URL in submit payload
-      const objectUrl = URL.createObjectURL(file)
-      setBrandInspectionUrl(objectUrl)
-      // TODO: upload to R2 on actual animal save
-    } finally {
-      setUploadingDoc(false)
-    }
+    try { setBrandInspectionUrl(URL.createObjectURL(file)) }
+    finally { setUploadingDoc(false) }
   }
 
-  const onSubmit = async (values: FormValues) => {
+  const handleSave = async () => {
+    setSubmitted(true)
+    if (!tagNumber.trim() || !tagColor || !sex) { setCurrentStep('id'); return }
     if (breeds.length > 0) {
       const total = breeds.reduce((s, b) => s + (b.pct || 0), 0)
-      if (total !== 100) { setBreedError('Breed percentages must total 100%'); return }
+      if (total !== 100) { setBreedError('Breed percentages must total 100%'); setCurrentStep('breed'); return }
     }
     setBreedError('')
     setSaving(true)
     setError('')
     try {
-      // sanitizePayload converts all "" → null so Postgres date/uuid fields don't reject empty strings
-      const raw = sanitizePayload({
-        ...values,
-        birth_weight_lbs: toNum(values.birth_weight_lbs),
-        purchase_price:   toNum(values.purchase_price),
-        owner_id:         toUuid(values.owner_id),
-        dam_id:           toUuid(values.dam_id),
-        sire_id:          toUuid(values.sire_id),
-        breeds:           breeds.length > 0 ? breeds : null,
-        photos:           photoUrls,
-        dob_estimated:    values.dob_estimated ?? false,
-        approximate_age:  values.approximate_age || null,
-        origin:           origin,
-        ai_cost:          origin === 'home_raised' ? (toNum(aiCost) ?? null) : null,
-        semen_cost:       origin === 'home_raised' ? (toNum(semenCost) ?? null) : null,
-        embryo_cost:      origin === 'home_raised' ? (toNum(embryoCost) ?? null) : null,
-        implant_fee:      origin === 'home_raised' ? (toNum(implantFee) ?? null) : null,
-        conception_method: origin === 'home_raised' ? conceptionMethod : null,
-      })
+      const origin = source === 'home_raised' ? 'home_raised' : 'purchased'
+      const isPurchased = source !== 'home_raised'
 
-      if (isPair && pairCalf.tag_number.trim()) {
-        raw.purchased_as_pair = true
-        raw.calf_data = {
+      const payload: Record<string, unknown> = {
+        tag_number:          tagNumber.trim(),
+        ear_tag_color:       tagColor,
+        sex,
+        name:                animalName || null,
+        owner_id:            toUuid(ownerId),
+        dob:                 dob || null,
+        dob_estimated:       dobEstimated,
+        approximate_age:     approximateAge || null,
+        breeds:              breeds.length > 0 ? breeds : null,
+        photos:              photoUrls,
+        status:              'active',
+        origin,
+        purchase_date:       isPurchased ? (purchaseDate || null) : null,
+        purchase_price:      isPurchased ? toNum(purchasePrice) : null,
+        vendor:              isPurchased ? (vendor || null) : null,
+        purchased_as_pair:   source === 'pair',
+        birth_weight_lbs:    !isPurchased ? toNum(birthWeightLbs) : null,
+        birth_weight_estimated: !isPurchased ? birthWeightEstimated : null,
+        conception_method:   !isPurchased ? conceptionMethod : null,
+        ai_cost:             !isPurchased ? toNum(aiCost) : null,
+        semen_cost:          !isPurchased ? toNum(semenCost) : null,
+        embryo_cost:         !isPurchased ? toNum(embryoCost) : null,
+        implant_fee:         !isPurchased ? toNum(implantFee) : null,
+        dam_id:              !isPurchased ? toUuid(damId) : null,
+        sire_id:             !isPurchased ? toUuid(sireId) : null,
+      }
+
+      if (source === 'pair' && pairCalf.tag_number.trim()) {
+        payload.calf_data = {
           tag_number:       pairCalf.tag_number.trim(),
           sex:              'calf',
           calf_sex:         pairCalf.calf_sex === 'calf' ? null : pairCalf.calf_sex,
-          ear_tag_color:    pairCalf.ear_tag_color || values.ear_tag_color || null,
+          ear_tag_color:    pairCalf.ear_tag_color || tagColor || null,
           dob:              pairCalf.dob || null,
           dob_estimated:    pairCalf.dob_estimated,
-          birth_weight_lbs: pairCalf.birth_weight_lbs ? toNum(pairCalf.birth_weight_lbs) : null,
+          birth_weight_lbs: toNum(pairCalf.birth_weight_lbs),
           status:           'active',
         }
       }
 
       let res: Response
       if (pendingIdRef.current) {
-        res = await apiPatch(`/api/animals/${pendingIdRef.current}`, raw)
+        res = await apiPatch(`/api/animals/${pendingIdRef.current}`, payload)
       } else {
-        res = await apiPost('/api/animals', raw)
+        res = await apiPost('/api/animals', payload)
       }
 
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Save failed'); return }
-      router.push(`/animals/${data.id ?? data.data?.id}`)
+
+      const animalId = data.data?.id ?? data.id
+      if (!animalId) { setError('No animal ID returned'); return }
+
+      // Repro at intake — use /api/reproduction directly (no straw deduction)
+      if ((sex === 'cow' || sex === 'heifer') && arrivedBred === 'bred' && breedDate) {
+        await apiPost('/api/reproduction', {
+          animal_id:            animalId,
+          event_type:           'bred',
+          event_date:           breedDate,
+          conception_method:    breedMethod,
+          sire_name_text:       reproSireName || null,
+          expected_calving_date: expectedCalving || addDays(breedDate, 283),
+        })
+        if (pregConfirmed) {
+          await apiPost('/api/reproduction', {
+            animal_id:            animalId,
+            event_type:           'preg_check',
+            event_date:           breedDate,
+            preg_check_result:    'confirmed',
+            expected_calving_date: expectedCalving || addDays(breedDate, 283),
+          })
+        }
+      }
+
+      setSavedAnimalId(animalId)
+      setDone(true)
     } catch {
       setError('Connection error — please try again')
     } finally {
@@ -425,430 +423,136 @@ export default function NewAnimalPage() {
     }
   }
 
-  return (
-    <PageContainer variant="narrow">
-      <PageHeader title="Add Animal" subtitle="Register a new animal in your herd" />
+  const resetForm = () => {
+    pendingIdRef.current = null
+    setCurrentStep('source')
+    setSource(null); setSex(''); setTagNumber('')
+    setTagColor(ranchDefaults.default_ear_tag_color ?? ''); setAnimalName(''); setOwnerId(null)
+    setDob(''); setDobEstimated(false); setApproximateAge('')
+    setBreeds([]); setBreedError('')
+    setPurchaseDate(''); setPurchasePrice(''); setVendor(''); setBrandInspectionUrl(null)
+    setBirthWeightLbs(''); setBirthWeightEstimated(false); setConceptionMethod('natural')
+    setAiCost(''); setSemenCost(''); setEmbryoCost(''); setImplantFee('')
+    setDamId(''); setSireId('')
+    setPairCalf(blankPairCalf())
+    setPhotoUrls([])
+    setArrivedBred('open'); setBreedDate(''); setBreedMethod('natural')
+    setReproSireName(''); setExpectedCalving(''); setCalvingDateEdited(false); setPregConfirmed(false)
+    setSaving(false); setError(''); setDone(false); setSavedAnimalId(null); setSubmitted(false)
+  }
 
-      {/* Voice input strip */}
-      <div
-        className="rounded-[var(--radius-lg)] p-4 mb-6 flex items-start gap-3"
-        style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)' }}
-      >
-        <button
-          type="button"
-          onClick={recording === 'recording' ? stopRecording : startRecording}
-          disabled={recording === 'processing'}
-          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-150"
-          style={{
-            backgroundColor: recording === 'recording' ? 'var(--danger-fg)' : 'var(--accent)',
-            color: '#fff',
-            opacity: recording === 'processing' ? 0.5 : 1,
-          }}
-          title={recording === 'recording' ? 'Stop recording' : 'Start voice input'}
-        >
-          {recording === 'recording' ? <MicOff size={18} /> : <Mic size={18} />}
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className="type-field-label mb-0.5">
-            {recording === 'idle'       ? 'Voice input'   : ''}
-            {recording === 'recording'  ? 'Recording…'    : ''}
-            {recording === 'processing' ? 'Transcribing…' : ''}
-          </p>
-          <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
-            Tap the mic and describe the animal — review and apply fields automatically.
-          </p>
-        </div>
-      </div>
+  // ── Success screen ──────────────────────────────────────────────────────────
 
-      {/* Voice confirmation modal */}
-      {showVoiceModal && voiceResult && (
-        <div
-          className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-          onClick={e => { if (e.target === e.currentTarget) setShowVoiceModal(false) }}
-        >
-          <div
-            className="w-full max-w-lg rounded-t-[var(--radius-xl)] sm:rounded-[var(--radius-xl)] overflow-y-auto"
-            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', maxHeight: '85dvh', padding: '24px 20px' }}
-          >
-            <p className="type-panel-title mb-1">Voice Input Review</p>
-            <p className="type-helper mb-4" style={{ color: 'var(--text-muted)' }}>
-              Review what was captured. Tap Apply to fill the form.
+  if (done && savedAnimalId) {
+    return (
+      <PageContainer variant="narrow">
+        <div className="flex flex-col items-center gap-6 py-16 text-center">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: 'var(--success-bg, #dcfce7)', color: 'var(--success-fg, #16a34a)' }}>
+            <Check size={32} />
+          </div>
+          <div>
+            <p className="type-panel-title mb-1">Animal saved!</p>
+            <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+              {animalName ? `${animalName} (${tagNumber})` : `Tag #${tagNumber}`} has been added to your herd.
             </p>
-
-            {/* Transcript */}
-            <div
-              className="rounded-[var(--radius-md)] p-3 mb-4"
-              style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
-            >
-              <p className="type-field-label mb-1" style={{ color: 'var(--text-muted)' }}>Transcript</p>
-              <p className="type-data-sm">{voiceResult.transcript}</p>
-            </div>
-
-            {/* Extracted fields */}
-            {Object.keys(voiceResult.fields).length > 0 ? (
-              <div className="flex flex-col gap-1 mb-5">
-                <p className="type-field-label mb-2" style={{ color: 'var(--text-muted)' }}>Fields extracted</p>
-                {Object.entries(voiceResult.fields).map(([k, v]) => (
-                  <div key={k} className="flex items-center justify-between gap-3 py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{FIELD_LABELS[k] ?? k}</span>
-                    <span className="type-data-sm font-medium">{String(v)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="type-helper mb-5" style={{ color: 'var(--text-muted)' }}>
-                No structured fields found — transcript saved above.
-              </p>
-            )}
-
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                intent="primary"
-                onClick={() => applyVoiceFields(voiceResult.fields)}
-              >
-                APPLY TO FORM
-              </Button>
-              <Button
-                type="button"
-                intent="ghost"
-                onClick={() => { setShowVoiceModal(false); setVoiceResult(null) }}
-              >
-                DISCARD
-              </Button>
-            </div>
+          </div>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <Button intent="primary" onClick={() => router.push(`/animals/${savedAnimalId}`)}>
+              VIEW ANIMAL
+            </Button>
+            <Button intent="ghost" onClick={resetForm}>
+              ADD ANOTHER
+            </Button>
           </div>
         </div>
-      )}
+      </PageContainer>
+    )
+  }
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+  // ── Step content ────────────────────────────────────────────────────────────
 
-        {/* Origin Panel */}
-        <Panel title="ORIGIN">
-          <PanelSection>
-            <div className="grid grid-cols-2 gap-3">
-              {([
-                { value: 'purchased', label: 'PURCHASED', desc: 'Bought from another ranch or sale barn', emoji: '🏷️' },
-                { value: 'home_raised', label: 'HOME RAISED', desc: 'Born on our ranch', emoji: '🐄' },
-              ] as const).map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setOrigin(opt.value)}
-                  className="flex flex-col items-start gap-1 rounded-[var(--radius-lg)] p-4 text-left transition-all"
-                  style={{
-                    border: `2px solid ${origin === opt.value ? 'var(--accent)' : 'var(--border)'}`,
-                    backgroundColor: origin === opt.value ? 'var(--accent-soft, var(--surface-2))' : 'var(--surface-1)',
-                    position: 'relative',
-                  }}
-                >
-                  {origin === opt.value && (
-                    <div
-                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: 'var(--accent)', color: '#fff', fontSize: '11px' }}
-                    >✓</div>
-                  )}
-                  <span style={{ fontSize: '20px' }}>{opt.emoji}</span>
-                  <span className="type-section-label" style={{ color: origin === opt.value ? 'var(--accent)' : 'var(--text)' }}>{opt.label}</span>
-                  <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{opt.desc}</span>
-                </button>
-              ))}
-            </div>
+  const renderStep = () => {
+    switch (currentStep) {
 
-            {/* PURCHASED fields */}
-            {origin === 'purchased' && (
-              <div className="mt-4 flex flex-col gap-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Field label="Purchase price ($)">
-                    <Input {...register('purchase_price')} type="number" step="0.01" placeholder="0.00" />
-                  </Field>
-                  <Field label="Purchase date">
-                    <Input {...register('purchase_date')} type="date" />
-                  </Field>
-                  <Field label="Vendor / Source">
-                    <Input {...register('vendor')} placeholder="Ranch name, sale barn, or seller" />
-                  </Field>
-                </div>
-                <Toggle
-                  checked={isPair}
-                  onChange={setIsPair}
-                  label="PURCHASED AS PAIR"
-                  description="This animal came with a calf. Create a linked calf record."
-                />
-                {/* Brand Inspection Upload */}
-                <Field label="Brand Inspection" helper="Upload photo or scan of inspection paperwork">
-                  {brandInspectionUrl ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={brandInspectionUrl} alt="Brand inspection" className="w-full h-full object-cover" />
-                      </div>
-                      <button
-                        type="button"
-                        className="type-helper"
-                        style={{ color: 'var(--danger-fg)' }}
-                        onClick={() => setBrandInspectionUrl(null)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <label
-                      className="inline-flex items-center gap-2 cursor-pointer px-3 py-2 rounded-[var(--radius-md)] transition-colors duration-150 type-button"
-                      style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
-                    >
-                      <Upload size={15} />
-                      {uploadingDoc ? 'Uploading…' : 'Upload document'}
-                      <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleBrandInspectionUpload} disabled={uploadingDoc} />
-                    </label>
-                  )}
-                </Field>
+      // ── 1. Source ───────────────────────────────────────────────────────────
+      case 'source':
+        return (
+          <div className="flex flex-col gap-3">
+            <BigBtn
+              selected={source === 'purchased'}
+              onClick={() => setSource('purchased')}
+              emoji="🏷️"
+              label="PURCHASED"
+              sub="Bought from a ranch, sale barn, or seller"
+            />
+            <BigBtn
+              selected={source === 'pair'}
+              onClick={() => setSource('pair')}
+              emoji="🐄🐂"
+              label="PURCHASED AS A PAIR"
+              sub="Came with a calf — create linked calf record"
+            />
+            <BigBtn
+              selected={source === 'home_raised'}
+              onClick={() => setSource('home_raised')}
+              emoji="🏠"
+              label="BORN HERE"
+              sub="Born on our ranch, home-raised"
+            />
+          </div>
+        )
+
+      // ── 2. ID ───────────────────────────────────────────────────────────────
+      case 'id':
+        return (
+          <div className="flex flex-col gap-6">
+            {/* Sex */}
+            <div>
+              <p className="type-field-label mb-2">Sex <span style={{ color: 'var(--danger-fg)' }}>*</span></p>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                {(['bull', 'cow', 'heifer', 'steer', 'calf'] as const).map(s => (
+                  <BigBtn
+                    key={s}
+                    selected={sex === s}
+                    onClick={() => setSex(s)}
+                    label={s.toUpperCase()}
+                  />
+                ))}
               </div>
-            )}
-
-            {/* HOME RAISED fields */}
-            {origin === 'home_raised' && (
-              <div className="mt-4 flex flex-col gap-4">
-                <ContextBanner tone="info" eyebrow="COST BASIS">
-                  Cost basis for home raised animals is built from AI/semen costs, vet bills, and grazing. These are tracked automatically.
-                </ContextBanner>
-
-                {/* Conception method selector */}
-                <Field label="Conception method">
-                  <div className="flex gap-2">
-                    {(['natural', 'ai', 'embryo'] as const).map(m => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setConceptionMethod(m)}
-                        className="px-3 py-1.5 rounded-[var(--radius-md)] type-label font-bold uppercase tracking-wider"
-                        style={{
-                          background: conceptionMethod === m ? 'var(--accent)' : 'var(--surface-2)',
-                          color: conceptionMethod === m ? '#fff' : 'var(--text-muted)',
-                          border: `1px solid ${conceptionMethod === m ? 'var(--accent)' : 'var(--border)'}`,
-                        }}
-                      >
-                        {m === 'natural' ? 'Natural' : m === 'ai' ? 'AI' : 'Embryo'}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-
-                {conceptionMethod === 'ai' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="AI Tech Fee ($)" helper="Fee paid to AI technician">
-                      <Input type="number" step="0.01" value={aiCost} onChange={e => setAiCost(e.target.value)} placeholder="0.00" />
-                    </Field>
-                    <Field label="Semen Cost ($)" helper="Cost of semen straw used">
-                      <Input type="number" step="0.01" value={semenCost} onChange={e => setSemenCost(e.target.value)} placeholder="0.00" />
-                    </Field>
-                  </div>
-                )}
-
-                {conceptionMethod === 'embryo' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Embryo Cost ($)">
-                      <Input type="number" step="0.01" value={embryoCost} onChange={e => setEmbryoCost(e.target.value)} placeholder="0.00" />
-                    </Field>
-                    <Field label="Implant Fee ($)">
-                      <Input type="number" step="0.01" value={implantFee} onChange={e => setImplantFee(e.target.value)} placeholder="0.00" />
-                    </Field>
-                  </div>
-                )}
-              </div>
-            )}
-          </PanelSection>
-        </Panel>
-
-        {/* Panel 1 — Identification */}
-        <Panel title="IDENTIFICATION">
-          <PanelSection>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Ear Tag Number" required error={errors.tag_number?.message}>
-                <Input {...register('tag_number')} placeholder="e.g. 202" invalid={!!errors.tag_number} />
-              </Field>
-              <Field label="Name">
-                <Input {...register('name')} placeholder="Optional nickname" />
-              </Field>
-              <Field label="Sex" required error={errors.sex?.message}>
-                <Select {...register('sex')} invalid={!!errors.sex}>
-                  <option value="">Select…</option>
-                  <option value="bull">Bull</option>
-                  <option value="cow">Cow</option>
-                  <option value="heifer">Heifer</option>
-                  <option value="steer">Steer</option>
-                  <option value="calf">Calf</option>
-                </Select>
-              </Field>
-              <Field label="Status">
-                <Select {...register('status')}>
-                  <option value="active">Active</option>
-                  <option value="sold">Sold</option>
-                  <option value="deceased">Deceased</option>
-                  <option value="transferred">Transferred</option>
-                </Select>
-              </Field>
-              <div>
-                <Field label="Date of birth">
-                  <Input {...register('dob')} type="date" />
-                </Field>
-                <div className="flex items-center gap-2 mt-1">
-                  <input type="checkbox" id="dob_estimated" {...register('dob_estimated')} className="rounded" />
-                  <label htmlFor="dob_estimated" className="type-helper" style={{ color: 'var(--text-muted)' }}>
-                    Date is estimated
-                  </label>
-                </div>
-              </div>
-              <Field label="Birth weight (lbs)">
-                <Input {...register('birth_weight_lbs')} type="number" step="0.1" placeholder="0.0" />
-              </Field>
-              {dobEstimated && (
-                <Field label="Approximate age" helper="e.g. '3 years old' or 'Spring 2023 calf'" className="sm:col-span-2">
-                  <Input placeholder="e.g. 3 years" {...register('approximate_age')} />
-                </Field>
+              {submitted && !sex && (
+                <p className="type-helper mt-1" style={{ color: 'var(--danger-fg)' }}>Sex is required</p>
               )}
             </div>
 
-            {/* Ear tag color */}
-            <div className="mt-4">
-              <Field label="Ear tag color" required error={errors.ear_tag_color?.message}>
-                <EarTagColorPicker
-                  value={earTagColor}
-                  onChange={v => setValue('ear_tag_color', v, { shouldValidate: true })}
-                  invalid={!!errors.ear_tag_color}
-                />
-              </Field>
-            </div>
-          </PanelSection>
-        </Panel>
+            {/* Tag number */}
+            <Field label="Ear Tag Number" required error={submitted && !tagNumber.trim() ? 'Ear tag number is required' : undefined}>
+              <Input
+                value={tagNumber}
+                onChange={e => setTagNumber(e.target.value)}
+                placeholder="e.g. 202"
+                invalid={submitted && !tagNumber.trim()}
+              />
+            </Field>
 
-        {/* Panel 2 — Breed */}
-        <Panel title="BREED">
-          <PanelSection>
-            <BreedSelector value={breeds} onChange={setBreeds} error={breedError || undefined} />
-          </PanelSection>
-        </Panel>
+            {/* Tag color */}
+            <Field label="Ear Tag Color" required error={submitted && !tagColor ? 'Ear tag color is required' : undefined}>
+              <EarTagColorPicker
+                value={tagColor}
+                onChange={setTagColor}
+                invalid={submitted && !tagColor}
+              />
+            </Field>
 
-        {/* Panel 3b — Pair Calf */}
-        {isPair && (
-          <Panel title="PAIR CALF" subtitle="Calf purchased with this animal">
-            <PanelSection>
-              <ContextBanner tone="info">
-                Calf will be linked to this cow as dam. Owner will transfer automatically.
-              </ContextBanner>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                <Field label="Calf tag number" required>
-                  <Input
-                    value={pairCalf.tag_number}
-                    onChange={e => setPairCalf(p => ({ ...p, tag_number: e.target.value }))}
-                    placeholder="e.g. 2501"
-                  />
-                </Field>
-                <Field label="Calf sex" required>
-                  <SegmentedControl
-                    value={pairCalf.calf_sex}
-                    onChange={v => setPairCalf(p => ({ ...p, calf_sex: v as PairCalfSex }))}
-                    items={[
-                      { value: 'heifer_calf', label: 'HEIFER' },
-                      { value: 'bull_calf',   label: 'BULL' },
-                      { value: 'calf',        label: 'UNKNOWN' },
-                    ]}
-                    block size="sm"
-                  />
-                </Field>
-                <div>
-                  <Field label="Calf DOB">
-                    <Input
-                      type="date"
-                      value={pairCalf.dob}
-                      onChange={e => setPairCalf(p => ({ ...p, dob: e.target.value }))}
-                    />
-                  </Field>
-                  <div className="flex items-center gap-2 mt-1">
-                    <input
-                      type="checkbox"
-                      id="pair_dob_est"
-                      checked={pairCalf.dob_estimated}
-                      onChange={e => setPairCalf(p => ({ ...p, dob_estimated: e.target.checked }))}
-                      className="rounded"
-                    />
-                    <label htmlFor="pair_dob_est" className="type-helper" style={{ color: 'var(--text-muted)' }}>
-                      DOB is estimated
-                    </label>
-                  </div>
-                </div>
-                <Field label="Calf birth weight (lbs)">
-                  <Input
-                    type="number" step="0.1"
-                    value={pairCalf.birth_weight_lbs}
-                    onChange={e => setPairCalf(p => ({ ...p, birth_weight_lbs: e.target.value }))}
-                    placeholder="Optional"
-                  />
-                </Field>
-              </div>
-              <div className="mt-4">
-                <Field label="Calf ear tag color">
-                  <EarTagColorPicker
-                    value={pairCalf.ear_tag_color || earTagColor}
-                    onChange={v => setPairCalf(p => ({ ...p, ear_tag_color: v }))}
-                    invalid={false}
-                  />
-                </Field>
-              </div>
-            </PanelSection>
-          </Panel>
-        )}
+            {/* Name */}
+            <Field label="Name" helper="Optional nickname">
+              <Input value={animalName} onChange={e => setAnimalName(e.target.value)} placeholder="Optional" />
+            </Field>
 
-        {/* Panel 4 — Registration */}
-        <Panel title="REGISTRATION NUMBERS">
-          <PanelSection>
-            <div className="flex flex-col gap-3">
-              {regFields.map((field, i) => (
-                <div key={field.id} className="flex gap-2 items-end">
-                  <Field label={i === 0 ? 'Registry' : undefined} className="flex-1">
-                    <Input {...register(`registration_numbers.${i}.registry`)} placeholder="e.g. AAA" />
-                  </Field>
-                  <Field label={i === 0 ? 'Number' : undefined} className="flex-1">
-                    <Input {...register(`registration_numbers.${i}.number`)} placeholder="12345678" />
-                  </Field>
-                  <button
-                    type="button"
-                    onClick={() => removeReg(i)}
-                    className="h-10 w-10 flex items-center justify-center rounded-[var(--radius-md)] shrink-0 transition-colors duration-150"
-                    style={{ color: 'var(--danger-fg)', border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))}
-              <Button type="button" intent="ghost" size="sm" leading={<Plus size={14} />} onClick={() => addReg({ registry: '', number: '' })}>
-                ADD REGISTRY
-              </Button>
-            </div>
-          </PanelSection>
-        </Panel>
-
-        {/* Panel 5 — Lineage */}
-        <Panel title="LINEAGE">
-          <PanelSection>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Dam ID" helper="UUID of dam record">
-                <Input {...register('dam_id')} placeholder="Optional" />
-              </Field>
-              <Field label="Sire ID" helper="UUID of sire record">
-                <Input {...register('sire_id')} placeholder="Optional" />
-              </Field>
-            </div>
-          </PanelSection>
-        </Panel>
-
-        {/* Panel 5b — Owner */}
-        <Panel title="OWNER">
-          <PanelSection>
+            {/* Owner */}
             <Field label="Owner" helper="Leave blank if this is your animal">
               <Select
-                value={watch('owner_id') || ''}
+                value={ownerId || ''}
                 onChange={e => handleOwnerChange(e.target.value || null)}
               >
                 <option value="">My Animal (Ranch Default)</option>
@@ -862,60 +566,446 @@ export default function NewAnimalPage() {
               </Select>
             </Field>
             {defaultsApplied && (
-              <div className="mt-3">
-                <ContextBanner tone="info" eyebrow="DEFAULTS APPLIED">
-                  Applied {defaultsApplied}&apos;s cattle defaults to this form. You can override any field.
-                </ContextBanner>
+              <ContextBanner tone="info" eyebrow="DEFAULTS APPLIED">
+                Applied {defaultsApplied}&apos;s cattle defaults. You can override any field.
+              </ContextBanner>
+            )}
+          </div>
+        )
+
+      // ── 3. Age ──────────────────────────────────────────────────────────────
+      case 'age':
+        return (
+          <div className="flex flex-col gap-5">
+            <Toggle
+              checked={dobEstimated}
+              onChange={setDobEstimated}
+              label="AGE IS APPROXIMATE"
+              description="Use if exact date of birth is unknown"
+            />
+
+            {!dobEstimated ? (
+              <Field label="Date of birth">
+                <Input type="date" value={dob} onChange={e => setDob(e.target.value)} />
+              </Field>
+            ) : (
+              <Field label="Approximate age" helper="e.g. '3 years old' or 'Spring 2023 calf'">
+                <Input value={approximateAge} onChange={e => setApproximateAge(e.target.value)} placeholder="e.g. 3 years old" />
+              </Field>
+            )}
+          </div>
+        )
+
+      // ── 4. Breed ────────────────────────────────────────────────────────────
+      case 'breed':
+        return (
+          <div className="flex flex-col gap-4">
+            <ContextBanner tone="info">
+              Leave blank to skip. If entered, percentages must total 100%.
+            </ContextBanner>
+            <BreedSelector value={breeds} onChange={setBreeds} error={breedError || undefined} />
+          </div>
+        )
+
+      // ── 5. Details ──────────────────────────────────────────────────────────
+      case 'details':
+        if (source === 'home_raised') {
+          return (
+            <div className="flex flex-col gap-5">
+              <ContextBanner tone="info" eyebrow="COST BASIS">
+                Cost basis is built from conception costs, vet bills, and grazing — tracked automatically.
+              </ContextBanner>
+
+              {/* Birth weight */}
+              <Field label="Birth weight (lbs)">
+                <Input
+                  type="number" step="0.1"
+                  value={birthWeightLbs}
+                  onChange={e => setBirthWeightLbs(e.target.value)}
+                  placeholder="Optional"
+                />
+              </Field>
+              <Toggle
+                checked={birthWeightEstimated}
+                onChange={setBirthWeightEstimated}
+                label="BIRTH WEIGHT IS ESTIMATED"
+              />
+
+              {/* Conception method */}
+              <div>
+                <p className="type-field-label mb-2">Conception method</p>
+                <div className="flex gap-2">
+                  {(['natural', 'ai', 'embryo'] as const).map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setConceptionMethod(m)}
+                      className="px-4 py-2 rounded-[var(--radius-md)] type-label font-bold uppercase tracking-wider"
+                      style={{
+                        background: conceptionMethod === m ? 'var(--accent)' : 'var(--surface-2)',
+                        color: conceptionMethod === m ? '#fff' : 'var(--text-muted)',
+                        border: `1px solid ${conceptionMethod === m ? 'var(--accent)' : 'var(--border)'}`,
+                      }}
+                    >
+                      {m === 'natural' ? 'Natural' : m === 'ai' ? 'AI' : 'Embryo'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {conceptionMethod === 'ai' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="AI Tech Fee ($)">
+                    <Input type="number" step="0.01" value={aiCost} onChange={e => setAiCost(e.target.value)} placeholder="0.00" />
+                  </Field>
+                  <Field label="Semen Cost ($)">
+                    <Input type="number" step="0.01" value={semenCost} onChange={e => setSemenCost(e.target.value)} placeholder="0.00" />
+                  </Field>
+                </div>
+              )}
+
+              {conceptionMethod === 'embryo' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Embryo Cost ($)">
+                    <Input type="number" step="0.01" value={embryoCost} onChange={e => setEmbryoCost(e.target.value)} placeholder="0.00" />
+                  </Field>
+                  <Field label="Implant Fee ($)">
+                    <Input type="number" step="0.01" value={implantFee} onChange={e => setImplantFee(e.target.value)} placeholder="0.00" />
+                  </Field>
+                </div>
+              )}
+
+              {/* Dam / Sire */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Dam ID" helper="UUID of dam record (optional)">
+                  <Input value={damId} onChange={e => setDamId(e.target.value)} placeholder="Optional" />
+                </Field>
+                <Field label="Sire ID" helper="UUID of sire record (optional)">
+                  <Input value={sireId} onChange={e => setSireId(e.target.value)} placeholder="Optional" />
+                </Field>
+              </div>
+            </div>
+          )
+        }
+
+        // Purchased / pair
+        return (
+          <div className="flex flex-col gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Field label="Purchase date">
+                <Input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
+              </Field>
+              <Field label="Purchase price ($)">
+                <Input type="number" step="0.01" value={purchasePrice} onChange={e => setPurchasePrice(e.target.value)} placeholder="0.00" />
+              </Field>
+              <Field label="Vendor / Source">
+                <Input value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Ranch name, sale barn…" />
+              </Field>
+            </div>
+
+            {/* Brand inspection */}
+            <Field label="Brand Inspection" helper="Upload photo or scan of inspection paperwork">
+              {brandInspectionUrl ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={brandInspectionUrl} alt="Brand inspection" className="w-full h-full object-cover" />
+                  </div>
+                  <button
+                    type="button"
+                    className="type-helper"
+                    style={{ color: 'var(--danger-fg)' }}
+                    onClick={() => setBrandInspectionUrl(null)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <label
+                  className="inline-flex items-center gap-2 cursor-pointer px-3 py-2 rounded-[var(--radius-md)] transition-colors duration-150 type-button"
+                  style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                >
+                  <Upload size={15} />
+                  {uploadingDoc ? 'Uploading…' : 'Upload document'}
+                  <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleBrandInspectionUpload} disabled={uploadingDoc} />
+                </label>
+              )}
+            </Field>
+          </div>
+        )
+
+      // ── 6. Pair calf ─────────────────────────────────────────────────────────
+      case 'pair_calf':
+        return (
+          <div className="flex flex-col gap-5">
+            <ContextBanner tone="info">
+              Calf will be linked to this cow as dam. Owner transfers automatically.
+            </ContextBanner>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Calf tag number" required error={submitted && !pairCalf.tag_number.trim() ? 'Tag number required' : undefined}>
+                <Input
+                  value={pairCalf.tag_number}
+                  onChange={e => setPairCalf(p => ({ ...p, tag_number: e.target.value }))}
+                  placeholder="e.g. 2501"
+                  invalid={submitted && !pairCalf.tag_number.trim()}
+                />
+              </Field>
+              <Field label="Calf sex">
+                <SegmentedControl
+                  value={pairCalf.calf_sex}
+                  onChange={v => setPairCalf(p => ({ ...p, calf_sex: v as PairCalfSex }))}
+                  items={[
+                    { value: 'heifer_calf', label: 'HEIFER' },
+                    { value: 'bull_calf',   label: 'BULL' },
+                    { value: 'calf',        label: 'UNKNOWN' },
+                  ]}
+                  block size="sm"
+                />
+              </Field>
+              <div>
+                <Field label="Calf DOB">
+                  <Input type="date" value={pairCalf.dob} onChange={e => setPairCalf(p => ({ ...p, dob: e.target.value }))} />
+                </Field>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="checkbox"
+                    id="pair_dob_est"
+                    checked={pairCalf.dob_estimated}
+                    onChange={e => setPairCalf(p => ({ ...p, dob_estimated: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <label htmlFor="pair_dob_est" className="type-helper" style={{ color: 'var(--text-muted)' }}>DOB is estimated</label>
+                </div>
+              </div>
+              <Field label="Calf birth weight (lbs)">
+                <Input
+                  type="number" step="0.1"
+                  value={pairCalf.birth_weight_lbs}
+                  onChange={e => setPairCalf(p => ({ ...p, birth_weight_lbs: e.target.value }))}
+                  placeholder="Optional"
+                />
+              </Field>
+            </div>
+            <Field label="Calf ear tag color">
+              <EarTagColorPicker
+                value={pairCalf.ear_tag_color || tagColor}
+                onChange={v => setPairCalf(p => ({ ...p, ear_tag_color: v }))}
+              />
+            </Field>
+          </div>
+        )
+
+      // ── 7. Photo ────────────────────────────────────────────────────────────
+      case 'photo':
+        return (
+          <div className="flex flex-col gap-4">
+            {photoUrls.length > 0 && (
+              <div className="flex flex-wrap gap-3">
+                {photoUrls.map(url => (
+                  <div key={url} className="relative w-24 h-24 rounded-[var(--radius-md)] overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="object-cover w-full h-full" />
+                  </div>
+                ))}
               </div>
             )}
-          </PanelSection>
-        </Panel>
+            <label
+              className="inline-flex items-center gap-2 cursor-pointer px-4 py-3 rounded-[var(--radius-md)] transition-colors duration-150 type-button"
+              style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)', alignSelf: 'flex-start' }}
+            >
+              <Upload size={16} />
+              {uploadingPhoto ? 'Uploading…' : photoUrls.length > 0 ? 'Add another photo' : 'Upload photo'}
+              <input type="file" accept="image/*" className="sr-only" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+            </label>
+            <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+              Optional — you can add photos later from the animal record.
+            </p>
+          </div>
+        )
 
-        {/* Panel 6 — Photos */}
-        <Panel title="PHOTOS">
-          <PanelSection>
-            <div className="flex flex-wrap gap-3 mb-3">
-              {photoUrls.map(url => (
-                <div key={url} className="relative w-20 h-20 rounded-[var(--radius-md)] overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="" className="object-cover w-full h-full" />
+      // ── 8. Repro ────────────────────────────────────────────────────────────
+      case 'repro':
+        return (
+          <div className="flex flex-col gap-5">
+            <div className="grid grid-cols-2 gap-3">
+              <BigBtn selected={arrivedBred === 'open'} onClick={() => setArrivedBred('open')} emoji="⬜" label="OPEN" sub="Not currently bred" />
+              <BigBtn selected={arrivedBred === 'bred'} onClick={() => setArrivedBred('bred')} emoji="✅" label="BRED" sub="Arrived pregnant / recently bred" />
+            </div>
+
+            {arrivedBred === 'bred' && (
+              <div className="flex flex-col gap-4 pt-2">
+                <Field label="Breed date" required error={submitted && !breedDate ? 'Breed date required' : undefined}>
+                  <Input
+                    type="date"
+                    value={breedDate}
+                    onChange={e => setBreedDate(e.target.value)}
+                    invalid={submitted && !breedDate}
+                  />
+                </Field>
+
+                <div>
+                  <p className="type-field-label mb-2">Method</p>
+                  <SegmentedControl
+                    value={breedMethod}
+                    onChange={v => setBreedMethod(v as 'natural' | 'ai')}
+                    items={[
+                      { value: 'natural', label: 'NATURAL' },
+                      { value: 'ai',      label: 'AI' },
+                    ]}
+                    block
+                  />
+                </div>
+
+                <Field label="Sire name" helper="Optional — who was she bred to?">
+                  <Input value={reproSireName} onChange={e => setReproSireName(e.target.value)} placeholder="Optional" />
+                </Field>
+
+                <Field label="Expected calving date" helper="Auto-calculated as breed date + 283 days">
+                  <Input
+                    type="date"
+                    value={expectedCalving}
+                    onChange={e => { setExpectedCalving(e.target.value); setCalvingDateEdited(true) }}
+                  />
+                </Field>
+
+                <Toggle
+                  checked={pregConfirmed}
+                  onChange={setPregConfirmed}
+                  label="PREGNANCY CONFIRMED"
+                  description="Mark if preg check has already confirmed this breeding"
+                />
+              </div>
+            )}
+          </div>
+        )
+
+      // ── 9. Review ────────────────────────────────────────────────────────────
+      case 'review': {
+        const rows: [string, string][] = [
+          ['Source',    source === 'home_raised' ? 'Born here' : source === 'pair' ? 'Purchased as pair' : 'Purchased'],
+          ['Sex',       sex],
+          ['Tag #',     tagNumber],
+          ['Tag color', tagColor],
+        ]
+        if (animalName) rows.push(['Name', animalName])
+        if (dob)        rows.push(['DOB', dob + (dobEstimated ? ' (estimated)' : '')])
+        if (approximateAge) rows.push(['Age', approximateAge])
+        if (breeds.length > 0) rows.push(['Breed', breeds.map(b => `${b.breed} ${b.pct}%`).join(', ')])
+        if (source !== 'home_raised') {
+          if (purchaseDate)  rows.push(['Purchase date', purchaseDate])
+          if (purchasePrice) rows.push(['Purchase price', `$${purchasePrice}`])
+          if (vendor)        rows.push(['Vendor', vendor])
+        } else {
+          if (birthWeightLbs) rows.push(['Birth weight', `${birthWeightLbs} lbs${birthWeightEstimated ? ' (est.)' : ''}`])
+          rows.push(['Conception', conceptionMethod])
+          if (damId)  rows.push(['Dam ID', damId])
+          if (sireId) rows.push(['Sire ID', sireId])
+        }
+        if (source === 'pair') rows.push(['Pair calf tag', pairCalf.tag_number])
+        if (photoUrls.length > 0) rows.push(['Photos', `${photoUrls.length} uploaded`])
+        if (sex === 'cow' || sex === 'heifer') {
+          rows.push(['Repro status', arrivedBred === 'bred' ? 'Bred' : 'Open'])
+          if (arrivedBred === 'bred') {
+            rows.push(['Breed date', breedDate])
+            if (expectedCalving) rows.push(['Expected calving', expectedCalving])
+            rows.push(['Preg confirmed', pregConfirmed ? 'Yes' : 'No'])
+          }
+        }
+
+        return (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-[var(--radius-lg)] overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              {rows.map(([label, value], i) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-4 px-4 py-3"
+                  style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)', backgroundColor: 'var(--surface-1)' }}
+                >
+                  <span className="type-helper" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{label}</span>
+                  <span className="type-data-sm text-right capitalize">{value}</span>
                 </div>
               ))}
             </div>
-            <label
-              className="inline-flex items-center gap-2 cursor-pointer px-3 py-2 rounded-[var(--radius-md)] transition-colors duration-150 type-button"
-              style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
-            >
-              <Upload size={15} />
-              {uploadingPhoto ? 'Uploading…' : 'Upload photo'}
-              <input type="file" accept="image/*" className="sr-only" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
-            </label>
-          </PanelSection>
-        </Panel>
 
-        {/* Panel 7 — Notes */}
-        <Panel title="NOTES">
-          <PanelSection>
-            <Field label="Notes">
-              <Textarea {...register('notes')} rows={4} placeholder="Any additional notes…" />
-            </Field>
-          </PanelSection>
-        </Panel>
+            {error && (
+              <p className="text-sm px-3 py-2 rounded-[var(--radius-md)]"
+                style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
+                {error}
+              </p>
+            )}
 
-        {error && (
-          <p
-            className="text-sm px-3 py-2 rounded-[var(--radius-md)]"
-            style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}
-          >
-            {error}
+            <Button intent="primary" loading={saving} onClick={handleSave}>
+              SAVE ANIMAL
+            </Button>
+          </div>
+        )
+      }
+    }
+  }
+
+  // ── Progress indicator ──────────────────────────────────────────────────────
+
+  const totalSteps = steps.length
+  const pct = totalSteps > 1 ? Math.round((stepIdx / (totalSteps - 1)) * 100) : 100
+
+  return (
+    <PageContainer variant="narrow">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <p className="type-helper uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+            Step {stepIdx + 1} of {totalSteps}
           </p>
-        )}
+        </div>
+        <p className="type-panel-title">{STEP_TITLES[currentStep]}</p>
 
-        <ActionFooter
-          primary={<Button type="submit" intent="primary" loading={saving}>SAVE ANIMAL</Button>}
-          secondary={<Button type="button" intent="ghost" onClick={() => router.back()}>CANCEL</Button>}
-        />
-      </form>
+        {/* Progress bar */}
+        <div className="mt-3 h-1 rounded-full" style={{ backgroundColor: 'var(--border)' }}>
+          <div
+            className="h-1 rounded-full transition-all duration-300"
+            style={{ width: `${pct}%`, backgroundColor: 'var(--accent)' }}
+          />
+        </div>
+      </div>
+
+      {/* Step content */}
+      <div className="mb-8">
+        {renderStep()}
+      </div>
+
+      {/* Navigation footer */}
+      {currentStep !== 'review' && (
+        <div className="flex items-center gap-3">
+          {stepIdx > 0 && (
+            <button
+              type="button"
+              onClick={goBack}
+              className="flex items-center gap-1 type-helper"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <ChevronLeft size={16} />
+              Back
+            </button>
+          )}
+          <div className="ml-auto">
+            <Button intent="primary" onClick={goNext}>
+              {stepIdx === totalSteps - 2 ? 'REVIEW' : 'NEXT'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {currentStep === 'review' && stepIdx > 0 && (
+        <button
+          type="button"
+          onClick={goBack}
+          className="flex items-center gap-1 type-helper mt-2"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <ChevronLeft size={16} />
+          Back
+        </button>
+      )}
     </PageContainer>
   )
 }
