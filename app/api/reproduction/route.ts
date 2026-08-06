@@ -239,6 +239,7 @@ export async function POST(req: NextRequest) {
       sex:                     'calf',
       calf_sex:                cd_calf_sex || null,
       status:                  'active',
+      origin:                  'home_raised',
       dob:                     cd_dob || event_date,
       birth_weight_lbs:        cd_birth_weight_lbs || null,
       birth_weight_estimated:  cd_birth_weight_estimated ?? true,

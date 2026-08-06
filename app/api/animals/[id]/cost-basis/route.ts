@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data: animal } = await supabase
     .from('animals')
-    .select('id, origin, purchase_price, ai_cost, semen_cost, embryo_cost, implant_fee, manual_grazing_cost_override')
+    .select('id, origin, sex, weaning_date, purchase_price, ai_cost, semen_cost, embryo_cost, implant_fee, manual_grazing_cost_override')
     .eq('id', id)
     .maybeSingle()
 
@@ -40,9 +40,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
     0,
   )
 
-  // Grazing costs
+  // Grazing costs — unweaned calves ride with dam and are not billed separately
   let grazingCosts = 0
-  if (animal.manual_grazing_cost_override != null) {
+  if (animal.sex === 'calf' && !animal.weaning_date) {
+    grazingCosts = 0
+  } else if (animal.manual_grazing_cost_override != null) {
     grazingCosts = animal.manual_grazing_cost_override
   } else {
     // Fetch assignments with lease rate data
