@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Camera, ChevronRight, Undo2, CheckCircle, Plus } from 'lucide-react'
-import { apiGet, apiPost, apiDelete, apiPatch } from '@/lib/fetch'
+import { apiGet, apiPost, apiDelete } from '@/lib/fetch'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { deriveReproStatus, type ReproStatusResult } from '@/lib/repro-status'
 
@@ -87,7 +87,7 @@ interface TaskDataEntry {
 interface SavedEvent { task: TaskType; deleteUrl: string }
 
 interface StrawsUsedEntry {
-  semen_inventory_id: string; sire_name: string; prev_count: number
+  semen_inventory_id: string; sire_name: string; newStrawCount: number
 }
 
 interface ProcessedAnimal {
@@ -1467,12 +1467,13 @@ function SummaryScreen({
   const pregChecks  = processed.filter(p => p.taskData.preg_result != null).length
 
   // Straw usage summary
-  const strawMap = new Map<string, { sire_name: string; used: number; prev: number }>()
+  const strawMap = new Map<string, { sire_name: string; used: number; finalCount: number }>()
   for (const p of processed) {
     if (p.strawsUsed) {
-      const { semen_inventory_id, sire_name, prev_count } = p.strawsUsed
-      const entry = strawMap.get(semen_inventory_id) ?? { sire_name, used: 0, prev: prev_count }
+      const { semen_inventory_id, sire_name, newStrawCount } = p.strawsUsed
+      const entry = strawMap.get(semen_inventory_id) ?? { sire_name, used: 0, finalCount: newStrawCount }
       entry.used += 1
+      entry.finalCount = newStrawCount
       strawMap.set(semen_inventory_id, entry)
     }
   }
@@ -1535,8 +1536,8 @@ function SummaryScreen({
               <div key={id} className="flex items-center justify-between px-4 rounded-[var(--radius-lg)] mb-2"
                 style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', minHeight: 48 }}>
                 <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: '0.9rem' }}>{entry.sire_name}</span>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '0.85rem', color: entry.prev - entry.used === 0 ? 'var(--danger-fg)' : 'var(--text-muted)' }}>
-                  {entry.prev} → {entry.prev - entry.used} ({entry.used} used{entry.prev - entry.used === 0 ? ' — OUT' : ''})
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '0.85rem', color: entry.finalCount === 0 ? 'var(--danger-fg)' : 'var(--text-muted)' }}>
+                  {entry.used} used → {entry.finalCount} left{entry.finalCount === 0 ? ' — OUT' : ''}
                 </span>
               </div>
             ))}
@@ -1760,117 +1761,34 @@ export default function ChutePage() {
         })())
       }
 
-      // BREEDING
+      // BREEDING — delegated to /api/breeding/record (handles straw, expenses, reminder, guard)
       if (applicableTasks.includes('breeding') && !taskData.not_bred && (taskData.semen_inventory_id || taskData.natural_service)) {
         promises.push((async () => {
-          // If overriding an existing bred cycle, delete old event first
-          if (currentRepro?.lastBred?.eventId) {
-            const oldEventId = currentRepro.lastBred.eventId
-            const oldInvId   = currentRepro.lastBred.semenInventoryId
-            await apiDelete(`/api/reproduction/${oldEventId}`)
-            // Optionally return straw to inventory
-            if (overrideReturnStraw && oldInvId) {
-              const tankRes  = await apiGet('/api/genetics/tank')
-              const tankJson = await tankRes.json()
-              const oldStraw = (tankJson.data ?? []).find((s: SemenStraw) => s.id === oldInvId)
-              if (oldStraw) {
-                await apiPatch('/api/genetics/tank', { id: oldInvId, straw_count: (oldStraw.straw_count ?? 0) + 1 })
-              }
-            }
+          const isOverride = !!(currentRepro?.lastBred?.eventId)
+          const breedPayload: Record<string, unknown> = {
+            animal_id:          currentAnimal.id,
+            event_date:         date,
+            conception_method:  taskData.natural_service ? 'natural' : 'ai',
+            semen_inventory_id: taskData.semen_inventory_id || null,
+            sire_name_text:     taskData.sire_name_text     || null,
+            sire_library_id:    taskData.sire_library_id    || null,
+            ai_technician:      technician                  || null,
+            notes:              null,
           }
-
-          let straw: SemenStraw | undefined
-          let pricePerStraw = 0
-
-          // Deduct straw from inventory
-          if (taskData.semen_inventory_id) {
-            const tankRes  = await apiGet('/api/genetics/tank')
-            const tankJson = await tankRes.json()
-            straw = (tankJson.data ?? []).find((s: SemenStraw) => s.id === taskData.semen_inventory_id)
-            if (straw && straw.straw_count > 0) {
-              await fetch('/api/genetics/tank', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ id: straw.id, straw_count: straw.straw_count - 1 }),
-              })
-              strawsUsed   = { semen_inventory_id: straw.id, sire_name: straw.sire_name, prev_count: straw.straw_count }
-              pricePerStraw = straw.price_per_straw ?? 0
-            }
+          if (isOverride) {
+            breedPayload.override              = true
+            breedPayload.original_straw_action = overrideReturnStraw ? 'return' : 'keep'
           }
-
-          const isAi = !taskData.natural_service
-          const res = await apiPost('/api/reproduction', {
-            animal_id:             currentAnimal.id,
-            event_type:            'bred',
-            event_date:            date,
-            conception_method:     isAi ? 'ai' : 'natural',
-            sire_name_text:        taskData.sire_name_text     || null,
-            sire_library_id:       taskData.sire_library_id    || null,
-            semen_inventory_id:    taskData.semen_inventory_id || null,
-            ai_technician:         technician                  || null,
-            ai_cost:               isAi && aiTechFeePerCow > 0 ? aiTechFeePerCow : null,
-            straw_cost:            pricePerStraw > 0            ? pricePerStraw   : null,
-            expected_calving_date: addDays(date, 283),
-          })
-          const j = await res.json()
-          const newEventId = j.data?.id ?? null
+          const res = await apiPost('/api/breeding/record', breedPayload)
+          const j   = await res.json()
+          if (!res.ok) throw new Error(j.error ?? 'Breeding save failed')
+          const newEventId = j.event?.id ?? null
           if (newEventId) savedEvents.push({ task: 'breeding', deleteUrl: `/api/reproduction/${newEventId}` })
-
-          // Preg-check reminder for all breedings (AI and natural service)
-          const pregCheckDue = addDays(date, aiPregCheckDaysOut)
-          const tagLabel     = `${currentAnimal.ear_tag_color ?? ''} ${currentAnimal.tag_number}`.trim()
-          await apiPost('/api/reminders', {
-            animal_id:             currentAnimal.id,
-            reminder_type:         'preg_check',
-            due_date:              pregCheckDue,
-            title:                 `Preg check — ${tagLabel}`,
-            reproduction_event_id: newEventId,
-          })
-
-          if (isAi) {
-            // Owner-specific expenses for animals with an owner
-            if (currentAnimal.owner_id) {
-              const qtr      = Math.ceil((new Date(date).getMonth() + 1) / 3)
-              const yr       = new Date(date).getFullYear() % 100
-              const bullName = taskData.sire_name_text || straw?.sire_name || 'AI breeding'
-
-              const expensePosts: Promise<Response>[] = []
-              if (aiTechFeePerCow > 0) {
-                expensePosts.push(apiPost('/api/expenses', {
-                  category_name:        'AI Technician Fee',
-                  expense_type:         'owner_specific',
-                  owner_id:             currentAnimal.owner_id,
-                  total_amount:         aiTechFeePerCow,
-                  expense_date:         date,
-                  quarter:              qtr,
-                  year:                 yr,
-                  description:          `AI Tech Fee — ${bullName}`,
-                  is_lease_specific:    false,
-                  reproduction_event_id: newEventId,
-                }))
-              }
-              if (pricePerStraw > 0) {
-                expensePosts.push(apiPost('/api/expenses', {
-                  category_name:        'Semen Straws',
-                  expense_type:         'owner_specific',
-                  owner_id:             currentAnimal.owner_id,
-                  total_amount:         pricePerStraw,
-                  expense_date:         date,
-                  quarter:              qtr,
-                  year:                 yr,
-                  description:          `${bullName} semen straw`,
-                  sire_library_id:      taskData.sire_library_id || straw?.sire_library_id || null,
-                  is_lease_specific:    false,
-                  reproduction_event_id: newEventId,
-                }))
-              }
-              if (expensePosts.length) {
-                const expenseResults = await Promise.all(expensePosts.map(p => p.then(r => r.json())))
-                for (const r of expenseResults) {
-                  if (r.data?.id) extraDeleteUrls.push(`/api/expenses/${r.data.id}`)
-                }
-              }
+          if (taskData.semen_inventory_id && j.newStrawCount != null) {
+            strawsUsed = {
+              semen_inventory_id: taskData.semen_inventory_id,
+              sire_name:          taskData.sire_name_text ?? 'Unknown',
+              newStrawCount:      j.newStrawCount as number,
             }
           }
         })())
@@ -1949,7 +1867,7 @@ export default function ChutePage() {
       await fetch('/api/genetics/tank', {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: last.strawsUsed.semen_inventory_id, straw_count: last.strawsUsed.prev_count }),
+        body: JSON.stringify({ id: last.strawsUsed.semen_inventory_id, straw_count: last.strawsUsed.newStrawCount + 1 }),
       }).catch(() => {})
     }
     await Promise.allSettled(last.savedEvents.map(e => apiDelete(e.deleteUrl)))

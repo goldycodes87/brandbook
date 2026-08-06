@@ -154,6 +154,16 @@ export function ReproEventForm({
   const [error,            setError]            = useState('')
   const [successMsg,       setSuccessMsg]       = useState('')
 
+  // Re-breed guard state
+  const [overrideDialogOpen,  setOverrideDialogOpen]  = useState(false)
+  const [overrideBlockInfo,   setOverrideBlockInfo]   = useState<{
+    blockReason: string | null
+    overridable: boolean
+    lastBred: { eventId: string | null; sireName: string | null; date: string; semenInventoryId: string | null } | null
+  } | null>(null)
+  const [overrideStrawAction, setOverrideStrawAction] = useState<'return' | 'keep'>('keep')
+  const [pendingBreedPayload, setPendingBreedPayload] = useState<Record<string, unknown> | null>(null)
+
   // Calf fields
   const [calfTag,        setCalfTag]        = useState('')
   const [calfColor,      setCalfColor]      = useState<string | null>(null)
@@ -324,6 +334,21 @@ export function ReproEventForm({
         }
         res  = await apiPost('/api/breeding/record', breedPayload)
         json = await res.json()
+        if (res.status === 409 && json.blocked) {
+          if (json.overridable) {
+            setOverrideBlockInfo({
+              blockReason: json.blockReason as string | null,
+              overridable: true,
+              lastBred:    json.lastBred as { eventId: string | null; sireName: string | null; date: string; semenInventoryId: string | null } | null,
+            })
+            setPendingBreedPayload(breedPayload)
+            setOverrideStrawAction('keep')
+            setOverrideDialogOpen(true)
+          } else {
+            setError((json.blockReason as string | null) ?? 'Cannot breed this animal at this time')
+          }
+          return
+        }
         if (!res.ok) { setError((json.error as string | undefined) ?? 'Save failed'); return }
         if (json.strawShort) {
           setSuccessMsg('Breeding recorded. Note: straw count could not be decremented (may be at 0).')
@@ -340,6 +365,33 @@ export function ReproEventForm({
       onSuccess(json)
     } catch (err: unknown) {
       console.error('[weaning UI] error:', err)
+      setError(err instanceof Error ? err.message : 'Connection error — please try again')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleOverrideConfirm = async () => {
+    if (!pendingBreedPayload) return
+    setOverrideDialogOpen(false)
+    setSaving(true)
+    setError('')
+    try {
+      const overridePayload = {
+        ...pendingBreedPayload,
+        override:              true,
+        original_straw_action: overrideStrawAction,
+      }
+      const res  = await apiPost('/api/breeding/record', overridePayload)
+      const json = await res.json()
+      if (!res.ok) { setError((json.error as string | undefined) ?? 'Save failed'); return }
+      if (json.strawShort) {
+        setSuccessMsg('Breeding recorded. Note: straw count could not be decremented (may be at 0).')
+      }
+      setPendingBreedPayload(null)
+      setOverrideBlockInfo(null)
+      onSuccess(json)
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Connection error — please try again')
     } finally {
       setSaving(false)
@@ -701,6 +753,66 @@ export function ReproEventForm({
         confirmLabel="DELETE"
         loading={deleting}
       />
+
+      {/* Re-breed override dialog */}
+      {overrideDialogOpen && overrideBlockInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-5"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--border)', boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}>
+            <div>
+              <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '0.9rem', color: 'var(--warning-fg)', letterSpacing: '0.06em', marginBottom: 8 }}>
+                ALREADY BRED
+              </p>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                {overrideBlockInfo.blockReason}. Override this and record a new breeding?
+              </p>
+            </div>
+
+            {overrideBlockInfo.lastBred?.semenInventoryId && (
+              <div>
+                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: 8 }}>
+                  ORIGINAL STRAW
+                </p>
+                <div className="flex gap-2">
+                  <button type="button"
+                    onClick={() => setOverrideStrawAction('return')}
+                    className="flex-1 rounded-xl py-2.5"
+                    style={{
+                      backgroundColor: overrideStrawAction === 'return' ? 'var(--accent-soft)' : 'var(--surface-2)',
+                      border: `1px solid ${overrideStrawAction === 'return' ? 'var(--accent-border)' : 'var(--border)'}`,
+                      color: overrideStrawAction === 'return' ? 'var(--accent)' : 'var(--text-muted)',
+                      fontSize: '0.78rem', fontWeight: 700,
+                    }}>
+                    RETURN (+1)
+                  </button>
+                  <button type="button"
+                    onClick={() => setOverrideStrawAction('keep')}
+                    className="flex-1 rounded-xl py-2.5"
+                    style={{
+                      backgroundColor: overrideStrawAction === 'keep' ? 'var(--accent-soft)' : 'var(--surface-2)',
+                      border: `1px solid ${overrideStrawAction === 'keep' ? 'var(--accent-border)' : 'var(--border)'}`,
+                      color: overrideStrawAction === 'keep' ? 'var(--accent)' : 'var(--text-muted)',
+                      fontSize: '0.78rem', fontWeight: 700,
+                    }}>
+                    KEEP AS USED
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button type="button" intent="ghost"
+                onClick={() => { setOverrideDialogOpen(false); setPendingBreedPayload(null) }}>
+                CANCEL
+              </Button>
+              <Button type="button" intent="primary" loading={saving} onClick={handleOverrideConfirm}>
+                OVERRIDE &amp; SAVE
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   )
 }

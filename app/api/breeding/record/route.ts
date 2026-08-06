@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { deriveReproStatus } from '@/lib/repro-status'
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -23,15 +24,17 @@ export async function POST(req: NextRequest) {
   const {
     animal_id,
     event_date,
-    conception_method = 'natural',
+    conception_method    = 'natural',
     semen_inventory_id,
     sire_id,
     sire_library_id,
     sire_name_text,
     ai_technician,
-    ai_cost:      aiCostInput,
-    straw_cost:   strawCostInput,
-    deduct_straw: deductStraw = true,
+    ai_cost:               aiCostInput,
+    straw_cost:            strawCostInput,
+    deduct_straw:          deductStraw = true,
+    override               = false,
+    original_straw_action,
     notes,
   } = body
 
@@ -41,12 +44,18 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createAdminClient() as any
 
-  // ── a. Read animal + ranch_settings ────────────────────────────────────────
-  const [{ data: animal }, { data: ranch }] = await Promise.all([
-    supabase.from('animals').select('id, owner_id').eq('id', animal_id).single(),
+  // ── a. Read animal + ranch_settings + existing repro events ────────────────
+  const [{ data: animal }, { data: ranch }, { data: existingEvents }] = await Promise.all([
+    supabase.from('animals')
+      .select('id, owner_id, sex, dob, breeding_eligible')
+      .eq('id', animal_id).single(),
     supabase.from('ranch_settings')
       .select('ai_tech_fee_per_cow, ai_preg_check_days_out')
       .limit(1).maybeSingle(),
+    supabase.from('reproduction_events')
+      .select('id, event_type, event_date, preg_check_result, sire_name_text, sire_library_id, semen_inventory_id, expected_calving_date')
+      .eq('animal_id', animal_id)
+      .order('event_date', { ascending: false }),
   ])
 
   if (!animal) return NextResponse.json({ error: 'Animal not found' }, { status: 404 })
@@ -54,7 +63,41 @@ export async function POST(req: NextRequest) {
   const techFeeDefault   = ranch?.ai_tech_fee_per_cow    ?? 0
   const pregCheckDaysOut = ranch?.ai_preg_check_days_out ?? 45
 
-  // ── Resolve AI cost/straw defaults ─────────────────────────────────────────
+  // ── b. Re-breed guard ──────────────────────────────────────────────────────
+  const repro = deriveReproStatus(
+    { sex: animal.sex, dob: animal.dob, breeding_eligible: animal.breeding_eligible },
+    existingEvents ?? [],
+  )
+
+  if (!repro.breedable) {
+    const overridableStatuses = ['bred', 'confirmed', 'recheck']
+    const isOverridable = overridableStatuses.includes(repro.status)
+
+    if (!override) {
+      return NextResponse.json(
+        {
+          blocked:     true,
+          overridable: isOverridable,
+          blockReason: repro.blockReason,
+          lastBred:    repro.lastBred,
+        },
+        { status: 409 },
+      )
+    }
+
+    // override === true: delete original active event (cascade removes reminder + expenses)
+    if (repro.lastBred?.eventId) {
+      await supabase.from('reproduction_events').delete().eq('id', repro.lastBred.eventId)
+      if (original_straw_action === 'return' && repro.lastBred.semenInventoryId) {
+        await supabase.rpc('adjust_straw', {
+          p_inventory_id: repro.lastBred.semenInventoryId,
+          p_delta:        1,
+        })
+      }
+    }
+  }
+
+  // ── c. Resolve AI cost / straw defaults ────────────────────────────────────
   let resolvedAiCost:    number | null = null
   let resolvedStrawCost: number | null = null
 
@@ -75,7 +118,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── b. Insert reproduction_events 'bred' row ───────────────────────────────
+  // ── d. Insert reproduction_events 'bred' row ───────────────────────────────
   const { data: event, error: eventErr } = await supabase
     .from('reproduction_events')
     .insert({
@@ -104,7 +147,7 @@ export async function POST(req: NextRequest) {
   const expenseIds: string[] = []
   let reminderId: string | null = null
 
-  // ── c. Deduct straw (non-fatal) ────────────────────────────────────────────
+  // ── e. Deduct straw (non-fatal) ────────────────────────────────────────────
   if (conception_method === 'ai' && semen_inventory_id && deductStraw) {
     try {
       const { data: rpcData, error: rpcErr } = await supabase.rpc('adjust_straw', {
@@ -121,7 +164,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── d. Create owner_specific lease_expenses for AI on owned animals ────────
+  // ── f. Create owner_specific lease_expenses for AI on owned animals ────────
   if (conception_method === 'ai' && animal.owner_id) {
     const { quarter, year } = quarterOf(event_date)
     const sirePart = sire_name_text ? ` — ${sire_name_text}` : ''
@@ -130,31 +173,31 @@ export async function POST(req: NextRequest) {
 
     if (resolvedAiCost != null && resolvedAiCost > 0) {
       rows.push({
-        category_name:          'AI Technician Fee',
-        expense_type:           'owner_specific',
-        description:            `AI tech fee${sirePart}`,
-        total_amount:           resolvedAiCost,
-        expense_date:           event_date,
-        owner_id:               animal.owner_id,
-        is_lease_specific:      false,
+        category_name:         'AI Technician Fee',
+        expense_type:          'owner_specific',
+        description:           `AI tech fee${sirePart}`,
+        total_amount:          resolvedAiCost,
+        expense_date:          event_date,
+        owner_id:              animal.owner_id,
+        is_lease_specific:     false,
         quarter,
         year,
-        reproduction_event_id:  eventId,
+        reproduction_event_id: eventId,
       })
     }
 
     if (resolvedStrawCost != null && resolvedStrawCost > 0) {
       rows.push({
-        category_name:          'Semen Straws',
-        expense_type:           'owner_specific',
-        description:            `Semen straw${sirePart}`,
-        total_amount:           resolvedStrawCost,
-        expense_date:           event_date,
-        owner_id:               animal.owner_id,
-        is_lease_specific:      false,
+        category_name:         'Semen Straws',
+        expense_type:          'owner_specific',
+        description:           `Semen straw${sirePart}`,
+        total_amount:          resolvedStrawCost,
+        expense_date:          event_date,
+        owner_id:              animal.owner_id,
+        is_lease_specific:     false,
         quarter,
         year,
-        reproduction_event_id:  eventId,
+        reproduction_event_id: eventId,
       })
     }
 
@@ -169,23 +212,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── e. Preg-check reminder for ALL breedings ───────────────────────────────
+  // ── g. Preg-check reminder for ALL breedings ───────────────────────────────
   const pregDueDate = addDays(event_date, pregCheckDaysOut)
   const { data: reminder } = await supabase
     .from('reminders')
     .insert({
       animal_id,
-      reminder_type:          'preg_check',
-      title:                  'Preg check due',
-      due_date:               pregDueDate,
-      reproduction_event_id:  eventId,
+      reminder_type:         'preg_check',
+      title:                 'Preg check due',
+      due_date:              pregDueDate,
+      reproduction_event_id: eventId,
     })
     .select('id')
     .single()
 
   if (reminder) reminderId = reminder.id
 
-  // ── f. Return ──────────────────────────────────────────────────────────────
+  // ── h. Return ──────────────────────────────────────────────────────────────
   return NextResponse.json(
     { event, newStrawCount, strawShort, expenseIds, reminderId },
     { status: 201 },
