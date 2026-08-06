@@ -312,3 +312,92 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
 
   return Buffer.from(await pdfDoc.save())
 }
+
+export type ReportSection = {
+  heading: string
+  rows: { label: string; value: string }[]
+  table?: { columns: string[]; rows: string[][] }
+}
+
+export async function generateReportPdfBuffer(
+  title: string,
+  sections: ReportSection[],
+): Promise<Buffer> {
+  const pdfDoc   = await PDFDocument.create()
+  const font     = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+
+  let page = pdfDoc.addPage([PW, PH])
+  let y = PH - M
+
+  // Title header
+  const HDR_H = 40
+  page.drawRectangle({ x: M, y: y - HDR_H, width: CW, height: HDR_H, color: RED })
+  page.drawText(sanitize(title), { x: M + 12, y: y - HDR_H + 14, size: 16, font: fontBold, color: WHITE })
+  const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  rightText(page, font, dateStr, 9, PW - M - 4, y - HDR_H + 16, LIGHT_RED)
+  y -= HDR_H + 20
+
+  const maybeNewPage = (neededH: number) => {
+    if (y - neededH < M + 20) {
+      page = pdfDoc.addPage([PW, PH])
+      y = PH - M
+    }
+  }
+
+  for (const section of sections) {
+    maybeNewPage(32)
+
+    // Section heading bar
+    page.drawRectangle({ x: M, y: y - 20, width: CW, height: 20, color: BG_GRAY })
+    page.drawText(sanitize(section.heading), { x: M + 6, y: y - 14, size: 10, font: fontBold, color: RED })
+    y -= 28
+
+    // Key-value rows
+    for (const row of section.rows) {
+      maybeNewPage(18)
+      page.drawText(sanitize(row.label), { x: M + 8, y, size: 10, font, color: GRAY })
+      rightText(page, fontBold, sanitize(row.value), 10, PW - M, y)
+      y -= 16
+      page.drawLine({ start: { x: M, y }, end: { x: PW - M, y }, thickness: 0.3, color: RULE })
+    }
+
+    // Optional table
+    if (section.table && section.table.rows.length > 0) {
+      y -= 8
+      const { columns, rows: tRows } = section.table
+      const colCount = columns.length
+      const colW = CW / colCount
+
+      maybeNewPage(22 + Math.min(tRows.length, 5) * 16)
+
+      // Table header row
+      page.drawRectangle({ x: M, y: y - 18, width: CW, height: 18, color: RED })
+      columns.forEach((col, i) => {
+        if (i === 0) {
+          page.drawText(sanitize(col), { x: M + i * colW + 4, y: y - 13, size: 8, font: fontBold, color: WHITE })
+        } else {
+          rightText(page, fontBold, sanitize(col), 8, M + (i + 1) * colW - 4, y - 13, WHITE)
+        }
+      })
+      y -= 18
+
+      for (const tr of tRows) {
+        maybeNewPage(18)
+        page.drawLine({ start: { x: M, y: y + 1 }, end: { x: PW - M, y: y + 1 }, thickness: 0.3, color: RULE })
+        tr.forEach((cell, i) => {
+          if (i === 0) {
+            page.drawText(sanitize(cell), { x: M + i * colW + 4, y: y - 12, size: 9, font, color: DARK })
+          } else {
+            rightText(page, font, sanitize(cell), 9, M + (i + 1) * colW - 4, y - 12)
+          }
+        })
+        y -= 16
+      }
+    }
+
+    y -= 16
+  }
+
+  return Buffer.from(await pdfDoc.save())
+}
