@@ -13,6 +13,7 @@ interface GrazingOwner {
   company_name: string | null
   owner_name: string | null
   email: string | null
+  is_self: boolean
 }
 
 interface Props {
@@ -57,7 +58,7 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose }: Props) {
     }
     fetch('/api/grazing-owners')
       .then(r => r.json())
-      .then(j => setOwners(j.data ?? []))
+      .then(j => setOwners((j.data ?? []).filter((o: GrazingOwner) => !o.is_self)))
   }, [isOpen])
 
   const ownerDisplay = (o: GrazingOwner) => o.company_name || o.owner_name || o.name

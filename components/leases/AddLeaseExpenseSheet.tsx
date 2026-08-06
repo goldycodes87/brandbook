@@ -63,15 +63,15 @@ interface AumOwnerRow {
   percent_of_herd: number
 }
 
-interface GrazingOwner { id: string; name: string; company_name: string | null; owner_name: string | null }
-interface LeaseAnimal  { id: string; tag_number: string; name: string | null; ear_tag_color: string | null; sex: string | null }
+interface GrazingOwner { id: string; name: string; company_name: string | null; owner_name: string | null; is_self: boolean }
+interface LeaseAnimal  { id: string; tag_number: string; name: string | null; ear_tag_color: string | null; sex: string | null; owner_id: string | null }
 
 type ExpenseType = 'shared' | 'owner_specific' | 'animal_specific'
 
 const TYPE_CONFIG: Record<ExpenseType, { emoji: string; label: string; sub: string }> = {
   shared:          { emoji: '🌾', label: 'SHARED',         sub: 'Split by herd %' },
   owner_specific:  { emoji: '👤', label: 'OWNER SPECIFIC', sub: 'One owner' },
-  animal_specific: { emoji: '🐄', label: 'ANIMAL SPECIFIC', sub: 'One animal' },
+  animal_specific: { emoji: '🐄', label: 'ANIMAL SPECIFIC', sub: 'Split across animals' },
 }
 
 type Scope = 'whole_herd' | 'lease_specific'
@@ -131,7 +131,7 @@ export function AddLeaseExpenseSheet({
   const [unitCost,      setUnitCost]     = useState('')
   const [notes,         setNotes]        = useState('')
   const [ownerId,       setOwnerId]      = useState<string | null>(null)
-  const [animalId,      setAnimalId]     = useState<string | null>(null)
+  const [animalIds,     setAnimalIds]    = useState<string[]>([])
   const [animalSearch,  setAnimalSearch] = useState('')
   const [owners,        setOwners]       = useState<GrazingOwner[]>([])
   const [animals,       setAnimals]      = useState<LeaseAnimal[]>([])
@@ -189,7 +189,7 @@ export function AddLeaseExpenseSheet({
       setUnitCost(initialData.unit_cost != null ? String(initialData.unit_cost) : '')
       setNotes(initialData.notes ?? '')
       setOwnerId(initialData.owner_id)
-      setAnimalId(initialData.animal_id)
+      setAnimalIds(initialData.animal_id ? [initialData.animal_id] : [])
       setIncludeCalves(Boolean(initialData.include_calves))
       const ct: 'period' | 'one_time' = initialData.period_start ? 'period' : 'one_time'
       setCalcType(ct)
@@ -214,7 +214,7 @@ export function AddLeaseExpenseSheet({
       setUnitCost('')
       setNotes('')
       setOwnerId(null)
-      setAnimalId(null)
+      setAnimalIds([])
       setAnimalSearch('')
       setIncludeCalves(false)
       setCalcType('period')
@@ -240,7 +240,6 @@ export function AddLeaseExpenseSheet({
 
   const activeCats = categories[expenseType] ?? []
   const selectedOwner  = owners.find(o => o.id === ownerId)
-  const selectedAnimal = animals.find(a => a.id === animalId)
   const filteredAnimals = animalSearch
     ? animals.filter(a =>
         a.tag_number.toLowerCase().includes(animalSearch.toLowerCase()) ||
@@ -254,7 +253,7 @@ export function AddLeaseExpenseSheet({
     const amt = parseFloat(computedTotal)
     if (!categoryName || isNaN(amt)) { setError('Category and amount are required'); return }
     if (expenseType === 'owner_specific' && ownerId === null) { setError('Select an owner'); return }
-    if (expenseType === 'animal_specific' && !animalId) { setError('Select an animal'); return }
+    if (expenseType === 'animal_specific' && animalIds.length === 0) { setError('Select at least one animal'); return }
     if (descriptionRequired && !description.trim()) { setError('Description is required for this expense type'); return }
 
     const isWholeHerd = expenseType === 'shared' && scope === 'whole_herd'
@@ -268,6 +267,36 @@ export function AddLeaseExpenseSheet({
 
     setSaving(true); setError('')
     try {
+      // Multi-animal split: one row per animal, equal per-head, owner routed from animal record
+      if (expenseType === 'animal_specific' && mode !== 'edit') {
+        const selfOwner = owners.find(o => o.is_self) ?? null
+        const N = animalIds.length
+        const totalCents = Math.round(amt * 100)
+        const perHeadCents = Math.floor(totalCents / N)
+        for (let idx = 0; idx < N; idx++) {
+          const aId = animalIds[idx]
+          const animal = animals.find(a => a.id === aId)
+          const routedOwnerId = animal?.owner_id ?? selfOwner?.id ?? null
+          const shareCents = idx === N - 1 ? totalCents - perHeadCents * (N - 1) : perHeadCents
+          const res = await apiPost('/api/expenses', {
+            category_name:    categoryName,
+            category_id:      categoryId,
+            expense_type:     'animal_specific',
+            description:      description.trim() || null,
+            total_amount:     shareCents / 100,
+            expense_date:     expenseDate || null,
+            notes:            notes || null,
+            owner_id:         routedOwnerId,
+            animal_id:        aId,
+            is_lease_specific: false,
+          })
+          const json = await res.json()
+          if (!res.ok) { setError(json.error ?? 'Save failed'); return }
+        }
+        onSuccess(); onClose()
+        return
+      }
+
       // For whole-herd: auto-derive period from selected quarter
       let pStart = calcType === 'period' ? (periodStart || null) : null
       let pEnd   = calcType === 'period' ? (periodEnd   || null) : null
@@ -288,7 +317,7 @@ export function AddLeaseExpenseSheet({
         period_end:       pEnd,
         notes:            notes || null,
         owner_id:         expenseType === 'owner_specific'  ? (ownerId === 'null' ? null : ownerId)  : null,
-        animal_id:        expenseType === 'animal_specific' ? animalId : null,
+        animal_id:        expenseType === 'animal_specific' ? (animalIds[0] ?? null) : null,
         qty:              quantity ? parseFloat(quantity) : null,
         unit_cost:        unitCost ? parseFloat(unitCost) : null,
         include_calves:   expenseType === 'shared' ? includeCalves : false,
@@ -552,32 +581,43 @@ export function AddLeaseExpenseSheet({
                 </Field>
               )}
 
-              {/* Animal selector for animal_specific */}
+              {/* Animal selector for animal_specific — multi-select */}
               {expenseType === 'animal_specific' && (
-                <Field label="Animal" required>
+                <Field label={`Animals (${animalIds.length} selected)`} required>
                   <Input
                     placeholder="Search by tag or name…"
                     value={animalSearch}
                     onChange={e => setAnimalSearch(e.target.value)}
                     className="mb-2"
                   />
-                  <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
-                    {filteredAnimals.map(a => (
-                      <button
-                        key={a.id}
-                        type="button"
-                        className="text-left px-3 py-2.5 rounded-lg transition-all"
-                        style={{
-                          border:     `1.5px solid ${animalId === a.id ? 'var(--accent)' : 'var(--border)'}`,
-                          background: animalId === a.id ? 'var(--accent-soft)' : 'var(--surface-1)',
-                          color:      animalId === a.id ? 'var(--accent)' : 'var(--text)',
-                        }}
-                        onClick={() => setAnimalId(a.id)}
-                      >
-                        <span className="font-mono font-semibold">#{a.tag_number}</span>
-                        {a.name && <span className="ml-2 type-helper" style={{ color: 'var(--text-muted)' }}>{a.name}</span>}
-                      </button>
-                    ))}
+                  <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto">
+                    {filteredAnimals.map(a => {
+                      const checked = animalIds.includes(a.id)
+                      return (
+                        <label
+                          key={a.id}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all"
+                          style={{
+                            border:     `1.5px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
+                            background: checked ? 'var(--accent-soft)' : 'var(--surface-1)',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              setAnimalIds(prev =>
+                                e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id)
+                              )
+                            }}
+                          />
+                          <span className="font-mono font-semibold" style={{ color: checked ? 'var(--accent)' : 'var(--text)' }}>
+                            #{a.tag_number}
+                          </span>
+                          {a.name && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{a.name}</span>}
+                        </label>
+                      )
+                    })}
                     {filteredAnimals.length === 0 && (
                       <p className="type-helper px-2" style={{ color: 'var(--text-muted)' }}>No animals found</p>
                     )}
@@ -834,11 +874,19 @@ export function AddLeaseExpenseSheet({
               )}
 
               {expenseType === 'animal_specific' && (
-                <ContextBanner tone="gold">
-                  Full amount billed for animal{' '}
-                  <strong>#{selectedAnimal?.tag_number ?? '—'}</strong>:{' '}
-                  <strong>{fmt(parseFloat(computedTotal) || 0)}</strong>
-                </ContextBanner>
+                animalIds.length === 1 ? (
+                  <ContextBanner tone="gold">
+                    Full amount billed for animal{' '}
+                    <strong>#{animals.find(a => a.id === animalIds[0])?.tag_number ?? '—'}</strong>:{' '}
+                    <strong>{fmt(parseFloat(computedTotal) || 0)}</strong>
+                  </ContextBanner>
+                ) : (
+                  <ContextBanner tone="gold">
+                    <strong>{fmt(parseFloat(computedTotal) || 0)}</strong> split equally across{' '}
+                    <strong>{animalIds.length} animals</strong>{' '}
+                    ({fmt((parseFloat(computedTotal) || 0) / Math.max(animalIds.length, 1))}/head)
+                  </ContextBanner>
+                )
               )}
             </>
           )}
@@ -870,14 +918,14 @@ export function AddLeaseExpenseSheet({
                 (step === 1 && expenseType === 'shared' && scope === 'lease_specific' && !leaseId && !selectedLeaseId) ||
                 (step === 2 && !categoryId) ||
                 (step === 2 && expenseType === 'owner_specific' && !ownerId) ||
-                (step === 2 && expenseType === 'animal_specific' && !animalId)
+                (step === 2 && expenseType === 'animal_specific' && animalIds.length === 0)
               }
               onClick={() => {
                 setError('')
                 if (step === 1 && expenseType === 'shared' && scope === 'lease_specific' && !leaseId && !selectedLeaseId) { setError('Select a lease'); return }
                 if (step === 2 && !categoryId) { setError('Select a category'); return }
                 if (step === 2 && expenseType === 'owner_specific' && !ownerId) { setError('Select an owner'); return }
-                if (step === 2 && expenseType === 'animal_specific' && !animalId) { setError('Select an animal'); return }
+                if (step === 2 && expenseType === 'animal_specific' && animalIds.length === 0) { setError('Select at least one animal'); return }
                 if (step === 3 && descriptionRequired && !description.trim()) {
                   setError('Description is required for this expense type')
                   return

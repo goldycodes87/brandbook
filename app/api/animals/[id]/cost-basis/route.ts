@@ -75,12 +75,25 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
   }
 
-  const totalInvested = baseCost + vetCosts + breedingCosts + grazingCosts
+  // Animal-specific expenses logged against this animal
+  const { data: animalExpenses } = await supabase
+    .from('lease_expenses')
+    .select('total_amount')
+    .eq('animal_id', id)
+    .eq('expense_type', 'animal_specific')
+
+  const animalExpenseCosts = (animalExpenses ?? []).reduce(
+    (sum, e) => sum + (e.total_amount || 0),
+    0,
+  )
+
+  const totalInvested = baseCost + vetCosts + breedingCosts + grazingCosts + animalExpenseCosts
 
   return NextResponse.json({
     base_cost: baseCost,
     vet_costs: vetCosts,
     grazing_costs: grazingCosts,
+    animal_expense_costs: animalExpenseCosts,
     total_invested: totalInvested,
     manual_override: animal.manual_grazing_cost_override != null,
     breakdown: {
@@ -92,6 +105,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       vet_bills: vetCosts,
       breeding_costs: breedingCosts,
       grazing: grazingCosts,
+      animal_expenses: animalExpenseCosts,
     },
   })
 }

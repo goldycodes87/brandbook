@@ -101,6 +101,7 @@ interface CostBasis {
     vet_bills: number
     breeding_costs: number
     grazing: number
+    animal_expenses: number
   }
 }
 
@@ -222,6 +223,7 @@ function FinancialsBreakdown({ costBasis, revenue, animalId, onRefresh }: { cost
             ['Vet bills', bd.vet_bills],
             ...(bd.breeding_costs > 0 ? [['Breeding costs', bd.breeding_costs] as [string, number]] : []),
             ['Grazing costs', bd.grazing],
+            ...(bd.animal_expenses > 0 ? [['Animal expenses', bd.animal_expenses] as [string, number]] : []),
           ] as [string, number][]).map(([label, val]) => (
             <div key={String(label)} className="flex justify-between type-helper">
               <span style={{ color: 'var(--text-muted)' }}>{label}</span>

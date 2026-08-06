@@ -18,6 +18,7 @@ interface GrazingOwner {
   owner_name: string | null
   email: string | null
   phone: string | null
+  is_self: boolean
 }
 
 interface OwnerLease {
@@ -124,7 +125,7 @@ export function InvoiceForm({ mode, initialData, onSuccess, onCancel }: InvoiceF
 
   // Load owners and categories
   useEffect(() => {
-    apiGet('/api/grazing-owners').then(r => r.json()).then(d => setOwners(d.data ?? []))
+    apiGet('/api/grazing-owners').then(r => r.json()).then(d => setOwners((d.data ?? []).filter((o: GrazingOwner) => !o.is_self)))
     apiGet('/api/billing/expenses/categories').then(r => r.json()).then(d => setCategories(d.data ?? []))
   }, [])
 
@@ -176,7 +177,7 @@ export function InvoiceForm({ mode, initialData, onSuccess, onCancel }: InvoiceF
     setGenerateMsg('')
     setHerdSummary(null)
     try {
-      const ownerName = ownerLabel(owners.find(o => o.id === ownerId) ?? { id: '', name: '', company_name: null, owner_name: null, email: null, phone: null })
+      const ownerName = ownerLabel(owners.find(o => o.id === ownerId) ?? { id: '', name: '', company_name: null, owner_name: null, email: null, phone: null, is_self: false })
       const leaseName = ownerLeases.find(l => l.id === leaseId)?.property_name ?? 'lease'
 
       const res  = await apiPost('/api/billing/generate', {
