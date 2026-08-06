@@ -109,6 +109,49 @@ const STEP_TITLES: Record<StepKey, string> = {
   review:   'Review & Save',
 }
 
+// ── AI cost disclosure (collapsed by default) ─────────────────────────────────
+
+function AiCostDisclosure({ aiCost, setAiCost, semenCost, setSemenCost }: {
+  aiCost: string; setAiCost: (v: string) => void
+  semenCost: string; setSemenCost: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-[var(--radius-md)] overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        style={{ backgroundColor: 'var(--surface-2)' }}
+      >
+        <div>
+          <span className="type-field-label">Advanced — historical cost (optional)</span>
+          {!open && (aiCost || semenCost) && (
+            <span className="type-helper ml-2" style={{ color: 'var(--accent)' }}>values entered</span>
+          )}
+        </div>
+        <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-3 flex flex-col gap-4" style={{ backgroundColor: 'var(--surface-1)' }}>
+          <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+            AI cost normally lives on the dam&apos;s breeding record (straw + cow). Only enter here when
+            backfilling an animal that has no breeding history.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="AI tech fee ($)">
+              <Input type="number" step="0.01" value={aiCost} onChange={e => setAiCost(e.target.value)} placeholder="0.00" />
+            </Field>
+            <Field label="Semen cost ($)">
+              <Input type="number" step="0.01" value={semenCost} onChange={e => setSemenCost(e.target.value)} placeholder="0.00" />
+            </Field>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Big option button ─────────────────────────────────────────────────────────
 
 function BigBtn({ selected, onClick, emoji, label, sub }: {
@@ -612,10 +655,6 @@ export default function NewAnimalPage() {
         if (source === 'home_raised') {
           return (
             <div className="flex flex-col gap-5">
-              <ContextBanner tone="info" eyebrow="COST BASIS">
-                Cost basis is built from conception costs, vet bills, and grazing — tracked automatically.
-              </ContextBanner>
-
               {/* Birth weight */}
               <Field label="Birth weight (lbs)">
                 <Input
@@ -634,45 +673,54 @@ export default function NewAnimalPage() {
               {/* Conception method */}
               <div>
                 <p className="type-field-label mb-2">Conception method</p>
-                <div className="flex gap-2">
-                  {(['natural', 'ai', 'embryo'] as const).map(m => (
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'natural', label: 'Natural Service' },
+                    { value: 'ai',      label: 'AI' },
+                    { value: 'embryo',  label: 'Embryo (ET)' },
+                  ] as const).map(m => (
                     <button
-                      key={m}
+                      key={m.value}
                       type="button"
-                      onClick={() => setConceptionMethod(m)}
-                      className="px-4 py-2 rounded-[var(--radius-md)] type-label font-bold uppercase tracking-wider"
+                      onClick={() => setConceptionMethod(m.value)}
+                      className="px-3 py-2.5 rounded-[var(--radius-md)] type-label font-bold uppercase tracking-wider text-center"
                       style={{
-                        background: conceptionMethod === m ? 'var(--accent)' : 'var(--surface-2)',
-                        color: conceptionMethod === m ? '#fff' : 'var(--text-muted)',
-                        border: `1px solid ${conceptionMethod === m ? 'var(--accent)' : 'var(--border)'}`,
+                        background: conceptionMethod === m.value ? 'var(--accent)' : 'var(--surface-2)',
+                        color: conceptionMethod === m.value ? '#fff' : 'var(--text-muted)',
+                        border: `1px solid ${conceptionMethod === m.value ? 'var(--accent)' : 'var(--border)'}`,
                       }}
                     >
-                      {m === 'natural' ? 'Natural' : m === 'ai' ? 'AI' : 'Embryo'}
+                      {m.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {conceptionMethod === 'ai' && (
+              {/* ET: embryo + implant costs are calf-level costs */}
+              {conceptionMethod === 'embryo' && (
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="AI Tech Fee ($)">
-                    <Input type="number" step="0.01" value={aiCost} onChange={e => setAiCost(e.target.value)} placeholder="0.00" />
+                  <Field label="Embryo cost ($)" helper="Cost of the embryo itself">
+                    <Input type="number" step="0.01" value={embryoCost} onChange={e => setEmbryoCost(e.target.value)} placeholder="0.00" />
                   </Field>
-                  <Field label="Semen Cost ($)">
-                    <Input type="number" step="0.01" value={semenCost} onChange={e => setSemenCost(e.target.value)} placeholder="0.00" />
+                  <Field label="Implant fee ($)" helper="Vet / tech fee to transfer">
+                    <Input type="number" step="0.01" value={implantFee} onChange={e => setImplantFee(e.target.value)} placeholder="0.00" />
                   </Field>
                 </div>
               )}
 
-              {conceptionMethod === 'embryo' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Embryo Cost ($)">
-                    <Input type="number" step="0.01" value={embryoCost} onChange={e => setEmbryoCost(e.target.value)} placeholder="0.00" />
-                  </Field>
-                  <Field label="Implant Fee ($)">
-                    <Input type="number" step="0.01" value={implantFee} onChange={e => setImplantFee(e.target.value)} placeholder="0.00" />
-                  </Field>
-                </div>
+              {/* Natural: no cost fields */}
+              {conceptionMethod === 'natural' && (
+                <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                  Natural-service cost is carried by the herd bull — no additional cost tracked on this calf.
+                </p>
+              )}
+
+              {/* AI: costs collapsed by default */}
+              {conceptionMethod === 'ai' && (
+                <AiCostDisclosure
+                  aiCost={aiCost} setAiCost={setAiCost}
+                  semenCost={semenCost} setSemenCost={setSemenCost}
+                />
               )}
 
               {/* Dam / Sire */}
