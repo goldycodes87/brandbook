@@ -72,28 +72,34 @@ function statusBadge(status: string) {
 export default function OwnerPortalPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
 
-  const [valid, setValid]           = useState<boolean | null>(null)
-  const [owner, setOwner]           = useState<OwnerInfo | null>(null)
-  const [animals, setAnimals]       = useState<Animal[]>([])
-  const [invoices, setInvoices]     = useState<Invoice[]>([])
+  const [valid, setValid]             = useState<boolean | null>(null)
+  const [owner, setOwner]             = useState<OwnerInfo | null>(null)
+  const [animals, setAnimals]         = useState<Animal[]>([])
+  const [invoices, setInvoices]       = useState<Invoice[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
-  const [tab, setTab]               = useState<Tab>('animals')
-  const [loading, setLoading]       = useState(true)
+  const [tab, setTab]                 = useState<Tab>('animals')
+  const [loading, setLoading]         = useState(true)
   const [reportLoading, setReportLoading] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/portals/owner/verify?token=${token}`)
+    // Establish session — sets httpOnly cookie with owner_id
+    fetch('/api/portals/owner/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
       .then(r => r.json())
       .then(async d => {
-        if (!d.valid) { setValid(false); setLoading(false); return }
+        if (!d.ok) { setValid(false); setLoading(false); return }
         setOwner(d.owner)
         setValid(true)
 
+        // Load all data from session-scoped routes (no owner_id in URL)
         const [animRes, invRes, settleRes] = await Promise.all([
-          fetch(`/api/animals?owner_id=${d.owner.id}&limit=200`).then(r => r.json()),
-          fetch(`/api/billing?owner_id=${d.owner.id}&limit=100`).then(r => r.json()),
-          fetch(`/api/grazing-owners/${d.owner.id}/settlement`).then(r => r.json()),
+          fetch('/api/portals/owner/animals').then(r => r.json()),
+          fetch('/api/portals/owner/invoices').then(r => r.json()),
+          fetch('/api/portals/owner/settlement').then(r => r.json()),
         ])
         setAnimals(animRes.data ?? [])
         setInvoices(invRes.data ?? [])
@@ -104,15 +110,18 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   }, [token])
 
   const handleGenerateReport = async () => {
-    if (!owner) return
     setReportLoading(true)
     try {
-      const res  = await fetch(`/api/grazing-owners/${owner.id}/annual-report?year=${selectedYear}`, { method: 'POST' })
+      const res  = await fetch('/api/portals/owner/annual-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: selectedYear }),
+      })
       const data = await res.json()
-      if (data.data?.pdf_url) {
-        window.open(data.data.pdf_url, '_blank')
+      if (data.pdf_url) {
+        window.open(data.pdf_url, '_blank')
         // Refresh settlements to get updated pdf_url
-        const settleRes = await fetch(`/api/grazing-owners/${owner.id}/settlement`).then(r => r.json())
+        const settleRes = await fetch('/api/portals/owner/settlement').then(r => r.json())
         setSettlements(settleRes.data ?? [])
       }
     } finally {
