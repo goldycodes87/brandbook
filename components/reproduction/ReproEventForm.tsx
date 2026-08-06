@@ -307,13 +307,36 @@ export function ReproEventForm({
         }
       }
 
-      const res  = eventId
-        ? await apiPatch(`/api/reproduction/${eventId}`, payload)
-        : await apiPost('/api/reproduction', payload)
-      const json = await res.json()
-      console.log('[weaning UI] result:', json)
-      if (!res.ok) { setError(json.error ?? 'Save failed'); return }
+      let res: Response
+      let json: Record<string, unknown>
 
+      if (!eventId && eventType === 'bred') {
+        // Route through the shared breeding pipeline
+        const breedPayload: Record<string, unknown> = {
+          animal_id:          animalId,
+          event_date:         eventDate,
+          conception_method:  conceptionMethod,
+          sire_id:            sireId,
+          sire_name_text:     sireName,
+          sire_library_id:    sireLibraryId,
+          ai_technician:      conceptionMethod === 'ai' ? (aiTech || null) : null,
+          notes:              notes || null,
+        }
+        res  = await apiPost('/api/breeding/record', breedPayload)
+        json = await res.json()
+        if (!res.ok) { setError((json.error as string | undefined) ?? 'Save failed'); return }
+        if (json.strawShort) {
+          setSuccessMsg('Breeding recorded. Note: straw count could not be decremented (may be at 0).')
+        }
+      } else {
+        res  = eventId
+          ? await apiPatch(`/api/reproduction/${eventId}`, payload)
+          : await apiPost('/api/reproduction', payload)
+        json = await res.json()
+        if (!res.ok) { setError((json.error as string | undefined) ?? 'Save failed'); return }
+      }
+
+      console.log('[repro form] result:', json)
       onSuccess(json)
     } catch (err: unknown) {
       console.error('[weaning UI] error:', err)
