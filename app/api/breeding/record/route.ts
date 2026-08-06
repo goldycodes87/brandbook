@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
     deduct_straw:          deductStraw = true,
     override               = false,
     original_straw_action,
+    protocol_group_id,
+    protocol_step,
     notes,
   } = body
 
@@ -134,6 +136,8 @@ export async function POST(req: NextRequest) {
       ai_cost:                conception_method === 'ai' ? resolvedAiCost    : null,
       straw_cost:             conception_method === 'ai' ? resolvedStrawCost : null,
       expected_calving_date:  addDays(event_date, 283),
+      protocol_group_id:      protocol_group_id || null,
+      protocol_step:          protocol_step     || null,
       notes:                  notes || null,
     })
     .select()

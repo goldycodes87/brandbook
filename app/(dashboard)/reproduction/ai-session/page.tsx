@@ -12,7 +12,7 @@ import { Panel } from '@/components/ui/Panel'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
+import { apiGet, apiPost } from '@/lib/fetch'
 import { deriveReproStatus, type ReproStatusResult } from '@/lib/repro-status'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -60,9 +60,6 @@ function fmtDate(s: string): string {
   return new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function currentQtr(): 1 | 2 | 3 | 4 { return Math.ceil((new Date().getMonth() + 1) / 3) as 1 | 2 | 3 | 4 }
-function currentYr(): number { return new Date().getFullYear() % 100 }
-
 function uuid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = Math.random() * 16 | 0
@@ -99,11 +96,17 @@ function AISessionInner() {
   const [aiTechFeePerCow,    setAiTechFeePerCow]    = useState(280)
   const [aiPregCheckDaysOut, setAiPregCheckDaysOut] = useState(45)
 
+  // Override straw decisions: animal id → 'return' | 'keep' (default 'return')
+  const [overrideStrawActions, setOverrideStrawActions] = useState<Record<string, 'return' | 'keep'>>({})
+
   // Step 5 save state
   const [saving,        setSaving]        = useState(false)
   const [saveError,     setSaveError]     = useState('')
   const [done,          setDone]          = useState(false)
-  const [doneData,      setDoneData]      = useState<{ count: number; remainingStraws: number; pregCheckDue: string; calvingWindow: string } | null>(null)
+  const [doneData,      setDoneData]      = useState<{
+    count: number; remainingStraws: number; pregCheckDue: string; calvingWindow: string
+    skipped?: string[]; strawWarnings?: string[]
+  } | null>(null)
 
   // Load semen inventory and ranch settings on mount
   useEffect(() => {
@@ -206,7 +209,6 @@ function AISessionInner() {
   const totalStrawCost= selectedAnimals.length * pricePerStraw
   const grandTotal    = totalTechFee + totalStrawCost
 
-  const calvingDate   = sessionDate ? addDays(sessionDate, 283)                 : null
   const pregCheckDue  = sessionDate ? addDays(sessionDate, aiPregCheckDaysOut) : null
   const calvingWindow = sessionDate ? `${fmtDate(addDays(sessionDate, 273))} – ${fmtDate(addDays(sessionDate, 293))}` : ''
 
@@ -218,94 +220,62 @@ function AISessionInner() {
     if (!selectedInv || !sessionDate || !techName.trim() || selectedAnimals.length === 0) return
     setSaving(true); setSaveError('')
 
-    const bullName = selectedInv.sire_library?.bull_name ?? selectedInv.sire_name
+    const bullName      = selectedInv.sire_library?.bull_name ?? selectedInv.sire_name
     const sireLibraryId = selectedInv.sire_library_id
-    const qtr  = currentQtr()
-    const yr   = currentYr()
+
+    let savedCount      = 0
+    let lastStrawCount: number | null = null
+    const strawWarnings: string[] = []
+    const skippedAnimals: string[] = []
 
     try {
-      await Promise.all(selectedAnimals.map(async animal => {
-        // If overriding an existing bred cycle, delete the old event first (cascade cleans up expenses + reminder)
-        const oldEventId = animal.repro?.lastBred?.eventId ?? null
-        if (oldEventId && animal.repro && !animal.repro.breedable) {
-          await apiDelete(`/api/reproduction/${oldEventId}`)
-          // Return straw for the overridden event if it had inventory
-          const oldInvId = animal.repro.lastBred?.semenInventoryId
-          if (oldInvId) {
-            const tankRes = await apiGet('/api/genetics/tank').then(r => r.json())
-            const oldStraw = (tankRes.data ?? []).find((s: SemenItem) => s.id === oldInvId)
-            if (oldStraw) {
-              await apiPatch('/api/genetics/tank', { id: oldInvId, straw_count: (oldStraw.straw_count ?? 0) + 1 })
-            }
-          }
-        }
+      // Sequential so each straw deduction is atomic per animal
+      for (const animal of selectedAnimals) {
+        const isOverride = !!(animal.repro && !animal.repro.breedable && animal.repro.lastBred?.eventId)
 
-        // 1. Create reproduction event
-        const reproRes = await apiPost('/api/reproduction', {
+        const payload: Record<string, unknown> = {
           animal_id:          animal.id,
-          event_type:         'bred',
           event_date:         sessionDate,
           conception_method:  'ai',
-          ai_technician:      techName,
-          sire_library_id:    sireLibraryId,
           semen_inventory_id: selectedInv.id,
-          protocol_group_id:  groupId,
-          protocol_step:      'ai',
-          expected_calving_date: calvingDate,
+          sire_library_id:    sireLibraryId,
+          sire_name_text:     bullName,
+          ai_technician:      techName,
           ai_cost:            techFeePerCow,
-          straw_cost:         pricePerStraw,
+          straw_cost:         pricePerStraw || null,
           notes:              `AI session — ${bullName}`,
-        })
-        const reproJson = await reproRes.json()
-        const newEventId = reproJson.data?.id ?? null
-
-        // 2. Create preg check reminder (linked to this breeding event)
-        await apiPost('/api/reminders', {
-          animal_id:             animal.id,
-          reminder_type:         'preg_check',
-          due_date:              pregCheckDue,
-          title:                 `Preg check — ${animal.ear_tag_color ?? ''} ${animal.tag_number}`.trim(),
-          protocol_group_id:     groupId,
-          reproduction_event_id: newEventId,
-        })
-
-        // 3. Create expenses for owned animals (owner_id != null)
-        if (animal.owner_id) {
-          await Promise.all([
-            apiPost('/api/expenses', {
-              category_name:        'AI Technician Fee',
-              expense_type:         'owner_specific',
-              owner_id:             animal.owner_id,
-              total_amount:         techFeePerCow,
-              expense_date:         sessionDate,
-              quarter:              qtr,
-              year:                 yr,
-              description:          `AI Tech Fee — ${bullName}`,
-              is_lease_specific:    false,
-              reproduction_event_id: newEventId,
-            }),
-            pricePerStraw > 0 && apiPost('/api/expenses', {
-              category_name:        'Semen Straws',
-              expense_type:         'owner_specific',
-              owner_id:             animal.owner_id,
-              total_amount:         pricePerStraw,
-              expense_date:         sessionDate,
-              quarter:              qtr,
-              year:                 yr,
-              description:          `${bullName} semen straw`,
-              sire_library_id:      sireLibraryId,
-              is_lease_specific:    false,
-              reproduction_event_id: newEventId,
-            }),
-          ].filter(Boolean))
         }
-      }))
 
-      // 4. Deduct straws
-      const newCount = strawsAvailable - strawsNeeded
-      await apiPatch('/api/genetics/tank', { id: selectedInv.id, straw_count: Math.max(0, newCount) })
+        if (logProtocol) {
+          payload.protocol_group_id = groupId
+          payload.protocol_step     = 'ai'
+        }
 
-      // 5. If log protocol steps: create backdated events
+        if (isOverride) {
+          payload.override              = true
+          payload.original_straw_action = overrideStrawActions[animal.id] ?? 'return'
+        }
+
+        const res  = await apiPost('/api/breeding/record', payload)
+        const json = await res.json()
+
+        if (res.status === 409) {
+          // Non-overridable block (too young / fresh / held back): skip animal, don't hard-fail
+          skippedAnimals.push(`#${animal.tag_number} (${(json.blockReason as string | null) ?? 'blocked'})`)
+          continue
+        }
+
+        if (!res.ok) {
+          skippedAnimals.push(`#${animal.tag_number} (save failed)`)
+          continue
+        }
+
+        savedCount++
+        if (json.newStrawCount != null) lastStrawCount = json.newStrawCount as number
+        if (json.strawShort) strawWarnings.push(`#${animal.tag_number}: straw count could not be decremented`)
+      }
+
+      // CIDR protocol marker events (backdated, not subject to guard or straw deduction)
       if (logProtocol && cidrInsert && cidrPull) {
         await Promise.all(selectedAnimals.flatMap(animal => [
           apiPost('/api/reproduction', {
@@ -322,10 +292,12 @@ function AISessionInner() {
       }
 
       setDoneData({
-        count:           selectedAnimals.length,
-        remainingStraws: Math.max(0, newCount),
+        count:           savedCount,
+        remainingStraws: lastStrawCount ?? Math.max(0, strawsAvailable - savedCount),
         pregCheckDue:    pregCheckDue ? fmtDate(pregCheckDue) : '—',
         calvingWindow,
+        skipped:         skippedAnimals,
+        strawWarnings,
       })
       setDone(true)
     } catch {
@@ -341,16 +313,28 @@ function AISessionInner() {
         <div className="flex flex-col gap-4">
           <div className="rounded-2xl p-6 flex flex-col gap-3" style={{ background: 'var(--success-bg)', border: '2px solid var(--success-fg)' }}>
             <p className="text-xl font-bold" style={{ color: 'var(--success-fg)' }}>✓ AI Session Complete!</p>
-            <p className="type-body" style={{ color: 'var(--text)' }}>{doneData.count} cows bred</p>
+            <p className="type-body" style={{ color: 'var(--text)' }}>{doneData.count} cow{doneData.count !== 1 ? 's' : ''} bred</p>
             <p className="type-body" style={{ color: 'var(--text)' }}>
-              {strawsNeeded} straws used — <strong>{doneData.remainingStraws}</strong> remaining
+              {doneData.count} straws used — <strong>{doneData.remainingStraws}</strong> remaining
             </p>
             <p className="type-body" style={{ color: 'var(--text)' }}>Preg checks due: <strong>{doneData.pregCheckDue}</strong></p>
             <p className="type-body" style={{ color: 'var(--text)' }}>Expected calving: <strong>{doneData.calvingWindow}</strong></p>
           </div>
+          {(doneData.skipped?.length ?? 0) > 0 && (
+            <div className="rounded-xl px-4 py-3" style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-border)' }}>
+              <p className="type-helper font-semibold" style={{ color: 'var(--warning-fg)', marginBottom: 4 }}>⚠ {doneData.skipped!.length} animal{doneData.skipped!.length > 1 ? 's' : ''} skipped</p>
+              {doneData.skipped!.map((s, i) => <p key={i} className="type-helper" style={{ color: 'var(--warning-fg)' }}>{s}</p>)}
+            </div>
+          )}
+          {(doneData.strawWarnings?.length ?? 0) > 0 && (
+            <div className="rounded-xl px-4 py-3" style={{ background: 'var(--info-bg)', border: '1px solid var(--info-border)' }}>
+              <p className="type-helper font-semibold" style={{ color: 'var(--info-fg)', marginBottom: 4 }}>Straw count note</p>
+              {doneData.strawWarnings!.map((w, i) => <p key={i} className="type-helper" style={{ color: 'var(--info-fg)' }}>{w}</p>)}
+            </div>
+          )}
           <div className="flex gap-3">
             <Button intent="primary" size="sm" onClick={() => router.push('/reproduction')}>VIEW REPRODUCTION</Button>
-            <Button intent="secondary" size="sm" onClick={() => { setDone(false); setStep(1); setSelected(new Set()); setSelectedInv(null); setTechName(''); setSaveError('') }}>LOG ANOTHER SESSION</Button>
+            <Button intent="secondary" size="sm" onClick={() => { setDone(false); setStep(1); setSelected(new Set()); setSelectedInv(null); setTechName(''); setSaveError(''); setOverrideStrawActions({}) }}>LOG ANOTHER SESSION</Button>
           </div>
         </div>
       </PageContainer>
@@ -661,17 +645,44 @@ function AISessionInner() {
           </ContextBanner>
 
           {overrideAnimals.length > 0 && (
-            <div className="rounded-lg px-4 py-3" style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-border)' }}>
-              <p className="type-helper font-semibold" style={{ color: 'var(--warning-fg)', marginBottom: 4 }}>
+            <div className="rounded-lg px-4 py-3 flex flex-col gap-3" style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-border)' }}>
+              <p className="type-helper font-semibold" style={{ color: 'var(--warning-fg)' }}>
                 ⚠ {overrideAnimals.length} animal{overrideAnimals.length > 1 ? 's are' : ' is'} already bred — will be overridden
               </p>
               {overrideAnimals.map(a => (
-                <p key={a.id} className="type-helper" style={{ color: 'var(--warning-fg)' }}>
-                  #{a.tag_number} — {a.repro?.blockReason}
-                </p>
+                <div key={a.id} className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="type-helper font-semibold" style={{ color: 'var(--warning-fg)' }}>#{a.tag_number}</span>
+                    {a.repro?.blockReason && (
+                      <span className="type-helper ml-2" style={{ color: 'var(--warning-fg)', opacity: 0.75 }}>{a.repro.blockReason}</span>
+                    )}
+                  </div>
+                  {a.repro?.lastBred?.semenInventoryId && (
+                    <div className="flex gap-1 shrink-0">
+                      <button type="button"
+                        onClick={() => setOverrideStrawActions(prev => ({ ...prev, [a.id]: 'return' }))}
+                        className="px-2 py-1 rounded type-helper font-bold"
+                        style={{
+                          backgroundColor: (overrideStrawActions[a.id] ?? 'return') === 'return' ? 'var(--warning-fg)' : 'rgba(0,0,0,0.1)',
+                          color: (overrideStrawActions[a.id] ?? 'return') === 'return' ? '#000' : 'var(--warning-fg)',
+                        }}>
+                        Return +1
+                      </button>
+                      <button type="button"
+                        onClick={() => setOverrideStrawActions(prev => ({ ...prev, [a.id]: 'keep' }))}
+                        className="px-2 py-1 rounded type-helper font-bold"
+                        style={{
+                          backgroundColor: overrideStrawActions[a.id] === 'keep' ? 'var(--warning-fg)' : 'rgba(0,0,0,0.1)',
+                          color: overrideStrawActions[a.id] === 'keep' ? '#000' : 'var(--warning-fg)',
+                        }}>
+                        Keep
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
-              <p className="type-helper mt-2" style={{ color: 'var(--warning-fg)', opacity: 0.8 }}>
-                Previous breeding records and linked expenses will be deleted. Straws will be returned to inventory.
+              <p className="type-helper" style={{ color: 'var(--warning-fg)', opacity: 0.8 }}>
+                Previous records and expenses are deleted. Original straw action is per animal above.
               </p>
             </div>
           )}
