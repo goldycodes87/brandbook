@@ -24,6 +24,8 @@ import { OpenPregnancyCard } from '@/components/animals/PregnancyCard'
 import type { ReproEventShape, CalfRecord } from '@/components/animals/PregnancyCard'
 import { CowCalfCard } from '@/components/animals/CowCalfCard'
 import { DispositionSheet } from '@/components/animals/DispositionSheet'
+import { SaleSheet } from '@/components/animals/SaleSheet'
+import { HarvestSheet } from '@/components/animals/HarvestSheet'
 import { BreedDisplay } from '@/components/animals/BreedDisplay'
 import { BullPerformanceSection } from '@/components/animals/BullPerformanceSection'
 import { PregCheckSheet } from '@/components/reproduction/PregCheckSheet'
@@ -1182,6 +1184,8 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   const [weightOpen, setWeightOpen]   = useState(false)
   const [reproOpen, setReproOpen]     = useState(false)
   const [dispositionOpen, setDispositionOpen] = useState(false)
+  const [saleOpen,     setSaleOpen]     = useState(false)
+  const [harvestOpen,  setHarvestOpen]  = useState(false)
   const [ranchName, setRanchName]     = useState<string | undefined>(undefined)
   const [costBasis, setCostBasis]     = useState<CostBasis | null>(null)
   const [revenue, setRevenue]         = useState<Revenue | null>(null)
@@ -1336,13 +1340,18 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
           <Button intent="secondary" size="sm" onClick={() => setReproOpen(true)}>REPRO EVENT</Button>
         )}
         {animal.status === 'active' && (
-          <Button intent="secondary" size="sm" leading={<ArrowRightSquare size={14} />} onClick={() => setDispositionOpen(true)}>
-            DISPOSITION
+          <Button intent="primary" size="sm" onClick={() => setSaleOpen(true)}>
+            SELL
           </Button>
         )}
-        {animal.sex === 'steer' && animal.status === 'active' && (
-          <Button intent="secondary" size="sm" style={{ borderColor: '#ea580c', color: '#ea580c' }} onClick={() => setDispositionOpen(true)}>
-            BEEF PRODUCTION
+        {animal.status === 'active' && (
+          <Button intent="secondary" size="sm" style={{ borderColor: '#ea580c', color: '#ea580c' }} onClick={() => setHarvestOpen(true)}>
+            HARVEST
+          </Button>
+        )}
+        {animal.status === 'active' && (
+          <Button intent="secondary" size="sm" leading={<ArrowRightSquare size={14} />} onClick={() => setDispositionOpen(true)}>
+            DISPOSITION
           </Button>
         )}
         <ButtonLink href={`/animals/${id}/edit`} intent="ghost" size="sm">EDIT ANIMAL</ButtonLink>
@@ -1422,6 +1431,20 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
         onClose={() => setDispositionOpen(false)}
         animal={{ id, tag_number: animal.tag_number, name: animal.name, sex: animal.sex, ear_tag_color: animal.ear_tag_color, owner_id: animal.owner_id, breeds: animal.breeds }}
         onSuccess={() => { setDispositionOpen(false); fetchAnimal() }}
+      />
+
+      <SaleSheet
+        isOpen={saleOpen}
+        onClose={() => setSaleOpen(false)}
+        animal={{ id, tag_number: animal.tag_number, name: animal.name, ear_tag_color: animal.ear_tag_color }}
+        onSuccess={() => { setSaleOpen(false); fetchAnimal() }}
+      />
+
+      <HarvestSheet
+        isOpen={harvestOpen}
+        onClose={() => setHarvestOpen(false)}
+        animal={{ id, tag_number: animal.tag_number, name: animal.name, ear_tag_color: animal.ear_tag_color }}
+        onSuccess={() => { setHarvestOpen(false); fetchAnimal() }}
       />
     </PageContainer>
   )

@@ -24,45 +24,59 @@ export async function GET(req: NextRequest) {
 
   if (!owner) return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
 
-  // ── Owner's animals ───────────────────────────────────────────────────────
+  // ── Sales income: use owner_id snapshot (primary), fall back for legacy rows ──
+  let line1 = 0   // purchased livestock resold
+  let line2 = 0   // raised livestock sold
+  let costBasis = 0
+
+  // Primary: sales with owner_id snapshot set (new flow)
+  const { data: snapshotSales } = await supabase
+    .from('sales')
+    .select('gross_proceeds, origin')
+    .eq('owner_id', owner_id)
+    .gte('sale_date', yearStart)
+    .lte('sale_date', yearEnd)
+    .not('owner_id', 'is', null)
+
+  for (const s of snapshotSales ?? []) {
+    const p = s.gross_proceeds ?? 0
+    if (s.origin === 'purchased') line1 += p
+    else line2 += p
+  }
+
+  // Fallback: legacy sales rows with no owner_id snapshot — join via current animal owner
   const { data: ownerAnimals } = await supabase
     .from('animals')
     .select('id, origin, purchase_price, ai_cost, semen_cost, embryo_cost, implant_fee')
     .eq('owner_id', owner_id)
-
-  const animalIds  = (ownerAnimals ?? []).map((a: any) => a.id)
-  const animalMap  = Object.fromEntries((ownerAnimals ?? []).map((a: any) => [a.id, a]))
-
-  // ── Sales → Line 1 (purchased resold) and Line 2 (raised sold) ───────────
-  // TODO switch to sales.owner_id snapshot once the Sale flow adds it
-  let line1 = 0
-  let line2 = 0
-  let costBasis = 0
-  const calfShareMemoLines: string[] = []
+  const animalIds = (ownerAnimals ?? []).map((a: any) => a.id)
+  const animalMap = Object.fromEntries((ownerAnimals ?? []).map((a: any) => [a.id, a]))
 
   if (animalIds.length > 0) {
-    const { data: sales } = await supabase
+    const { data: legacySales } = await supabase
       .from('sales')
-      .select('animal_id, gross_proceeds')
+      .select('animal_id, gross_proceeds, origin')
       .in('animal_id', animalIds)
+      .is('owner_id', null)
       .gte('sale_date', yearStart)
       .lte('sale_date', yearEnd)
 
-    for (const sale of sales ?? []) {
-      const proceeds = sale.gross_proceeds ?? 0
-      const animal   = animalMap[sale.animal_id]
-      if (!animal) continue
-      if (animal.origin === 'purchased') {
-        line1     += proceeds
-        costBasis += animal.purchase_price ?? 0
+    for (const s of legacySales ?? []) {
+      const p = s.gross_proceeds ?? 0
+      const origin = s.origin || animalMap[s.animal_id]?.origin
+      if (origin === 'purchased') {
+        line1     += p
+        costBasis += animalMap[s.animal_id]?.purchase_price ?? 0
       } else {
-        line2     += proceeds
-        costBasis += (animal.ai_cost ?? 0) + (animal.semen_cost ?? 0) + (animal.embryo_cost ?? 0) + (animal.implant_fee ?? 0)
+        line2     += p
+        const a = animalMap[s.animal_id]
+        if (a) costBasis += (a.ai_cost ?? 0) + (a.semen_cost ?? 0) + (a.embryo_cost ?? 0) + (a.implant_fee ?? 0)
       }
     }
   }
 
   // ── Calf-share weaning memo ───────────────────────────────────────────────
+  const calfShareMemoLines: string[] = []
   if (animalIds.length > 0) {
     const { data: weanings } = await supabase
       .from('reproduction_events')

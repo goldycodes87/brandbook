@@ -12,6 +12,7 @@ export interface ChipPreset {
 export const ANIMAL_STATUS_CHIP: Record<string, ChipPreset> = {
   active:      { label: "ACTIVE",      tone: "success", icon: "●" },
   sold:        { label: "SOLD",        tone: "neutral" },
+  harvested:   { label: "HARVESTED",   tone: "neutral" },
   deceased:    { label: "DECEASED",    tone: "danger" },
   transferred: { label: "TRANSFERRED", tone: "info" },
 };

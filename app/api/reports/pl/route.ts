@@ -23,27 +23,38 @@ export async function GET(req: NextRequest) {
 
   if (!owner) return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
 
-  // Owner's animal IDs
+  // Income: cattle sales — primary via owner_id snapshot, fallback via animal ownership
+  let salesTotal = 0
+
+  const { data: snapshotSales } = await supabase
+    .from('sales')
+    .select('gross_proceeds')
+    .eq('owner_id', owner_id)
+    .gte('sale_date', yearStart)
+    .lte('sale_date', yearEnd)
+    .not('owner_id', 'is', null)
+
+  salesTotal += (snapshotSales ?? []).reduce((s: number, x: any) => s + (x.gross_proceeds ?? 0), 0)
+
+  // Fallback for legacy rows (no snapshot)
   const { data: ownerAnimals } = await supabase
     .from('animals')
     .select('id')
     .eq('owner_id', owner_id)
   const animalIds = (ownerAnimals ?? []).map((a: any) => a.id)
 
-  // Income: cattle sales
-  // TODO switch to sales.owner_id snapshot once the Sale flow adds it
-  let salesTotal = 0
   if (animalIds.length > 0) {
-    const { data: sales } = await supabase
+    const { data: legacySales } = await supabase
       .from('sales')
       .select('gross_proceeds')
       .in('animal_id', animalIds)
+      .is('owner_id', null)
       .gte('sale_date', yearStart)
       .lte('sale_date', yearEnd)
-    salesTotal = (sales ?? []).reduce((s: number, sale: any) => s + (sale.gross_proceeds ?? 0), 0)
+    salesTotal += (legacySales ?? []).reduce((s: number, x: any) => s + (x.gross_proceeds ?? 0), 0)
   }
 
-  // Expenses: invoices billed to owner (grazing + allocated shared)
+  // Expenses: invoices billed to owner
   const { data: invoices } = await supabase
     .from('invoices')
     .select('total_amount, status')
@@ -56,7 +67,7 @@ export async function GET(req: NextRequest) {
     .filter((inv: any) => inv.status === 'paid')
     .reduce((s: number, inv: any) => s + (inv.total_amount ?? 0), 0)
 
-  // Additional direct expenses (owner_specific and animal_specific not in invoices)
+  // Direct expenses
   const { data: ownerExp } = await supabase
     .from('lease_expenses')
     .select('category_name, total_amount')
