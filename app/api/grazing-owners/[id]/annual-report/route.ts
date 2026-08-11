@@ -166,10 +166,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const { id } = await params
-  const body = await req.json()
-  const year = Number(body.year ?? new Date().getFullYear())
+export async function generateAnnualReportPdf(id: string, year: number) {
   const supabase = createAdminClient()
 
   const report = await buildReportData(id, year)
@@ -335,5 +332,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       .eq('id', settlement.id)
   }
 
-  return NextResponse.json({ pdf_url: pdfUrl })
+  return { pdf_url: pdfUrl }
+}
+
+export async function POST(req: NextRequest, { params }: Params) {
+  const { id } = await params
+  const body = await req.json()
+  const year = Number(body.year ?? new Date().getFullYear())
+  return NextResponse.json(await generateAnnualReportPdf(id, year))
 }

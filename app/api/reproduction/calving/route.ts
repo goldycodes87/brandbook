@@ -7,9 +7,14 @@ export async function POST(req: NextRequest) {
   // Delegates to main reproduction POST with create_calf forced true
   const body = await req.json()
 
+  // Forward the caller's session cookie — this is an internal hop and the
+  // API gate in proxy.ts requires a session on /api/reproduction.
   const forwardRes = await fetch(new URL('/api/reproduction', req.url), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      cookie: req.headers.get('cookie') ?? '',
+    },
     body: JSON.stringify({ ...body, create_calf: true }),
   })
 

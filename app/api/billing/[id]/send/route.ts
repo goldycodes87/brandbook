@@ -7,7 +7,7 @@ import { generateInvoicePdfBuffer } from '@/lib/generate-invoice-pdf'
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createAdminClient()
 
@@ -44,7 +44,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   if (!paymentUrl) {
     try {
-      const plRes = await fetch(`${appUrl}/api/billing/${id}/square-link`, { method: 'POST' })
+      // Forward the caller's session cookie — internal hop through the API gate.
+      const plRes = await fetch(`${appUrl}/api/billing/${id}/square-link`, {
+        method: 'POST',
+        headers: { cookie: req.headers.get('cookie') ?? '' },
+      })
       console.log('[payment link] status:', plRes.status)
       const plData = await plRes.json()
       console.log('[payment link] response:', JSON.stringify(plData))
