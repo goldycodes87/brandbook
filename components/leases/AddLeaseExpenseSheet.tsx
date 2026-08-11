@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiPost, apiPatch, apiGet } from '@/lib/fetch'
+import { postAnimalSplitExpense } from '@/lib/expense-split'
+import { AnimalMultiSelect } from '@/components/expenses/AnimalMultiSelect'
 
 interface LeaseOption { id: string; property_name: string }
 
@@ -132,7 +134,6 @@ export function AddLeaseExpenseSheet({
   const [notes,         setNotes]        = useState('')
   const [ownerId,       setOwnerId]      = useState<string | null>(null)
   const [animalIds,     setAnimalIds]    = useState<string[]>([])
-  const [animalSearch,  setAnimalSearch] = useState('')
   const [owners,        setOwners]       = useState<GrazingOwner[]>([])
   const [animals,       setAnimals]      = useState<LeaseAnimal[]>([])
   const [aumData,       setAumData]      = useState<{ by_owner: AumOwnerRow[] } | null>(null)
@@ -215,7 +216,6 @@ export function AddLeaseExpenseSheet({
       setNotes('')
       setOwnerId(null)
       setAnimalIds([])
-      setAnimalSearch('')
       setIncludeCalves(false)
       setCalcType('period')
       setPeriodStart(qtrStartStr())
@@ -240,13 +240,6 @@ export function AddLeaseExpenseSheet({
 
   const activeCats = categories[expenseType] ?? []
   const selectedOwner  = owners.find(o => o.id === ownerId)
-  const filteredAnimals = animalSearch
-    ? animals.filter(a =>
-        a.tag_number.toLowerCase().includes(animalSearch.toLowerCase()) ||
-        (a.name ?? '').toLowerCase().includes(animalSearch.toLowerCase())
-      )
-    : animals
-
   const ownerDisplay = (o: GrazingOwner) => o.company_name || o.owner_name || o.name
 
   const handleSave = async () => {
@@ -267,32 +260,22 @@ export function AddLeaseExpenseSheet({
 
     setSaving(true); setError('')
     try {
-      // Multi-animal split: one row per animal, equal per-head, owner routed from animal record
+      // Multi-animal split: one row per animal, equal per-head, owner routed
+      // from the animal record. Shared with QuickExpenseSheet so the two
+      // sheets cannot drift apart again.
       if (expenseType === 'animal_specific' && mode !== 'edit') {
-        const selfOwner = owners.find(o => o.is_self) ?? null
-        const N = animalIds.length
-        const totalCents = Math.round(amt * 100)
-        const perHeadCents = Math.floor(totalCents / N)
-        for (let idx = 0; idx < N; idx++) {
-          const aId = animalIds[idx]
-          const animal = animals.find(a => a.id === aId)
-          const routedOwnerId = animal?.owner_id ?? selfOwner?.id ?? null
-          const shareCents = idx === N - 1 ? totalCents - perHeadCents * (N - 1) : perHeadCents
-          const res = await apiPost('/api/expenses', {
-            category_name:    categoryName,
-            category_id:      categoryId,
-            expense_type:     'animal_specific',
-            description:      description.trim() || null,
-            total_amount:     shareCents / 100,
-            expense_date:     expenseDate || null,
-            notes:            notes || null,
-            owner_id:         routedOwnerId,
-            animal_id:        aId,
-            is_lease_specific: false,
-          })
-          const json = await res.json()
-          if (!res.ok) { setError(json.error ?? 'Save failed'); return }
-        }
+        const result = await postAnimalSplitExpense({
+          animalIds,
+          animals,
+          selfOwnerId: owners.find(o => o.is_self)?.id ?? null,
+          totalAmount: amt,
+          categoryName,
+          categoryId,
+          description,
+          expenseDate,
+          notes,
+        })
+        if (!result.ok) { setError(result.error ?? 'Save failed'); return }
         onSuccess(); onClose()
         return
       }
@@ -581,48 +564,13 @@ export function AddLeaseExpenseSheet({
                 </Field>
               )}
 
-              {/* Animal selector for animal_specific — multi-select */}
+              {/* Animal selector for animal_specific — shared multi-select */}
               {expenseType === 'animal_specific' && (
-                <Field label={`Animals (${animalIds.length} selected)`} required>
-                  <Input
-                    placeholder="Search by tag or name…"
-                    value={animalSearch}
-                    onChange={e => setAnimalSearch(e.target.value)}
-                    className="mb-2"
-                  />
-                  <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto">
-                    {filteredAnimals.map(a => {
-                      const checked = animalIds.includes(a.id)
-                      return (
-                        <label
-                          key={a.id}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all"
-                          style={{
-                            border:     `1.5px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
-                            background: checked ? 'var(--accent-soft)' : 'var(--surface-1)',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={e => {
-                              setAnimalIds(prev =>
-                                e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id)
-                              )
-                            }}
-                          />
-                          <span className="font-mono font-semibold" style={{ color: checked ? 'var(--accent)' : 'var(--text)' }}>
-                            #{a.tag_number}
-                          </span>
-                          {a.name && <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{a.name}</span>}
-                        </label>
-                      )
-                    })}
-                    {filteredAnimals.length === 0 && (
-                      <p className="type-helper px-2" style={{ color: 'var(--text-muted)' }}>No animals found</p>
-                    )}
-                  </div>
-                </Field>
+                <AnimalMultiSelect
+                  animals={animals}
+                  selectedIds={animalIds}
+                  onChange={setAnimalIds}
+                />
               )}
             </>
           )}

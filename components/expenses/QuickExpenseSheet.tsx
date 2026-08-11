@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiPost, apiGet } from '@/lib/fetch'
+import { postAnimalSplitExpense } from '@/lib/expense-split'
+import { AnimalMultiSelect, type PickerAnimal } from '@/components/expenses/AnimalMultiSelect'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,7 +25,7 @@ interface ParsedItem {
 
 interface CategoryRow { id: string; name: string; expense_type: string; calculation_type?: string | null }
 interface LeaseOption  { id: string; property_name: string }
-interface GrazingOwner { id: string; name: string; company_name: string | null; owner_name: string | null }
+interface GrazingOwner { id: string; name: string; company_name: string | null; owner_name: string | null; is_self?: boolean | null }
 
 interface Props {
   isOpen: boolean
@@ -88,6 +90,8 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
   const [expenseDate,    setExpenseDate]   = useState(todayStr())
   const [description,    setDescription]   = useState('')
   const [ownerId,        setOwnerId]       = useState<string | null>(null)
+  const [animals,        setAnimals]       = useState<PickerAnimal[]>([])
+  const [animalIds,      setAnimalIds]     = useState<string[]>([])
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -99,7 +103,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
     setDescribeText(''); setLeaseHint(null); setDateHint(null)
     setScope('whole_herd'); setExpQtr(currentQtr()); setExpYear(currentYr()); setSelectedLeaseId(null)
     setCategoryName(''); setCategoryId(null); setAmount(''); setExpenseDate(todayStr())
-    setDescription(''); setOwnerId(null); setExpenseType('shared')
+    setDescription(''); setOwnerId(null); setExpenseType('shared'); setAnimalIds([])
 
     apiGet('/api/expenses/categories').then(r => r.json()).then(d => {
       const all: CategoryRow[] = []
@@ -110,6 +114,8 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
 
     apiGet('/api/leases').then(r => r.json()).then(d => setLeases(d.data ?? [])).catch(() => {})
     apiGet('/api/grazing-owners?limit=100').then(r => r.json()).then(d => setOwners(d.data ?? [])).catch(() => {})
+    // For animal-specific splits. /api/animals caps limit at 200 server-side.
+    apiGet('/api/animals?status=active&limit=200').then(r => r.json()).then(d => setAnimals(d.data ?? [])).catch(() => {})
   }, [isOpen])
 
   // ── Receipt scan ────────────────────────────────────────────────────────────
@@ -265,6 +271,9 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
     const amt = parseFloat(amount)
     if (!categoryName || isNaN(amt) || amt <= 0) { setSaveError('Category and amount required'); return }
     if (expenseType === 'owner_specific' && !ownerId) { setSaveError('Select an owner'); return }
+    if (expenseType === 'animal_specific' && animalIds.length === 0) {
+      setSaveError('Select at least one animal'); return
+    }
 
     const isWH = expenseType === 'shared' && scope === 'whole_herd'
     const effectiveLeaseId = selectedLeaseId
@@ -274,6 +283,26 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
 
     setIsSaving(true); setSaveError('')
     try {
+      // Animal-specific: equal-per-head split, one row per animal, regardless
+      // of owner or lease. Shared with AddLeaseExpenseSheet so the two sheets
+      // cannot drift apart. Returns before the lease-URL branch below, which
+      // previously sent these to /api/leases/null/expenses with no animal.
+      if (expenseType === 'animal_specific') {
+        const result = await postAnimalSplitExpense({
+          animalIds,
+          animals,
+          selfOwnerId: owners.find(o => o.is_self)?.id ?? null,
+          totalAmount: amt,
+          categoryName,
+          categoryId,
+          description,
+          expenseDate,
+        })
+        if (!result.ok) { setSaveError(result.error ?? 'Save failed'); return }
+        onSuccess(); onClose()
+        return
+      }
+
       const yr     = 2000 + expYear
       const pStart = new Date(yr, (expQtr - 1) * 3, 1).toISOString().slice(0, 10)
       const pEnd   = new Date(yr, expQtr * 3, 0).toISOString().slice(0, 10)
@@ -608,7 +637,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
                 {([
                   { t: 'shared' as ExpenseType,          emoji: '🌾', label: 'SHARED',  sub: 'Herd %' },
                   { t: 'owner_specific' as ExpenseType,  emoji: '👤', label: 'OWNER',   sub: 'One owner' },
-                  { t: 'animal_specific' as ExpenseType, emoji: '🐄', label: 'ANIMAL',  sub: 'One animal' },
+                  { t: 'animal_specific' as ExpenseType, emoji: '🐄', label: 'ANIMAL',  sub: 'Split across animals' },
                 ]).map(({ t, emoji, label, sub }) => (
                   <button key={t} type="button" onClick={() => { setExpenseType(t); setCategoryName(''); setCategoryId(null) }}
                     className="flex flex-col items-center gap-1 p-3 rounded-xl text-center"
@@ -657,6 +686,14 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
               )}
 
               {expenseType === 'shared' && ScopeSelector()}
+
+              {expenseType === 'animal_specific' && (
+                <AnimalMultiSelect
+                  animals={animals}
+                  selectedIds={animalIds}
+                  onChange={setAnimalIds}
+                />
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Amount ($)" required>
