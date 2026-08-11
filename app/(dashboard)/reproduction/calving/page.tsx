@@ -188,12 +188,32 @@ export default function CalvingEntryPage() {
     }
   }
 
-  const selectDam = (d: Dam) => {
+  const selectDam = async (d: Dam) => {
     console.log('[BREED DEBUG] dam selected:', d.id, 'tag:', d.tag_number, 'breed:', d.breed, 'breeds:', JSON.stringify(d.breeds))
     setDam(d)
     setSearch('')
     setDams([])
     setTimeout(() => tagRef.current?.focus(), 100)
+
+    // Pull the dam's most recent 'bred' event so the calf form opens with the
+    // sire that produced this calf already filled in. Everything stays
+    // editable — this is a default, not a lock. Non-fatal if it fails.
+    try {
+      const res  = await apiGet(`/api/reproduction?animal_id=${d.id}&event_type=bred&limit=1`)
+      const json = await res.json()
+      const ev   = json?.data?.[0]
+      if (!ev) return
+      setCalf(prev => ({
+        ...prev,
+        sireKnown:     true,
+        sireId:        ev.sire?.id ?? null,
+        sireLibraryId: ev.sire_library_id ?? null,
+        sireName:      ev.sire_name_text ?? ev.sire_library?.bull_name ?? ev.sire?.name ?? null,
+        conception:    (ev.conception_method as ConceptionMethod) ?? prev.conception,
+      }))
+    } catch {
+      // Operator can still pick the sire manually.
+    }
   }
 
   const updateCalf = <K extends keyof ReturnType<typeof blankCalfState>>(

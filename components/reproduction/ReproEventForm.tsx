@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Field, Input, Select, Textarea, SearchField } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -190,6 +190,26 @@ export function ReproEventForm({
       else if (d.breed) setDamBreeds([{ breed: d.breed, pct: 100 }])
     }).catch(() => {})
   }, [animalId])
+
+  // When logging a CALVED event, prefill the calf's sire from the dam's most
+  // recent 'bred' event. Runs once, never overwrites an operator-set value,
+  // and is skipped when editing an existing event. Non-fatal if it fails.
+  const calvedPrefillDone = useRef(false)
+  useEffect(() => {
+    if (eventType !== 'calved' || initialData || calvedPrefillDone.current) return
+    calvedPrefillDone.current = true
+    apiGet(`/api/reproduction?animal_id=${animalId}&event_type=bred&limit=1`)
+      .then(r => r.json())
+      .then(json => {
+        const ev = json?.data?.[0]
+        if (!ev) return
+        setCalfSireId(prev => prev ?? ev.sire?.id ?? null)
+        setCalfSireLibraryId(prev => prev ?? ev.sire_library_id ?? null)
+        setCalfSireName(prev => prev ?? ev.sire_name_text ?? ev.sire_library?.bull_name ?? ev.sire?.name ?? null)
+        if (ev.conception_method) setCalfConception(ev.conception_method as ConceptionMethod)
+      })
+      .catch(() => {})
+  }, [eventType, animalId, initialData])
 
   // Recalculate calf breeds when dam or sire changes
   useEffect(() => {
