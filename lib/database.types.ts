@@ -50,6 +50,7 @@ export type Database = {
           brand_photo: string | null
           breed: string | null
           breed_percentage: number | null
+          breeding_eligible: boolean | null
           breeds: Json | null
           calf_sex: string | null
           cause_of_death: string | null
@@ -103,6 +104,7 @@ export type Database = {
           brand_photo?: string | null
           breed?: string | null
           breed_percentage?: number | null
+          breeding_eligible?: boolean | null
           breeds?: Json | null
           calf_sex?: string | null
           cause_of_death?: string | null
@@ -156,6 +158,7 @@ export type Database = {
           brand_photo?: string | null
           breed?: string | null
           breed_percentage?: number | null
+          breeding_eligible?: boolean | null
           breeds?: Json | null
           calf_sex?: string | null
           cause_of_death?: string | null
@@ -701,6 +704,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          schedule_f_line: string | null
           sort_order: number | null
         }
         Insert: {
@@ -711,6 +715,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          schedule_f_line?: string | null
           sort_order?: number | null
         }
         Update: {
@@ -721,6 +726,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          schedule_f_line?: string | null
           sort_order?: number | null
         }
         Relationships: []
@@ -919,6 +925,7 @@ export type Database = {
           default_tag_prefix: string | null
           email: string | null
           id: string
+          is_self: boolean
           name: string
           notes: string | null
           owner_name: string | null
@@ -945,6 +952,7 @@ export type Database = {
           default_tag_prefix?: string | null
           email?: string | null
           id?: string
+          is_self?: boolean
           name: string
           notes?: string | null
           owner_name?: string | null
@@ -971,6 +979,7 @@ export type Database = {
           default_tag_prefix?: string | null
           email?: string | null
           id?: string
+          is_self?: boolean
           name?: string
           notes?: string | null
           owner_name?: string | null
@@ -1509,6 +1518,7 @@ export type Database = {
           qty: number | null
           quarter: number | null
           receipt_url: string | null
+          reproduction_event_id: string | null
           sire_library_id: string | null
           total_amount: number
           unit_cost: number | null
@@ -1535,6 +1545,7 @@ export type Database = {
           qty?: number | null
           quarter?: number | null
           receipt_url?: string | null
+          reproduction_event_id?: string | null
           sire_library_id?: string | null
           total_amount: number
           unit_cost?: number | null
@@ -1561,6 +1572,7 @@ export type Database = {
           qty?: number | null
           quarter?: number | null
           receipt_url?: string | null
+          reproduction_event_id?: string | null
           sire_library_id?: string | null
           total_amount?: number
           unit_cost?: number | null
@@ -1594,6 +1606,13 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_expenses_reproduction_event_id_fkey"
+            columns: ["reproduction_event_id"]
+            isOneToOne: false
+            referencedRelation: "reproduction_events"
             referencedColumns: ["id"]
           },
           {
@@ -1835,10 +1854,13 @@ export type Database = {
       ranch_settings: {
         Row: {
           address: string | null
+          ai_preg_check_days_out: number
+          ai_tech_fee_per_cow: number
           brand_photo_url: string | null
           city: string | null
           created_at: string | null
           default_administered_by: string | null
+          default_ai_technician: string | null
           default_breed: string | null
           default_ear_tag_color: string | null
           default_ear_tag_color_owner: string | null
@@ -1855,10 +1877,13 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_preg_check_days_out?: number
+          ai_tech_fee_per_cow?: number
           brand_photo_url?: string | null
           city?: string | null
           created_at?: string | null
           default_administered_by?: string | null
+          default_ai_technician?: string | null
           default_breed?: string | null
           default_ear_tag_color?: string | null
           default_ear_tag_color_owner?: string | null
@@ -1875,10 +1900,13 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_preg_check_days_out?: number
+          ai_tech_fee_per_cow?: number
           brand_photo_url?: string | null
           city?: string | null
           created_at?: string | null
           default_administered_by?: string | null
+          default_ai_technician?: string | null
           default_breed?: string | null
           default_ear_tag_color?: string | null
           default_ear_tag_color_owner?: string | null
@@ -1906,6 +1934,7 @@ export type Database = {
           notes: string | null
           protocol_group_id: string | null
           reminder_type: string | null
+          reproduction_event_id: string | null
           title: string | null
         }
         Insert: {
@@ -1918,6 +1947,7 @@ export type Database = {
           notes?: string | null
           protocol_group_id?: string | null
           reminder_type?: string | null
+          reproduction_event_id?: string | null
           title?: string | null
         }
         Update: {
@@ -1930,6 +1960,7 @@ export type Database = {
           notes?: string | null
           protocol_group_id?: string | null
           reminder_type?: string | null
+          reproduction_event_id?: string | null
           title?: string | null
         }
         Relationships: [
@@ -1938,6 +1969,13 @@ export type Database = {
             columns: ["animal_id"]
             isOneToOne: false
             referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminders_reproduction_event_id_fkey"
+            columns: ["reproduction_event_id"]
+            isOneToOne: false
+            referencedRelation: "reproduction_events"
             referencedColumns: ["id"]
           },
         ]
@@ -2079,11 +2117,14 @@ export type Database = {
         Row: {
           animal_id: string
           buyer: string | null
+          buyer_owner_id: string | null
           created_at: string | null
           destination: string | null
           gross_proceeds: number | null
           id: string
           notes: string | null
+          origin: string | null
+          owner_id: string | null
           price_per_lb: number | null
           sale_date: string
           sale_weight_lbs: number | null
@@ -2091,11 +2132,14 @@ export type Database = {
         Insert: {
           animal_id: string
           buyer?: string | null
+          buyer_owner_id?: string | null
           created_at?: string | null
           destination?: string | null
           gross_proceeds?: number | null
           id?: string
           notes?: string | null
+          origin?: string | null
+          owner_id?: string | null
           price_per_lb?: number | null
           sale_date: string
           sale_weight_lbs?: number | null
@@ -2103,11 +2147,14 @@ export type Database = {
         Update: {
           animal_id?: string
           buyer?: string | null
+          buyer_owner_id?: string | null
           created_at?: string | null
           destination?: string | null
           gross_proceeds?: number | null
           id?: string
           notes?: string | null
+          origin?: string | null
+          owner_id?: string | null
           price_per_lb?: number | null
           sale_date?: string
           sale_weight_lbs?: number | null
@@ -2118,6 +2165,20 @@ export type Database = {
             columns: ["animal_id"]
             isOneToOne: false
             referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_buyer_owner_id_fkey"
+            columns: ["buyer_owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
             referencedColumns: ["id"]
           },
         ]
@@ -2695,11 +2756,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      adjust_straw: {
+        Args: { p_delta: number; p_inventory_id: string }
+        Returns: number
+      }
     }
     Enums: {
       animal_sex: "bull" | "cow" | "steer" | "heifer" | "calf"
-      animal_status: "active" | "sold" | "deceased" | "transferred"
+      animal_status:
+        | "active"
+        | "sold"
+        | "deceased"
+        | "transferred"
+        | "harvested"
       breed_method: "natural" | "ai"
       health_event_type:
         | "treatment"
@@ -2844,7 +2913,7 @@ export const Constants = {
   public: {
     Enums: {
       animal_sex: ["bull", "cow", "steer", "heifer", "calf"],
-      animal_status: ["active", "sold", "deceased", "transferred"],
+      animal_status: ["active", "sold", "deceased", "transferred", "harvested"],
       breed_method: ["natural", "ai"],
       health_event_type: [
         "treatment",

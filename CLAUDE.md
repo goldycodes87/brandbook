@@ -14,6 +14,11 @@ Supabase, Vercel, next-pwa.
 - npm run build must pass before done
 - Never remove working features
 - Mobile-first on all UI
+- Deploy ONLY by pushing to main.
+  Vercel's GitHub integration builds
+  automatically. Never run vercel
+  deploy or the Vercel deploy tool —
+  it double-builds the same commit.
 
 ## Auth Pattern
 - /api/auth/session POST sets httpOnly
