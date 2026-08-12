@@ -195,8 +195,16 @@ export async function POST(req: NextRequest) {
 
   const wholeHerdLineItems: LineItem[] = []
 
-  // Every lease_expenses row that contributes to this invoice. Stamped onto
-  // those rows as invoice_id once the invoice is created, so an expense can
+  // Every SINGLE-OWNER lease_expenses row that contributes to this invoice.
+  //
+  // Only owner_specific and animal_specific rows are stamped. A shared expense
+  // is pro-rated across every owner's invoice, and invoice_id is one column —
+  // stamping it would tag the row with whichever owner's invoice happened to
+  // generate last. Shared rows stay unlinked and are reported as "shared — see
+  // lease billing" rather than being falsely attributed.
+  //
+  // Stamped onto those rows as invoice_id once the invoice is created, so an
+  // expense can
   // report whether it has been billed (and later, paid) instead of guessing
   // from quarter/year.
   const billedExpenseIds = new Set<string>()
@@ -259,7 +267,6 @@ export async function POST(req: NextRequest) {
     if (shareAmt <= 0) continue
 
     const sharePct = (ownerHerdPct * 100).toFixed(1)
-    billedExpenseIds.add(expense.id)
     wholeHerdLineItems.push({
       description:  expense.description || expense.category_name || 'Expense',
       quantity:     1,
@@ -398,7 +405,6 @@ export async function POST(req: NextRequest) {
       const ownerShare = expense.total_amount * (ownerDays / totalDays)
       const sharePct   = ((ownerDays / totalDays) * 100).toFixed(1)
 
-      billedExpenseIds.add(expense.id)
       leaseLineItems.push({
         description:  expense.description || expense.category_name || 'Expense',
         quantity:     1,
