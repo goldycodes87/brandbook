@@ -19,7 +19,23 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { id, straw_count } = await req.json()
+  const { id, straw_count, delta } = await req.json()
+
+  // Relative adjustment via the adjust_straw RPC — atomic, so concurrent
+  // sessions cannot clobber each other's count. Used when returning a straw
+  // on undo. Absolute straw_count remains supported for manual corrections.
+  if (delta !== undefined) {
+    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+    const supabase = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc('adjust_straw', {
+      p_inventory_id: id,
+      p_delta:        Number(delta),
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data: { id, straw_count: data } })
+  }
+
   if (!id || straw_count === undefined) {
     return NextResponse.json({ error: 'id and straw_count required' }, { status: 400 })
   }

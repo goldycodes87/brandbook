@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { verifySessionValue } from '@/lib/session-cookie'
 
 export interface OwnerSession {
   id: string
@@ -8,7 +9,7 @@ export interface OwnerSession {
 
 export async function getOwnerSession(): Promise<OwnerSession | null> {
   const cookieStore = await cookies()
-  const owner_id = cookieStore.get('brandbook_owner_session')?.value
+  const owner_id = await verifySessionValue(cookieStore.get('brandbook_owner_session')?.value)
   if (!owner_id) return null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

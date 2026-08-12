@@ -12,7 +12,7 @@ import { Panel } from '@/components/ui/Panel'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { apiGet, apiPost } from '@/lib/fetch'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 import { deriveReproStatus, type ReproStatusResult } from '@/lib/repro-status'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -106,7 +106,14 @@ function AISessionInner() {
   const [doneData,      setDoneData]      = useState<{
     count: number; remainingStraws: number; pregCheckDue: string; calvingWindow: string
     skipped?: string[]; strawWarnings?: string[]
+    // Undo payload: the events this session created, plus how many straws to
+    // put back. Deleting an event cascades to its expense and reminder via
+    // the reproduction_event_id FKs, so those need no separate cleanup.
+    eventIds?: string[]; strawInventoryId?: string | null; strawsToReturn?: number
   } | null>(null)
+  const [undoing,       setUndoing]       = useState(false)
+  const [undoDone,      setUndoDone]      = useState(false)
+  const [undoError,     setUndoError]     = useState('')
 
   // Load semen inventory and ranch settings on mount
   useEffect(() => {
@@ -224,7 +231,9 @@ function AISessionInner() {
     const sireLibraryId = selectedInv.sire_library_id
 
     let savedCount      = 0
+    let strawsDeducted  = 0
     let lastStrawCount: number | null = null
+    const savedEventIds: string[] = []
     const strawWarnings: string[] = []
     const skippedAnimals: string[] = []
 
@@ -271,8 +280,11 @@ function AISessionInner() {
         }
 
         savedCount++
+        const savedEvent = json.event as { id?: string } | undefined
+        if (savedEvent?.id) savedEventIds.push(savedEvent.id)
         if (json.newStrawCount != null) lastStrawCount = json.newStrawCount as number
         if (json.strawShort) strawWarnings.push(`#${animal.tag_number}: straw count could not be decremented`)
+        else strawsDeducted++
       }
 
       // CIDR protocol marker events (backdated, not subject to guard or straw deduction)
@@ -298,11 +310,47 @@ function AISessionInner() {
         calvingWindow,
         skipped:         skippedAnimals,
         strawWarnings,
+        eventIds:         savedEventIds,
+        strawInventoryId: selectedInv.id,
+        strawsToReturn:   strawsDeducted,
       })
       setDone(true)
     } catch {
       setSaveError('Save failed — please try again.')
     } finally { setSaving(false) }
+  }
+
+  // ── Undo the whole session ───────────────────────────────────────────────
+  // Deleting each breeding event cascades to the expense and reminder it
+  // created (reproduction_event_id FKs are ON DELETE CASCADE), so only the
+  // events and the straw count need undoing here.
+  const handleUndoSession = async () => {
+    if (!doneData?.eventIds?.length || undoing || undoDone) return
+    setUndoing(true); setUndoError('')
+    try {
+      const results = await Promise.allSettled(
+        doneData.eventIds.map(id => apiDelete(`/api/reproduction/${id}`))
+      )
+      const failed = results.filter(
+        r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)
+      ).length
+
+      if (doneData.strawInventoryId && (doneData.strawsToReturn ?? 0) > 0) {
+        await apiPatch('/api/genetics/tank', {
+          id:    doneData.strawInventoryId,
+          delta: doneData.strawsToReturn,
+        })
+      }
+
+      if (failed > 0) {
+        setUndoError(`${failed} of ${doneData.eventIds.length} events could not be removed — check those animals directly.`)
+      }
+      setUndoDone(true)
+    } catch {
+      setUndoError('Undo failed — check the animal records before re-running the session.')
+    } finally {
+      setUndoing(false)
+    }
   }
 
   // ── Done screen ──────────────────────────────────────────────────────────
@@ -332,10 +380,37 @@ function AISessionInner() {
               {doneData.strawWarnings!.map((w, i) => <p key={i} className="type-helper" style={{ color: 'var(--info-fg)' }}>{w}</p>)}
             </div>
           )}
+          {undoDone && !undoError && (
+            <div className="rounded-xl px-4 py-3" style={{ background: 'var(--info-bg)', border: '1px solid var(--info-border)' }}>
+              <p className="type-helper font-semibold" style={{ color: 'var(--info-fg)' }}>
+                Session undone — {doneData.eventIds?.length ?? 0} breeding event
+                {(doneData.eventIds?.length ?? 0) !== 1 ? 's' : ''} removed
+                {(doneData.strawsToReturn ?? 0) > 0 ? `, ${doneData.strawsToReturn} straw${doneData.strawsToReturn !== 1 ? 's' : ''} returned` : ''}.
+                Their expenses and preg-check reminders were removed with them.
+              </p>
+            </div>
+          )}
+          {undoError && (
+            <div className="rounded-xl px-4 py-3" style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
+              <p className="type-helper font-semibold" style={{ color: 'var(--danger-fg)' }}>{undoError}</p>
+            </div>
+          )}
+
           <div className="flex gap-3">
             <Button intent="primary" size="sm" onClick={() => router.push('/reproduction')}>VIEW REPRODUCTION</Button>
-            <Button intent="secondary" size="sm" onClick={() => { setDone(false); setStep(1); setSelected(new Set()); setSelectedInv(null); setTechName(''); setSaveError(''); setOverrideStrawActions({}) }}>LOG ANOTHER SESSION</Button>
+            <Button intent="secondary" size="sm" onClick={() => { setDone(false); setStep(1); setSelected(new Set()); setSelectedInv(null); setTechName(''); setSaveError(''); setOverrideStrawActions({}); setUndoDone(false); setUndoError('') }}>LOG ANOTHER SESSION</Button>
           </div>
+
+          {(doneData.eventIds?.length ?? 0) > 0 && !undoDone && (
+            <Button
+              intent="ghost"
+              size="sm"
+              loading={undoing}
+              onClick={handleUndoSession}
+            >
+              UNDO THIS SESSION
+            </Button>
+          )}
         </div>
       </PageContainer>
     )

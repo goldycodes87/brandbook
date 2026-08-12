@@ -80,23 +80,20 @@ export function buildAnimalSplitRows(input: AnimalSplitInput): AnimalSplitRow[] 
 /**
  * Build and save an equal-per-head animal split.
  *
- * NOTE: rows are inserted sequentially with no transaction, so a failure
- * part-way through leaves the earlier rows saved (`saved` reports how many).
- * This mirrors the behaviour this replaced. It is now the single place to make
- * the insert atomic.
+ * The whole split goes up as one request and is inserted in a single
+ * statement, so it either lands completely or not at all. (It used to be one
+ * sequential POST per animal, which could leave a half-saved split behind if
+ * the network dropped mid-way.)
  */
 export async function postAnimalSplitExpense(
   input: AnimalSplitInput
 ): Promise<{ ok: boolean; error?: string; saved: number }> {
   const rows = buildAnimalSplitRows(input)
-  let saved = 0
+  if (rows.length === 0) return { ok: true, saved: 0 }
 
-  for (const row of rows) {
-    const res  = await apiPost('/api/expenses', row)
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) return { ok: false, error: json.error ?? 'Save failed', saved }
-    saved++
-  }
+  const res  = await apiPost('/api/expenses', { rows })
+  const json = await res.json().catch(() => ({}))
 
-  return { ok: true, saved }
+  if (!res.ok) return { ok: false, error: json.error ?? 'Save failed', saved: 0 }
+  return { ok: true, saved: Array.isArray(json.data) ? json.data.length : rows.length }
 }

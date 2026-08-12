@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { signSessionValue } from '@/lib/session-cookie'
 
 export async function POST(req: NextRequest) {
   const { token } = await req.json()
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   const name = owner.company_name || owner.owner_name || owner.name || 'Owner'
 
   const res = NextResponse.json({ ok: true, owner: { id: owner.id, name } })
-  res.cookies.set('brandbook_owner_session', owner.id, {
+  res.cookies.set('brandbook_owner_session', await signSessionValue(owner.id), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

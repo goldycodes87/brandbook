@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifySessionValue } from "@/lib/session-cookie";
 
 const PUBLIC = [
   "/login", "/invite/",
@@ -23,14 +24,25 @@ const PUBLIC_API = [
   "/api/webhooks/",
 ];
 
-// Which cookie gates which API prefix. First match wins, so the
-// owner/vet prefixes must be tested before the admin fallback.
-const API_GATES: Array<[string, string]> = [
-  ["/api/portals/owner/", "brandbook_owner_session"],
-  ["/api/vet/", "brandbook_vet_session"],
+// Which cookie gates which API prefix, and whether that cookie carries an
+// HMAC we can verify here. First match wins, so the owner/vet prefixes must
+// be tested before the admin fallback.
+//
+// The vet cookie is checked for presence only: it holds a random token that
+// is validated against vet_invites inside the route, so it is already
+// unguessable and does not need signing.
+const API_GATES: Array<[prefix: string, cookie: string, signed: boolean]> = [
+  ["/api/portals/owner/", "brandbook_owner_session", true],
+  ["/api/vet/",           "brandbook_vet_session",   false],
 ];
 
-export function proxy(req: NextRequest) {
+async function hasValidSession(req: NextRequest, cookie: string, signed: boolean) {
+  const raw = req.cookies.get(cookie)?.value;
+  if (!signed) return Boolean(raw);
+  return (await verifySessionValue(raw)) !== null;
+}
+
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/api/")) {
@@ -38,8 +50,9 @@ export function proxy(req: NextRequest) {
       return NextResponse.next();
     }
     const gate = API_GATES.find(([prefix]) => pathname.startsWith(prefix));
-    const cookieName = gate ? gate[1] : "brandbook_session";
-    if (!req.cookies.get(cookieName)?.value) {
+    const cookie = gate ? gate[1] : "brandbook_session";
+    const signed = gate ? gate[2] : true;
+    if (!(await hasValidSession(req, cookie, signed))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     return NextResponse.next();
@@ -47,8 +60,7 @@ export function proxy(req: NextRequest) {
 
   const isPublic = PUBLIC.some(p => pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
-  const session = req.cookies.get("brandbook_session")?.value;
-  if (!session) {
+  if (!(await hasValidSession(req, "brandbook_session", true))) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
   return NextResponse.next();
