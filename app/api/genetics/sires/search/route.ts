@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
   if (!q.trim()) return NextResponse.json([])
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('sire_library')
     .select('id, bull_name, breed, naab_code, stud, bull_type, epd_dollar_b, epd_bw, epd_ww')
     .eq('is_active', true)

@@ -6,8 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body     = await req.json()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
+  const supabase = createAdminClient()
 
   const {
     harvest_date     = new Date().toISOString().slice(0, 10),

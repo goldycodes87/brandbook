@@ -11,8 +11,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: invoice, error } = await (supabase as any)
+  const { data: invoice, error } = await supabase
     .from('invoices')
     .select('*, owner:grazing_owners(*)')
     .eq('id', id)
@@ -60,7 +59,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // ── Build line items HTML ─────────────────────────────────────────────────
   type LI = { description: string; amount: number; is_header?: boolean; share_note?: string }
-  const lineItems = (invoice.line_items ?? []) as LI[]
+  const lineItems = (invoice.line_items ?? []) as unknown as LI[]
 
   const lineItemRows = lineItems.map((item: LI) => {
     if (item.is_header) {
@@ -213,15 +212,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   console.log('[send] sending email to:', owner.email)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: sendError } = await resend.emails.send(emailPayload)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (sendError) return NextResponse.json({ error: (sendError as any).message ?? 'Email send failed' }, { status: 500 })
 
   // ── Update invoice status ─────────────────────────────────────────────────
   const now = new Date().toISOString()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from('invoices').update({
+  await supabase.from('invoices').update({
     status:        'sent',
     sent_at:       now,
     email_sent_at: now,

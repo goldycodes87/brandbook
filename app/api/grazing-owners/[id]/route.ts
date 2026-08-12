@@ -28,8 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (clean.billing_rate != null) clean.billing_rate = Number(clean.billing_rate)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let { data, error } = await (supabase as any)
+  let { data, error } = await supabase
     .from('grazing_owners')
     .update(clean)
     .eq('id', id)
@@ -39,8 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Retry without new columns if migration hasn't run yet
   if (error?.code === '42703') {
     delete clean.company_name; delete clean.owner_name; delete clean.brand_drawing_url
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;({ data, error } = await (supabase as any)
+    ;({ data, error } = await supabase
       .from('grazing_owners').update(clean).eq('id', id).select().single())
   }
 

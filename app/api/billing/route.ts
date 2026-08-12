@@ -14,8 +14,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
+  let query = supabase
     .from('invoices')
     .select('*, owner:grazing_owners(id, name, company_name, owner_name, email, phone)', { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -61,8 +60,7 @@ export async function POST(req: NextRequest) {
     status: 'draft',
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('invoices')
     .insert(row)
     .select('*, owner:grazing_owners(id, name, company_name, owner_name, email)')

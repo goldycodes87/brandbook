@@ -7,7 +7,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const supabase = createAdminClient()
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('sire_library')
     .select('*')
     .eq('id', id)
@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const epdFields = ['epd_bw','epd_ww','epd_yw','epd_milk','epd_tm','epd_cw','epd_rea','epd_fat','epd_marbling','epd_dollar_w','epd_dollar_f','epd_dollar_g','epd_dollar_b','acc_bw','acc_ww','acc_yw']
   epdFields.forEach(f => { if (f in body) updates[f] = toNum(body[f]) })
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('sire_library')
     .update(updates)
     .eq('id', id)
@@ -48,7 +48,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
   const supabase = createAdminClient()
 
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from('sire_library')
     .delete()
     .eq('id', id)

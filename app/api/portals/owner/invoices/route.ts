@@ -8,8 +8,7 @@ export async function GET() {
   const session = await getOwnerSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('invoices')
     .select('id, invoice_number, period_start, period_end, total_amount, status, due_date, pdf_url, created_at')

@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   // For history mode, group all assignments per animal_id
   // For active mode, one entry per animal_id
   const assignsByAnimal = new Map<string, AssignRow[]>()
-  for (const a of (assignments ?? []) as AssignRow[]) {
+  for (const a of (assignments ?? []) as unknown as AssignRow[]) {
     if (!assignsByAnimal.has(a.animal_id)) assignsByAnimal.set(a.animal_id, [])
     assignsByAnimal.get(a.animal_id)!.push(a)
   }
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       .from('grazing_owners')
       .select('id, name, company_name, owner_name')
       .in('id', ownerIds)
-    for (const o of (owners ?? []) as Array<{
+    for (const o of (owners ?? []) as unknown as Array<{
       id: string; name: string; company_name: string | null; owner_name: string | null
     }>) {
       ownerMap[o.id] = o.company_name || o.owner_name || o.name || 'Unknown'

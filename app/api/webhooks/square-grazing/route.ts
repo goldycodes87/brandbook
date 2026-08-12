@@ -37,8 +37,7 @@ export async function POST(req: Request) {
       // Back out the 3% surcharge to find the base invoice amount
       const baseAmount = Math.round(amountPaid / 1.03 * 100) / 100
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: invoices } = await (supabase as any)
+      const { data: invoices } = await supabase
         .from('invoices')
         .select('id, total_amount')
         .eq('status', 'sent')
@@ -46,8 +45,7 @@ export async function POST(req: Request) {
         .lte('total_amount', baseAmount + 1)
 
       if (invoices?.length === 1) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
+        await supabase
           .from('invoices')
           .update({
             status:         'paid',

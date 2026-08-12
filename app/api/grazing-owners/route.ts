@@ -45,15 +45,13 @@ export async function POST(req: NextRequest) {
   if (company_name !== undefined) row.company_name = company_name || null
   if (owner_name !== undefined)   row.owner_name   = owner_name   || null
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let { data, error } = await (supabase as any).from('grazing_owners').insert(row).select().single()
+  let { data, error } = await supabase.from('grazing_owners').insert(row).select().single()
 
   // Retry without new columns if they don't exist yet
   if (error?.code === '42703') {
     delete row.company_name
     delete row.owner_name
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;({ data, error } = await (supabase as any).from('grazing_owners').insert(row).select().single())
+    ;({ data, error } = await supabase.from('grazing_owners').insert(row).select().single())
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

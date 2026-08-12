@@ -10,8 +10,7 @@ export async function GET(req: NextRequest) {
   const year     = sp.get('year')
   const quarter  = sp.get('quarter')
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
+  let query = supabase
     .from('lease_expenses')
     .select('*')
     .eq('is_lease_specific', false)
@@ -98,8 +97,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'every row requires category_name and total_amount' }, { status: 400 })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('lease_expenses')
       .insert(batch.map(buildExpenseRow))
       .select('*')
@@ -112,8 +110,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'category_name and total_amount are required' }, { status: 400 })
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('lease_expenses')
     .insert(buildExpenseRow(body))
     .select('*')

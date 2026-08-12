@@ -13,8 +13,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Square not configured' }, { status: 501 })
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: invoice, error } = await (supabase as any)
+  const { data: invoice, error } = await supabase
     .from('invoices')
     .select('*, owner:grazing_owners(id, name, company_name, owner_name)')
     .eq('id', id)
@@ -58,8 +57,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const linkUrl = result.paymentLink?.url
   if (!linkUrl) return NextResponse.json({ error: 'Failed to create Square payment link' }, { status: 500 })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from('invoices').update({ square_payment_link: linkUrl }).eq('id', id)
+  await supabase.from('invoices').update({ square_payment_link: linkUrl }).eq('id', id)
 
   return NextResponse.json({ payment_link_url: linkUrl })
 }

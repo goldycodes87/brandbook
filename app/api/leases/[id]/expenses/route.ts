@@ -14,8 +14,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
+  let query = supabase
     .from('lease_expenses')
     .select('*')
     .eq('lease_id', id)
@@ -58,8 +57,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     quarter = Math.ceil((d.getMonth() + 1) / 3)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('lease_expenses')
     .insert({
       lease_id:         id,

@@ -12,8 +12,7 @@ export async function getOwnerSession(): Promise<OwnerSession | null> {
   const owner_id = await verifySessionValue(cookieStore.get('brandbook_owner_session')?.value)
   if (!owner_id) return null
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('grazing_owners')
     .select('id, name, company_name, owner_name')

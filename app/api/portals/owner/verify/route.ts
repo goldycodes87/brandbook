@@ -9,8 +9,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: owner } = await (supabase as any)
+  const { data: owner } = await supabase
     .from('grazing_owners')
     .select('id, name, company_name, owner_name, email')
     .eq('portal_token', token)

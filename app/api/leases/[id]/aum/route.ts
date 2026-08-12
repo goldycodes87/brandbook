@@ -67,7 +67,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .from('grazing_owners')
       .select('id, name, company_name, owner_name')
       .in('id', ownerIds)
-    for (const o of (owners ?? []) as Array<{ id: string; name: string; company_name: string | null; owner_name: string | null }>) {
+    for (const o of (owners ?? []) as unknown as Array<{ id: string; name: string; company_name: string | null; owner_name: string | null }>) {
       ownerMap[o.id] = o.company_name || o.owner_name || o.name || 'Unknown'
     }
   }

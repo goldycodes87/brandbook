@@ -8,8 +8,7 @@ export async function POST(req: NextRequest) {
   const { token } = await req.json()
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
+  const supabase = createAdminClient()
   const { data: owner } = await supabase
     .from('grazing_owners')
     .select('id, name, company_name, owner_name')

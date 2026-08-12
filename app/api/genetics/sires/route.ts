@@ -31,8 +31,7 @@ export async function GET(req: NextRequest) {
 
   // Return distinct stud names only
   if (studs_only) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('sire_library')
       .select('stud')
       .not('stud', 'is', null)
@@ -44,8 +43,7 @@ export async function GET(req: NextRequest) {
   const column    = SORT_MAP[sort] ?? 'bull_name'
   const ascending = dir !== 'desc'
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
+  let query = supabase
     .from('sire_library')
     .select('*', { count: 'exact' })
     .range(offset, offset + limit - 1)
@@ -103,8 +101,7 @@ export async function POST(req: NextRequest) {
     import_batch_id: body.import_batch_id || null,
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('sire_library')
     .insert(row)
     .select()

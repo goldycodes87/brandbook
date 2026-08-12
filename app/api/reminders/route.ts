@@ -13,8 +13,7 @@ export async function GET(req: NextRequest) {
   cutoff.setDate(cutoff.getDate() + days)
   const cutoffStr = cutoff.toISOString().slice(0, 10)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
+  let query = supabase
     .from('reminders')
     .select(`*, animal:animal_id ( id, tag_number, ear_tag_color, name )`)
     .order('due_date', { ascending: true })
@@ -33,8 +32,7 @@ export async function POST(req: NextRequest) {
   const { animal_id, reminder_type, due_date, title, notes, protocol_group_id, reproduction_event_id } = body
   if (!due_date) return NextResponse.json({ error: 'due_date required' }, { status: 400 })
   const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('reminders')
     .insert({
       animal_id:              animal_id              || null,
@@ -61,8 +59,7 @@ export async function PATCH(req: NextRequest) {
     update.is_dismissed = Boolean(is_dismissed)
     update.dismissed_at = is_dismissed ? new Date().toISOString() : null
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('reminders')
     .update(update)
     .eq('id', id)

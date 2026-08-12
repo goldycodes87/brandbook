@@ -43,8 +43,7 @@ export async function POST(req: NextRequest) {
   if (!animal_id)  return NextResponse.json({ error: 'animal_id required' },  { status: 400 })
   if (!event_date) return NextResponse.json({ error: 'event_date required' }, { status: 400 })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
+  const supabase = createAdminClient()
 
   // ── a. Read animal + ranch_settings + existing repro events ────────────────
   const [{ data: animal }, { data: ranch }, { data: existingEvents }] = await Promise.all([

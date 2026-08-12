@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Create import batch record
-  const { data: batch, error: batchErr } = await (supabase as any)
+  const { data: batch, error: batchErr } = await supabase
     .from('sire_import_batches')
     .insert({
       stud:          stud || 'Unknown',
@@ -54,19 +54,19 @@ export async function POST(req: NextRequest) {
     acc_yw:       toNum(b.acc_yw),
   }))
 
-  const { error: insertErr, count } = await (supabase as any)
+  const { error: insertErr, count } = await supabase
     .from('sire_library')
     .insert(rows)
 
   if (insertErr) {
-    await (supabase as any)
+    await supabase
       .from('sire_import_batches')
       .update({ status: 'failed', error_text: insertErr.message })
       .eq('id', batch.id)
     return NextResponse.json({ error: insertErr.message }, { status: 500 })
   }
 
-  await (supabase as any)
+  await supabase
     .from('sire_import_batches')
     .update({ status: 'complete', bulls_imported: rows.length })
     .eq('id', batch.id)

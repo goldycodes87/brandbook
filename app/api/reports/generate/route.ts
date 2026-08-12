@@ -21,8 +21,7 @@ function dd(d: string | null | undefined): string {
 }
 
 export async function POST(req: NextRequest) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
+  const supabase = createAdminClient()
   const body = await req.json()
   const { type, owner_id, year: yearInput } = body as { type: ReportType; owner_id?: string; year?: number }
   const year      = yearInput ?? new Date().getFullYear()

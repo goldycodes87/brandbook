@@ -32,8 +32,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (assignRes.error)   return NextResponse.json({ error: assignRes.error.message }, { status: 500 })
 
   const lease   = leaseRes.data   as Record<string, unknown>
-  const periods = (periodsRes.data ?? []) as Record<string, unknown>[]
-  const allAssignments = (assignRes.data ?? []) as Array<{
+  const periods = (periodsRes.data ?? []) as unknown as Record<string, unknown>[]
+  const allAssignments = (assignRes.data ?? []) as unknown as Array<{
     animal_id: string; start_date: string; end_date: string | null
   }>
 
@@ -59,7 +59,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .from('animals')
       .select('id, sex, weaning_date, dam_id, owner_id')
       .in('id', allAnimalIds)
-    for (const a of (animals ?? []) as AnimalRow[]) animalMap.set(a.id, a)
+    for (const a of (animals ?? []) as unknown as AnimalRow[]) animalMap.set(a.id, a)
   }
 
   // ── 3. Fetch owner names ─────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .from('grazing_owners')
       .select('id, name, company_name, owner_name')
       .in('id', ownerIds)
-    for (const o of (owners ?? []) as Array<{ id: string; name: string; company_name: string | null; owner_name: string | null }>) {
+    for (const o of (owners ?? []) as unknown as Array<{ id: string; name: string; company_name: string | null; owner_name: string | null }>) {
       ownerNameMap[o.id] = o.company_name || o.owner_name || o.name || 'Unknown'
     }
   }

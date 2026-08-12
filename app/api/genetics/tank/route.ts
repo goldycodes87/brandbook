@@ -27,8 +27,7 @@ export async function PATCH(req: NextRequest) {
   if (delta !== undefined) {
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
     const supabase = createAdminClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('adjust_straw', {
+    const { data, error } = await supabase.rpc('adjust_straw', {
       p_inventory_id: id,
       p_delta:        Number(delta),
     })

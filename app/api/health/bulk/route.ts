@@ -51,7 +51,7 @@ export async function resolveAnimalIds(
       .select('id, sex, weaning_date, dob')
       .eq('status', 'active')
       .gte('dob', cutoffStr)
-    ids = ((data ?? []) as Array<{ id: string; sex: string | null; weaning_date: string | null; dob: string | null }>)
+    ids = ((data ?? []) as unknown as Array<{ id: string; sex: string | null; weaning_date: string | null; dob: string | null }>)
       .filter(a =>
         (a.sex === 'heifer' || a.sex === 'bull' || a.sex === 'steer') ||
         (a.sex === 'calf' && a.weaning_date != null)

@@ -11,8 +11,7 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
 
   // Count invoices for this year+quarter to derive sequence
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { count } = await (supabase as any)
+  const { count } = await supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('invoice_quarter', quarter)

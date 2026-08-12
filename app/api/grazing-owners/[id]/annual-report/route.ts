@@ -57,7 +57,7 @@ async function buildReportData(id: string, year: number) {
       .gte('dob', yearStart)
       .lte('dob', yearEnd)
       .order('dob')
-    calvesBorn = (data ?? []) as CalfRow[]
+    calvesBorn = (data ?? []) as unknown as CalfRow[]
   }
 
   // Deaths this year (owner's animals that died)

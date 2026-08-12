@@ -23,8 +23,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (k in body) updates[k] = body[k]
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('lease_expenses')
     .update(updates)
     .eq('id', id)
@@ -39,8 +38,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id }   = await params
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from('lease_expenses')
     .delete()
     .eq('id', id)

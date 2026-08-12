@@ -119,8 +119,7 @@ export async function generatePDF(html: string): Promise<Buffer> {
 export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffer> {
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: invoice, error } = await (supabase as any)
+  const { data: invoice, error } = await supabase
     .from('invoices')
     .select('*, owner:grazing_owners(*)')
     .eq('id', invoiceId)

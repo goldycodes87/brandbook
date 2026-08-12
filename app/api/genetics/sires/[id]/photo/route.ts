@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const buffer = Buffer.from(await file.arrayBuffer())
   const url    = await uploadToR2(key, buffer, file.type)
 
-  const { error } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { error } = await supabase // eslint-disable-line @typescript-eslint/no-explicit-any
     .from('sire_library')
     .update({ photo_url: url })
     .eq('id', id)

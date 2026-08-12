@@ -5,8 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET() {
   const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('expense_categories')
     .select('*')
     .eq('is_active', true)
@@ -22,8 +21,7 @@ export async function POST(req: NextRequest) {
 
   if (!body.name?.trim()) return NextResponse.json({ error: 'Name required' }, { status: 400 })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('expense_categories')
     .insert({ name: body.name.trim(), description: body.description || null, is_active: true })
     .select()

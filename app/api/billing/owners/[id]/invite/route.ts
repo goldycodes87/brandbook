@@ -10,8 +10,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: owner, error } = await (supabase as any)
+  const { data: owner, error } = await supabase
     .from('grazing_owners').select('*').eq('id', id).single()
 
   if (error || !owner) return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
@@ -21,8 +20,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   let token = owner.portal_token
   if (!token) {
     token = Array.from({ length: 32 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('grazing_owners').update({ portal_token: token }).eq('id', id)
+    await supabase.from('grazing_owners').update({ portal_token: token }).eq('id', id)
   }
 
   const { data: ranch } = await supabase.from('ranch_settings').select('*').limit(1).maybeSingle()
@@ -56,7 +54,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
 </body></html>`
 
   const resend = new Resend(process.env.RESEND_API_KEY)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: sendError } = await resend.emails.send({
     from:    'Brand Book <noreply@brandbook.app>',
     to:      owner.email,

@@ -76,8 +76,7 @@ export async function POST(req: NextRequest) {
   if (leaseErr || !lease) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
 
   // ── STEP 2: Fetch owner details ──────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: owner, error: ownerErr } = await (supabase as any)
+  const { data: owner, error: ownerErr } = await supabase
     .from('grazing_owners')
     .select('id, name, company_name, owner_name, email')
     .eq('id', owner_id)
@@ -107,7 +106,7 @@ export async function POST(req: NextRequest) {
       .eq('status', 'active')
 
     if (animalErr) return NextResponse.json({ error: animalErr.message }, { status: 500 })
-    allAnimals = (animals ?? []) as Animal[]
+    allAnimals = (animals ?? []) as unknown as Animal[]
   }
 
   // Identify and exclude unweaned calves
@@ -189,7 +188,7 @@ export async function POST(req: NextRequest) {
     lineItems.length = 0
     const ratePerHead = Number((lease as Lease).rate_per_head) || 0
 
-    for (const p of (periods ?? []) as GrazingPeriod[]) {
+    for (const p of (periods ?? []) as unknown as GrazingPeriod[]) {
       const ownerHeadInPeriod = Math.round(p.head_count * (ownerPct / 100))
       if (ownerHeadInPeriod === 0) continue
       const periodDays = daysBetween(p.start_date, p.end_date)
@@ -213,8 +212,7 @@ export async function POST(req: NextRequest) {
   }> = []
 
   if (ownerPct > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leaseExpenses } = await (supabase as any)
+    const { data: leaseExpenses } = await supabase
       .from('lease_expenses')
       .select('*')
       .eq('lease_id', lease_id)
@@ -222,7 +220,7 @@ export async function POST(req: NextRequest) {
       .lte('expense_date', period_end)
       .order('expense_date')
 
-    for (const exp of (leaseExpenses ?? []) as Array<{
+    for (const exp of (leaseExpenses ?? []) as unknown as Array<{
       category_name: string; description: string | null; total_amount: number; expense_date: string | null
     }>) {
       const ownerAmount = Math.round(exp.total_amount * (ownerPct / 100) * 100) / 100

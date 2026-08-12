@@ -65,8 +65,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
 
   // ── Step 1: Fetch owner ──────────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: owner } = await (supabase as any)
+  const { data: owner } = await supabase
     .from('grazing_owners')
     .select('id, name, company_name, owner_name, email, address, city, state, zip')
     .eq('id', owner_id)
@@ -92,7 +91,7 @@ export async function POST(req: NextRequest) {
     .eq('status', 'active')
 
   type OwnerAnimal = { id: string; sex: string | null; weaning_date: string | null; dam_id: string | null }
-  const ownerAnimalsFull = (ownerAnimalsAll ?? []) as OwnerAnimal[]
+  const ownerAnimalsFull = (ownerAnimalsAll ?? []) as unknown as OwnerAnimal[]
   const ownerAnimalIdSet = new Set(ownerAnimalsFull.map(a => a.id))
 
   const billingPairCalves = ownerAnimalsFull.filter(a =>
@@ -134,8 +133,7 @@ export async function POST(req: NextRequest) {
 
   // ── Step 6: WHOLE-HERD EXPENSES ─────────────────────────────────────────────
   // Fetch all whole-herd expenses (is_lease_specific = false) for expense quarter
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: wholeHerdRaw } = await (supabase as any)
+  const { data: wholeHerdRaw } = await supabase
     .from('lease_expenses')
     .select('id, expense_type, category_name, description, total_amount, owner_id, animal_id, period_start, period_end, expense_date, include_calves, expense_categories(calculation_type, expense_type)')
     .eq('is_lease_specific', false)
@@ -152,17 +150,19 @@ export async function POST(req: NextRequest) {
     expense_categories: { calculation_type: string | null; expense_type: string | null } | null
   }
 
-  const wholeHerdExpenses = (wholeHerdRaw ?? []) as ExpenseRow[]
+  // Via `unknown` on purpose: the generated types model the
+  // expense_categories join as an array, but this is many-to-one so PostgREST
+  // returns a single object at runtime, which is what ExpenseRow describes.
+  const wholeHerdExpenses = (wholeHerdRaw ?? []) as unknown as ExpenseRow[]
 
   // Fetch ALL grazing_assignments across all leases during expense quarter
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: allAssignRaw } = await (supabase as any)
+  const { data: allAssignRaw } = await supabase
     .from('grazing_assignments')
     .select('animal_id, start_date, end_date, animals(id, sex, owner_id, weaning_date, dam_id)')
     .lte('start_date', eEnd)
     .or(`end_date.is.null,end_date.gte.${eStart}`)
 
-  const allAssignments = (allAssignRaw ?? []) as AssignWithAnimal[]
+  const allAssignments = (allAssignRaw ?? []) as unknown as AssignWithAnimal[]
 
   // Identify pair calves across all leases
   const allAssignedIds = new Set(allAssignments.map(a => a.animal_id))
@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
       .in('animal_id', ownerAnimalIds)
       .lte('start_date', eEnd)
       .or(`end_date.is.null,end_date.gte.${eStart}`)
-    ownerAssignments = (data ?? []) as AssignRow[]
+    ownerAssignments = (data ?? []) as unknown as AssignRow[]
   }
 
   const ownerLeaseIds = [...new Set(ownerAssignments.map(a => a.lease_id))]
@@ -296,8 +296,7 @@ export async function POST(req: NextRequest) {
     if (!lease) continue
 
     // Fetch ONLY lease-specific expenses for this lease
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rawExpenses } = await (supabase as any)
+    const { data: rawExpenses } = await supabase
       .from('lease_expenses')
       .select('id, lease_id, expense_type, category_name, description, total_amount, owner_id, animal_id, period_start, period_end, expense_date, include_calves, expense_categories(calculation_type)')
       .eq('lease_id', leaseId)
@@ -305,19 +304,18 @@ export async function POST(req: NextRequest) {
       .eq('quarter', expense_quarter)
       .eq('year', expense_year % 100)
 
-    const expenses = (rawExpenses ?? []) as ExpenseRow[]
+    const expenses = (rawExpenses ?? []) as unknown as ExpenseRow[]
     if (!expenses.length) continue
 
     // Fetch all assignments on this lease during expense quarter
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: allAssignData } = await (supabase as any)
+    const { data: allAssignData } = await supabase
       .from('grazing_assignments')
       .select('animal_id, start_date, end_date, animals(id, sex, owner_id, weaning_date, dam_id)')
       .eq('lease_id', leaseId)
       .lte('start_date', eEnd)
       .or(`end_date.is.null,end_date.gte.${eStart}`)
 
-    const leaseAllAssignments = (allAssignData ?? []) as AssignWithAnimal[]
+    const leaseAllAssignments = (allAssignData ?? []) as unknown as AssignWithAnimal[]
 
     const leaseAnimalMap = new Map<string, LeaseAnimalRow>()
     for (const a of leaseAllAssignments) {
@@ -440,8 +438,7 @@ export async function POST(req: NextRequest) {
     leaseExpenseGroups.reduce((s, g) => s + g.line_items.length, 0)
 
   // ── Step 9: Get invoice number ───────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { count: existingCount } = await (supabase as any)
+  const { count: existingCount } = await supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('invoice_quarter', billing_quarter)
@@ -473,8 +470,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Step 10: Create the invoice ──────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: invoice, error: invErr } = await (supabase as any)
+  const { data: invoice, error: invErr } = await supabase
     .from('invoices')
     .insert({
       owner_id,

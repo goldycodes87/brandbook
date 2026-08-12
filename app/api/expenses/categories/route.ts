@@ -6,8 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function GET() {
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('expense_categories')
     .select('id, name, expense_type, calculation_type, sort_order')
     .eq('is_active', true)
@@ -15,7 +14,7 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const rows = (data ?? []) as { id: string; name: string; expense_type: string; calculation_type: string | null; sort_order: number | null }[]
+  const rows = (data ?? []) as unknown as { id: string; name: string; expense_type: string; calculation_type: string | null; sort_order: number | null }[]
 
   const grouped = {
     shared:          rows.filter(r => r.expense_type === 'shared'),
