@@ -46,7 +46,30 @@ interface Settlement {
   pdf_url: string | null
 }
 
-type Tab = 'animals' | 'invoices' | 'payments' | 'annual_report'
+// One owner's share of one expense. Comes from the same module that builds
+// Grant's operator view, so the numbers here cannot disagree with his.
+interface AllocationRow {
+  expense_id: string
+  description: string
+  category_name: string | null
+  expense_date: string | null
+  lease_name: string | null
+  kind: 'owner_specific' | 'animal_specific' | 'shared'
+  expense_total: number
+  amount: number
+  share_note: string | null
+  status: 'pending' | 'invoiced' | 'paid'
+  invoice_number: string | null
+}
+
+interface AllocationReport {
+  quarter: number
+  year: number
+  rows: AllocationRow[]
+  totals: { pending: number; invoiced: number; paid: number; total: number }
+}
+
+type Tab = 'animals' | 'expenses' | 'invoices' | 'payments' | 'annual_report'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -67,6 +90,12 @@ function statusBadge(status: string) {
   }
 }
 
+function shareBadge(status: AllocationRow['status']) {
+  if (status === 'paid')     return <Badge variant="success">PAID</Badge>
+  if (status === 'invoiced') return <Badge variant="info">INVOICED</Badge>
+  return <Badge variant="warning">PENDING</Badge>
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 export default function OwnerPortalPage({ params }: { params: Promise<{ token: string }> }) {
@@ -81,6 +110,18 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   const [tab, setTab]                 = useState<Tab>('animals')
   const [loading, setLoading]         = useState(true)
   const [reportLoading, setReportLoading] = useState(false)
+
+  const nowQ = Math.ceil((new Date().getMonth() + 1) / 3)
+  const [allocQuarter, setAllocQuarter] = useState(nowQ)
+  const [allocYear,    setAllocYear]    = useState(new Date().getFullYear() % 100)
+
+  // Keyed by period so "loading" is derived, not toggled, and a slow response
+  // for Q2 cannot land under a Q3 heading.
+  const allocKey = `${allocYear}-${allocQuarter}`
+  const [allocResult, setAllocResult] = useState<{ key: string; report: AllocationReport | null } | null>(null)
+
+  const alloc        = allocResult?.key === allocKey ? allocResult.report : null
+  const allocLoading = tab === 'expenses' && allocResult?.key !== allocKey
 
   useEffect(() => {
     // Establish session — sets httpOnly cookie with owner_id
@@ -108,6 +149,19 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
       })
       .catch(() => { setValid(false); setLoading(false) })
   }, [token])
+
+  // Loaded on demand rather than with the rest: pending shares are recomputed
+  // from live herd-days on every request, so there is no point fetching them
+  // for an owner who never opens the tab.
+  useEffect(() => {
+    if (!valid || tab !== 'expenses') return
+    let cancelled = false
+    fetch(`/api/portals/owner/allocations?year=${allocYear}&quarter=${allocQuarter}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setAllocResult({ key: allocKey, report: d.error ? null : d }) })
+      .catch(() => { if (!cancelled) setAllocResult({ key: allocKey, report: null }) })
+    return () => { cancelled = true }
+  }, [valid, tab, allocYear, allocQuarter, allocKey])
 
   const handleGenerateReport = async () => {
     setReportLoading(true)
@@ -159,6 +213,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
 
   const TABS: { value: Tab; label: string }[] = [
     { value: 'animals',       label: 'MY ANIMALS' },
+    { value: 'expenses',      label: 'MY EXPENSES' },
     { value: 'invoices',      label: 'INVOICES' },
     { value: 'annual_report', label: 'ANNUAL REPORT' },
     { value: 'payments',      label: 'PAYMENTS' },
@@ -227,6 +282,116 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* MY EXPENSES */}
+        {tab === 'expenses' && (
+          <div className="flex flex-col gap-3">
+            {/* Period picker */}
+            <div className="flex flex-wrap items-center gap-1">
+              {[1, 2, 3, 4].map(q => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => setAllocQuarter(q)}
+                  className="px-3 py-1.5 rounded text-xs font-bold transition-colors"
+                  style={{
+                    background: allocQuarter === q ? 'var(--accent)' : 'var(--surface-2)',
+                    color:      allocQuarter === q ? 'white'         : 'var(--text-muted)',
+                    border:     `1px solid ${allocQuarter === q ? 'var(--accent)' : 'var(--border)'}`,
+                  }}
+                >
+                  Q{q}
+                </button>
+              ))}
+              <select
+                value={allocYear}
+                onChange={e => setAllocYear(Number(e.target.value))}
+                className="ml-1 rounded px-2 py-1.5 text-xs"
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              >
+                {[0, 1, 2].map(back => {
+                  const y = (new Date().getFullYear() - back) % 100
+                  return <option key={y} value={y}>20{String(y).padStart(2, '0')}</option>
+                })}
+              </select>
+            </div>
+
+            {/* Running totals */}
+            {alloc && (
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['PENDING',  alloc.totals.pending,  'var(--gold-fg, #d97706)'],
+                  ['INVOICED', alloc.totals.invoiced, 'var(--text)'],
+                  ['PAID',     alloc.totals.paid,     'var(--success-fg)'],
+                ] as const).map(([label, value, color]) => (
+                  <div
+                    key={label}
+                    className="rounded-lg px-3 py-2"
+                    style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+                  >
+                    <p className="type-helper" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                    <p className="font-bold text-sm mt-0.5" style={{ color }}>{fmtMoney(value)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {allocLoading && (
+              <p className="type-helper text-center py-6" style={{ color: 'var(--text-muted)' }}>
+                Loading your shares…
+              </p>
+            )}
+
+            {!allocLoading && (!alloc || alloc.rows.length === 0) && (
+              <EmptyState
+                variant="neutral"
+                title="No expenses this quarter"
+                body="Nothing has been charged to your animals for this period."
+              />
+            )}
+
+            {!allocLoading && alloc?.rows.map(r => (
+              <div
+                key={`${r.expense_id}-${r.status}`}
+                className="rounded-lg p-4 flex flex-col gap-2"
+                style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
+                      {r.description}
+                    </p>
+                    <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {[fmtDate(r.expense_date), r.category_name, r.lease_name].filter(Boolean).join(' · ')}
+                    </p>
+                    {/* The whole story of the number: what it was a slice of. */}
+                    {r.share_note && (
+                      <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                        Your share: {r.share_note}
+                      </p>
+                    )}
+                    {r.invoice_number && (
+                      <p className="type-helper font-mono" style={{ color: 'var(--text-muted)' }}>
+                        Invoice {r.invoice_number}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {shareBadge(r.status)}
+                    <span className="font-bold text-base" style={{ color: 'var(--gold-fg, #d97706)' }}>
+                      {fmtMoney(r.amount)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+              Pending amounts are an estimate based on the days your animals have grazed so
+              far this quarter, and will change if animals move. They are final once invoiced.
+            </p>
           </div>
         )}
 

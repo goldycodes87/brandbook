@@ -2,19 +2,11 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { calcOverlapDays } from '@/lib/lease-calculations'
+import { loadQuarterAllocations, quarterRange, type ExpenseMeta } from '@/lib/expense-allocation-data'
+import type { Allocation } from '@/lib/expense-allocation'
 
 function fmtDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function quarterRange(year: number, quarter: number): { start: string; end: string } {
-  const startMonth = (quarter - 1) * 3
-  const endMonth   = startMonth + 2
-  const yy = 2000 + year
-  const start = new Date(yy, startMonth, 1).toISOString().slice(0, 10)
-  const end   = new Date(yy, endMonth + 1, 0).toISOString().slice(0, 10)
-  return { start, end }
 }
 
 type LineItem = {
@@ -28,14 +20,16 @@ type LineItem = {
   is_whole_herd?: boolean
 }
 
-type LeaseAnimalRow = {
-  id: string; sex: string | null; owner_id: string | null
-  weaning_date: string | null; dam_id: string | null
-}
-
-type AssignWithAnimal = {
-  animal_id: string; start_date: string; end_date: string | null
-  animals: LeaseAnimalRow | null
+function lineItemFor(alloc: Allocation, meta: ExpenseMeta): LineItem {
+  return {
+    description:  meta.description || meta.category_name || 'Expense',
+    quantity:     1,
+    unit_price:   alloc.amount,
+    amount:       alloc.amount,
+    expense_type: alloc.kind,
+    ...(alloc.share_note ? { share_note: alloc.share_note } : {}),
+    ...(meta.is_lease_specific ? {} : { is_whole_herd: true }),
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -128,299 +122,52 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // ── Step 5: Expense quarter date range ──────────────────────────────────────
+  // ── Step 5: Expense quarter — every owner's share, computed once ─────────────
+  //
+  // The herd-days math lives in lib/expense-allocation.ts and nowhere else. The
+  // pending view calls the same loader with the same arguments, so a share
+  // cannot read one way on screen and another on the invoice.
   const { start: eStart, end: eEnd } = quarterRange(expense_year, expense_quarter)
 
-  // ── Step 6: WHOLE-HERD EXPENSES ─────────────────────────────────────────────
-  // Fetch all whole-herd expenses (is_lease_specific = false) for expense quarter
-  const { data: wholeHerdRaw } = await supabase
-    .from('lease_expenses')
-    .select('id, expense_type, category_name, description, total_amount, owner_id, animal_id, period_start, period_end, expense_date, include_calves, expense_categories(calculation_type, expense_type)')
-    .eq('is_lease_specific', false)
-    .eq('quarter', expense_quarter)
-    .eq('year', expense_year % 100)
+  const { allocations, expenses, herdDays } = await loadQuarterAllocations(supabase, {
+    quarter:     expense_quarter,
+    year:        expense_year,
+    windowStart: eStart,
+    windowEnd:   eEnd,
+  })
 
-  type ExpenseRow = {
-    id: string; expense_type: string
-    category_name: string; description: string | null
-    total_amount: number; owner_id: string | null; animal_id: string | null
-    period_start: string | null; period_end: string | null
-    expense_date: string | null
-    include_calves: boolean | null
-    expense_categories: { calculation_type: string | null; expense_type: string | null } | null
-  }
+  const ownerAllocations = allocations.filter(a => a.owner_id === owner_id && a.amount !== 0)
 
-  // Via `unknown` on purpose: the generated types model the
-  // expense_categories join as an array, but this is many-to-one so PostgREST
-  // returns a single object at runtime, which is what ExpenseRow describes.
-  const wholeHerdExpenses = (wholeHerdRaw ?? []) as unknown as ExpenseRow[]
+  const ownerHerdDays = herdDays.byOwner.get(owner_id) ?? 0
+  const ownerHerdPct  = herdDays.total > 0 ? ownerHerdDays / herdDays.total : 0
 
-  // Fetch ALL grazing_assignments across all leases during expense quarter
-  const { data: allAssignRaw } = await supabase
-    .from('grazing_assignments')
-    .select('animal_id, start_date, end_date, animals(id, sex, owner_id, weaning_date, dam_id)')
-    .lte('start_date', eEnd)
-    .or(`end_date.is.null,end_date.gte.${eStart}`)
-
-  const allAssignments = (allAssignRaw ?? []) as unknown as AssignWithAnimal[]
-
-  // Identify pair calves across all leases
-  const allAssignedIds = new Set(allAssignments.map(a => a.animal_id))
-  const pairCalfIds = new Set<string>()
-  for (const a of allAssignments) {
-    const an = a.animals
-    if (
-      an?.sex?.toLowerCase() === 'calf' &&
-      !an.weaning_date &&
-      an.dam_id &&
-      allAssignedIds.has(an.dam_id)
-    ) {
-      pairCalfIds.add(a.animal_id)
-    }
-  }
-
-  // Calculate owner-days per owner across all leases (exclude pair calves)
-  const ownerDaysMap: Record<string, number> = {}
-  for (const a of allAssignments) {
-    if (pairCalfIds.has(a.animal_id)) continue
-    const days = calcOverlapDays(a.start_date, a.end_date, eStart, eEnd)
-    if (days <= 0) continue
-    const key = a.animals?.owner_id ?? 'home'
-    ownerDaysMap[key] = (ownerDaysMap[key] ?? 0) + days
-  }
-
-  const totalHerdDays = Object.values(ownerDaysMap).reduce((s, d) => s + d, 0)
-  const ownerHerdDays = ownerDaysMap[owner_id] ?? 0
-  const ownerHerdPct  = totalHerdDays > 0 ? ownerHerdDays / totalHerdDays : 0
-
+  // ── Step 6: Group this owner's shares into line items ───────────────────────
   const wholeHerdLineItems: LineItem[] = []
+  const leaseGroups = new Map<string, { lease_name: string; line_items: LineItem[] }>()
 
-  // Every SINGLE-OWNER lease_expenses row that contributes to this invoice.
-  //
-  // Only owner_specific and animal_specific rows are stamped. A shared expense
-  // is pro-rated across every owner's invoice, and invoice_id is one column —
-  // stamping it would tag the row with whichever owner's invoice happened to
-  // generate last. Shared rows stay unlinked and are reported as "shared — see
-  // lease billing" rather than being falsely attributed.
-  //
-  // Stamped onto those rows as invoice_id once the invoice is created, so an
-  // expense can
-  // report whether it has been billed (and later, paid) instead of guessing
-  // from quarter/year.
+  // Every SINGLE-OWNER lease_expenses row on this invoice. Shared rows are
+  // pro-rated across several owners and invoice_id is one column, so they are
+  // tracked in expense_allocations instead — see the upsert at the end.
   const billedExpenseIds = new Set<string>()
 
-  for (const expense of wholeHerdExpenses) {
-    const expType =
-      expense.expense_categories?.expense_type ||
-      expense.expense_type ||
-      'shared'
+  for (const alloc of ownerAllocations) {
+    const meta = expenses.get(alloc.expense_id)
+    if (!meta) continue
 
-    if (expType === 'owner_specific') {
-      if (expense.owner_id !== owner_id) continue
-      billedExpenseIds.add(expense.id)
-      wholeHerdLineItems.push({
-        description:  expense.description || expense.category_name || 'Expense',
-        quantity:     1,
-        unit_price:   expense.total_amount,
-        amount:       expense.total_amount,
-        expense_type: 'owner_specific',
-        is_whole_herd: true,
-      })
+    if (alloc.kind !== 'shared') billedExpenseIds.add(alloc.expense_id)
+
+    if (!meta.is_lease_specific) {
+      wholeHerdLineItems.push(lineItemFor(alloc, meta))
       continue
     }
 
-    if (expType === 'animal_specific') continue
-
-    // Shared: calculate using herd-wide animal-days
-    const includeCaivesInSplit = expense.include_calves ?? false
-    const calcType = expense.expense_categories?.calculation_type || 'period'
-    const windowStart = calcType === 'one_time' ? (expense.expense_date || eStart) : (expense.period_start || eStart)
-    const windowEnd   = calcType === 'one_time' ? (expense.expense_date || eEnd)   : (expense.period_end   || eEnd)
-
-    let shareAmt: number
-
-    if (includeCaivesInSplit) {
-      // Include pair calves in split
-      let ownerDaysC = 0
-      let totalDaysC = 0
-      for (const a of allAssignments) {
-        const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
-        if (days <= 0) continue
-        totalDaysC += days
-        if ((a.animals?.owner_id ?? null) === owner_id) ownerDaysC += days
-      }
-      shareAmt = totalDaysC > 0 ? expense.total_amount * (ownerDaysC / totalDaysC) : 0
-    } else {
-      // Recalculate over the expense window (excluding pair calves)
-      let ownerWinDays = 0
-      let totalWinDays = 0
-      for (const a of allAssignments) {
-        if (pairCalfIds.has(a.animal_id)) continue
-        const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
-        if (days <= 0) continue
-        totalWinDays += days
-        if ((a.animals?.owner_id ?? null) === owner_id) ownerWinDays += days
-      }
-      shareAmt = totalWinDays > 0 ? expense.total_amount * (ownerWinDays / totalWinDays) : 0
-    }
-
-    if (shareAmt <= 0) continue
-
-    const sharePct = (ownerHerdPct * 100).toFixed(1)
-    wholeHerdLineItems.push({
-      description:  expense.description || expense.category_name || 'Expense',
-      quantity:     1,
-      unit_price:   Math.round(shareAmt * 100) / 100,
-      amount:       Math.round(shareAmt * 100) / 100,
-      expense_type: 'shared',
-      share_note:   `${sharePct}% of $${Number(expense.total_amount).toFixed(2)}`,
-      is_whole_herd: true,
-    })
+    const key   = meta.lease_id ?? 'unknown'
+    const group = leaseGroups.get(key) ?? { lease_name: meta.lease_name ?? 'Lease', line_items: [] }
+    group.line_items.push(lineItemFor(alloc, meta))
+    leaseGroups.set(key, group)
   }
 
-  // ── Step 7: LEASE-SPECIFIC EXPENSES (existing per-lease logic) ───────────────
-  const ownerAnimalIds = ownerAnimalsFull.map(a => a.id)
-
-  type AssignRow = { animal_id: string; lease_id: string; start_date: string; end_date: string | null }
-
-  let ownerAssignments: AssignRow[] = []
-  if (ownerAnimalIds.length > 0) {
-    const { data } = await supabase
-      .from('grazing_assignments')
-      .select('animal_id, lease_id, start_date, end_date')
-      .in('animal_id', ownerAnimalIds)
-      .lte('start_date', eEnd)
-      .or(`end_date.is.null,end_date.gte.${eStart}`)
-    ownerAssignments = (data ?? []) as unknown as AssignRow[]
-  }
-
-  const ownerLeaseIds = [...new Set(ownerAssignments.map(a => a.lease_id))]
-
-  const leaseExpenseGroups: Array<{
-    lease_id: string
-    lease_name: string
-    line_items: LineItem[]
-  }> = []
-
-  for (const leaseId of ownerLeaseIds) {
-    const { data: lease } = await supabase
-      .from('leases')
-      .select('id, property_name, is_home_ranch')
-      .eq('id', leaseId)
-      .maybeSingle()
-    if (!lease) continue
-
-    // Fetch ONLY lease-specific expenses for this lease
-    const { data: rawExpenses } = await supabase
-      .from('lease_expenses')
-      .select('id, lease_id, expense_type, category_name, description, total_amount, owner_id, animal_id, period_start, period_end, expense_date, include_calves, expense_categories(calculation_type)')
-      .eq('lease_id', leaseId)
-      .eq('is_lease_specific', true)
-      .eq('quarter', expense_quarter)
-      .eq('year', expense_year % 100)
-
-    const expenses = (rawExpenses ?? []) as unknown as ExpenseRow[]
-    if (!expenses.length) continue
-
-    // Fetch all assignments on this lease during expense quarter
-    const { data: allAssignData } = await supabase
-      .from('grazing_assignments')
-      .select('animal_id, start_date, end_date, animals(id, sex, owner_id, weaning_date, dam_id)')
-      .eq('lease_id', leaseId)
-      .lte('start_date', eEnd)
-      .or(`end_date.is.null,end_date.gte.${eStart}`)
-
-    const leaseAllAssignments = (allAssignData ?? []) as unknown as AssignWithAnimal[]
-
-    const leaseAnimalMap = new Map<string, LeaseAnimalRow>()
-    for (const a of leaseAllAssignments) {
-      if (a.animals) leaseAnimalMap.set(a.animal_id, a.animals)
-    }
-
-    const leaseAssignedIds = new Set(leaseAllAssignments.map(a => a.animal_id))
-    const leasePairCalfIds = new Set<string>()
-    for (const [animalId, animal] of leaseAnimalMap) {
-      if (
-        animal.sex?.toLowerCase() === 'calf' &&
-        !animal.weaning_date &&
-        animal.dam_id &&
-        leaseAssignedIds.has(animal.dam_id)
-      ) {
-        leasePairCalfIds.add(animalId)
-      }
-    }
-
-    const leaseName = (lease as { property_name: string }).property_name
-    const leaseLineItems: LineItem[] = []
-
-    for (const expense of expenses) {
-      if (expense.expense_type === 'owner_specific') {
-        if (expense.owner_id !== owner_id) continue
-        billedExpenseIds.add(expense.id)
-        leaseLineItems.push({
-          description:  expense.description || expense.category_name || 'Expense',
-          quantity:     1,
-          unit_price:   expense.total_amount,
-          amount:       expense.total_amount,
-          expense_type: 'owner_specific',
-        })
-        continue
-      }
-
-      if (expense.expense_type === 'animal_specific') {
-        if (!expense.animal_id) continue
-        const { data: animalRow } = await supabase
-          .from('animals').select('owner_id').eq('id', expense.animal_id).maybeSingle()
-        if ((animalRow as { owner_id: string | null } | null)?.owner_id !== owner_id) continue
-        billedExpenseIds.add(expense.id)
-        leaseLineItems.push({
-          description:  expense.description || expense.category_name || 'Expense',
-          quantity:     1,
-          unit_price:   expense.total_amount,
-          amount:       expense.total_amount,
-          expense_type: 'animal_specific',
-        })
-        continue
-      }
-
-      const includeCaivesInSplit = expense.include_calves ?? (expense.category_name === 'Working Animals')
-      const calcType = expense.expense_categories?.calculation_type || 'period'
-      const windowStart = calcType === 'one_time' ? (expense.expense_date || eStart) : (expense.period_start || eStart)
-      const windowEnd   = calcType === 'one_time' ? (expense.expense_date || eEnd)   : (expense.period_end   || eEnd)
-
-      let ownerDays = 0
-      let totalDays = 0
-
-      for (const a of leaseAllAssignments) {
-        if (!includeCaivesInSplit && leasePairCalfIds.has(a.animal_id)) continue
-        const days = calcOverlapDays(a.start_date, a.end_date, windowStart, windowEnd)
-        if (days <= 0) continue
-        totalDays += days
-        const animalOwner = leaseAnimalMap.get(a.animal_id)?.owner_id ?? null
-        if (animalOwner === owner_id) ownerDays += days
-      }
-
-      if (totalDays === 0 || ownerDays === 0) continue
-
-      const ownerShare = expense.total_amount * (ownerDays / totalDays)
-      const sharePct   = ((ownerDays / totalDays) * 100).toFixed(1)
-
-      leaseLineItems.push({
-        description:  expense.description || expense.category_name || 'Expense',
-        quantity:     1,
-        unit_price:   Math.round(ownerShare * 100) / 100,
-        amount:       Math.round(ownerShare * 100) / 100,
-        expense_type: 'shared',
-        share_note:   `${sharePct}% of $${Number(expense.total_amount).toFixed(2)}`,
-      })
-    }
-
-    if (leaseLineItems.length > 0) {
-      leaseExpenseGroups.push({ lease_id: leaseId, lease_name: leaseName, line_items: leaseLineItems })
-    }
-  }
-
-  // ── Step 8: Build final line items ───────────────────────────────────────────
+  // ── Step 7: Build final line items ───────────────────────────────────────────
   if (wholeHerdLineItems.length > 0) {
     lineItems.push({
       description: `- Q${expense_quarter} ${2000 + expense_year} EXPENSES (WHOLE HERD) -`,
@@ -429,12 +176,10 @@ export async function POST(req: NextRequest) {
       amount:      0,
       is_header:   true,
     })
-    for (const item of wholeHerdLineItems) {
-      lineItems.push(item)
-    }
+    lineItems.push(...wholeHerdLineItems)
   }
 
-  if (leaseExpenseGroups.length > 0) {
+  if (leaseGroups.size > 0) {
     lineItems.push({
       description: `- Q${expense_quarter} ${2000 + expense_year} LEASE EXPENSES -`,
       quantity:    null,
@@ -442,19 +187,18 @@ export async function POST(req: NextRequest) {
       amount:      0,
       is_header:   true,
     })
-    for (const group of leaseExpenseGroups) {
+    for (const group of leaseGroups.values()) {
       for (const item of group.line_items) {
         lineItems.push({ ...item, description: `${item.description} (${group.lease_name})` })
       }
     }
   }
 
-  const total       = Math.round(lineItems.reduce((s, i) => s + i.amount, 0) * 100) / 100
-  const ownerName   = owner.company_name || owner.owner_name || owner.name
-  const expenseCount = wholeHerdLineItems.length +
-    leaseExpenseGroups.reduce((s, g) => s + g.line_items.length, 0)
+  const total        = Math.round(lineItems.reduce((s, i) => s + i.amount, 0) * 100) / 100
+  const ownerName    = owner.company_name || owner.owner_name || owner.name
+  const expenseCount = ownerAllocations.length
 
-  // ── Step 9: Get invoice number ───────────────────────────────────────────────
+  // ── Step 8: Get invoice number ───────────────────────────────────────────────
   const { count: existingCount } = await supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
@@ -486,7 +230,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ preview })
   }
 
-  // ── Step 10: Create the invoice ──────────────────────────────────────────────
+  // ── Step 9: Create the invoice ──────────────────────────────────────────────
   const { data: invoice, error: invErr } = await supabase
     .from('invoices')
     .insert({
@@ -507,8 +251,34 @@ export async function POST(req: NextRequest) {
 
   if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
 
-  // Link every expense that contributed to this invoice. Non-fatal: a failure
-  // here costs the invoiced/paid badge on those rows, not the invoice itself.
+  // ── Step 10: Freeze this owner's shares ─────────────────────────────────────
+  //
+  // Only this owner's rows are written. Everyone else's share stays pending and
+  // keeps recomputing from live herd-days — storing it now would freeze a
+  // number that changes the moment an animal moves.
+  //
+  // Non-fatal: a failure here costs the invoiced/paid badge, not the invoice.
+  let allocationsWritten = 0
+  if (ownerAllocations.length > 0) {
+    const { error: allocErr, count } = await supabase
+      .from('expense_allocations')
+      .upsert(
+        ownerAllocations.map(a => ({
+          expense_id:  a.expense_id,
+          owner_id:    a.owner_id,
+          amount:      a.amount,
+          share_note:  a.share_note,
+          invoice_id:  invoice.id,
+          computed_at: new Date().toISOString(),
+        })),
+        { onConflict: 'expense_id,owner_id', count: 'exact' },
+      )
+    if (allocErr) console.error('[generate-quarterly] failed to write allocations:', allocErr.message)
+    else allocationsWritten = count ?? ownerAllocations.length
+  }
+
+  // Single-owner rows also carry invoice_id directly, so an expense list can
+  // show its status without joining through allocations.
   let expensesLinked = 0
   if (billedExpenseIds.size > 0) {
     const ids = [...billedExpenseIds]
@@ -520,5 +290,8 @@ export async function POST(req: NextRequest) {
     else expensesLinked = ids.length
   }
 
-  return NextResponse.json({ invoice, preview, expenses_linked: expensesLinked }, { status: 201 })
+  return NextResponse.json(
+    { invoice, preview, expenses_linked: expensesLinked, allocations_written: allocationsWritten },
+    { status: 201 },
+  )
 }

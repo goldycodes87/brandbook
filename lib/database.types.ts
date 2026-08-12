@@ -698,6 +698,58 @@ export type Database = {
           },
         ]
       }
+      expense_allocations: {
+        Row: {
+          amount: number
+          computed_at: string
+          expense_id: string
+          id: string
+          invoice_id: string | null
+          owner_id: string | null
+          share_note: string | null
+        }
+        Insert: {
+          amount: number
+          computed_at?: string
+          expense_id: string
+          id?: string
+          invoice_id?: string | null
+          owner_id?: string | null
+          share_note?: string | null
+        }
+        Update: {
+          amount?: number
+          computed_at?: string
+          expense_id?: string
+          id?: string
+          invoice_id?: string | null
+          owner_id?: string | null
+          share_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_allocations_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "lease_expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_allocations_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_allocations_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
           calculation_type: string | null
