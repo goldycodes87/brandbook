@@ -24,6 +24,7 @@ import { OpenPregnancyCard } from '@/components/animals/PregnancyCard'
 import type { ReproEventShape, CalfRecord } from '@/components/animals/PregnancyCard'
 import { CowCalfCard } from '@/components/animals/CowCalfCard'
 import { ExpenseHistory } from '@/components/animals/ExpenseHistory'
+import { AnnualPL } from '@/components/animals/AnnualPL'
 import { AiFeeOverride } from '@/components/animals/AiFeeOverride'
 import { DispositionSheet } from '@/components/animals/DispositionSheet'
 import { SaleSheet } from '@/components/animals/SaleSheet'
@@ -512,6 +513,12 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
           </PanelSection>
         </Panel>
       )}
+
+      {/* Per-year operating P&L for this animal */}
+
+      <AnnualPL animalId={animal.id} />
+
+      
 
       {/* Direct expenses booked against this animal, with invoice status */}
       <ExpenseHistory animalId={animal.id} />

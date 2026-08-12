@@ -14,7 +14,17 @@ export interface AnimalSplitInput {
   animals: SplitAnimal[]
   /** The grazing_owners row with is_self = true, used for ranch-owned animals. */
   selfOwnerId: string | null
+  /**
+   * The amount to divide equally across the selected animals. Ignored when
+   * perHeadAmount is given.
+   */
   totalAmount: number
+  /**
+   * A fixed rate charged to EACH selected animal (AI tech fee, semen straw).
+   * Every animal gets exactly this amount and the total is rate x head count,
+   * so there is no remainder to distribute.
+   */
+  perHeadAmount?: number | null
   categoryName: string
   categoryId: string | null
   description?: string | null
@@ -50,13 +60,16 @@ export interface AnimalSplitRow {
  * in P&L / Schedule F.
  */
 export function buildAnimalSplitRows(input: AnimalSplitInput): AnimalSplitRow[] {
-  const { animalIds, animals, selfOwnerId, totalAmount } = input
+  const { animalIds, animals, selfOwnerId, totalAmount, perHeadAmount } = input
   const N = animalIds.length
   if (N === 0) return []
 
+  // Per-head mode: a fixed rate per animal, no division and no remainder.
+  const fixedCents = perHeadAmount != null ? Math.round(perHeadAmount * 100) : null
+
   const totalCents   = Math.round(totalAmount * 100)
-  const perHeadCents = Math.floor(totalCents / N)
-  const remainder    = totalCents - perHeadCents * N   // 0 .. N-1
+  const perHeadCents = fixedCents ?? Math.floor(totalCents / N)
+  const remainder    = fixedCents != null ? 0 : totalCents - perHeadCents * N   // 0 .. N-1
 
   return animalIds.map((aId, idx): AnimalSplitRow => {
     const animal     = animals.find(a => a.id === aId)

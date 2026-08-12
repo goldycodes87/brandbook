@@ -12,10 +12,22 @@ export interface PickerAnimal {
   owner_id?: string | null
 }
 
+export interface PickerOwner {
+  id: string
+  name: string
+  is_self?: boolean | null
+}
+
 interface Props {
   animals: PickerAnimal[]
   selectedIds: string[]
   onChange: (ids: string[]) => void
+  /**
+   * When provided, animals are grouped by owner with a select-all per group
+   * and ranch-owned animals (owner_id null) shown under "Your cattle".
+   */
+  owners?: PickerOwner[]
+  groupByOwner?: boolean
 }
 
 /**
@@ -26,7 +38,7 @@ interface Props {
  * so you can build a set across several classes (or pick from all animals at
  * once) and still use the filter to find them quickly.
  */
-export function AnimalMultiSelect({ animals, selectedIds, onChange }: Props) {
+export function AnimalMultiSelect({ animals, selectedIds, onChange, owners, groupByOwner }: Props) {
   const [search, setSearch] = useState('')
   const [cls,    setCls]    = useState<AnimalClass | 'all'>('all')
 
@@ -47,6 +59,23 @@ export function AnimalMultiSelect({ animals, selectedIds, onChange }: Props) {
     }
     return m
   }, [animals])
+
+  // Owner groups are built from the VISIBLE set, so a class filter narrows the
+  // per-owner select-all too (e.g. STEER + "select all Andy's" = Andy's steers).
+  const ownerGroups = useMemo(() => {
+    if (!groupByOwner) return []
+    const byOwner = new Map<string, { key: string; name: string; animals: PickerAnimal[] }>()
+    for (const a of visible) {
+      const key  = a.owner_id ?? '__self__'
+      const name = a.owner_id
+        ? (owners?.find(o => o.id === a.owner_id)?.name ?? 'Owner')
+        : 'Your cattle'
+      if (!byOwner.has(key)) byOwner.set(key, { key, name, animals: [] })
+      byOwner.get(key)!.animals.push(a)
+    }
+    return [...byOwner.values()].sort((x, y) =>
+      x.key === '__self__' ? -1 : y.key === '__self__' ? 1 : x.name.localeCompare(y.name))
+  }, [visible, owners, groupByOwner])
 
   const visibleIds = visible.map(a => a.id)
   const allVisibleSelected =
@@ -115,6 +144,36 @@ export function AnimalMultiSelect({ animals, selectedIds, onChange }: Props) {
           </button>
         )}
       </div>
+
+      {groupByOwner && (
+        <div className="flex flex-col gap-1.5 mb-2">
+          {ownerGroups.map(g => {
+            const ids = g.animals.map(a => a.id)
+            const allSel = ids.length > 0 && ids.every(id => selectedIds.includes(id))
+            const selCount = ids.filter(id => selectedIds.includes(id)).length
+            return (
+              <div key={g.key} className="flex items-center justify-between px-3 py-2 rounded-lg"
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                <span className="text-xs font-bold uppercase" style={{ color: 'var(--text)' }}>
+                  {g.name} <span style={{ color: 'var(--text-muted)' }}>({selCount}/{ids.length})</span>
+                </span>
+                <button
+                  type="button"
+                  className="text-xs font-bold"
+                  style={{ color: 'var(--accent)' }}
+                  onClick={() =>
+                    onChange(allSel
+                      ? selectedIds.filter(id => !ids.includes(id))
+                      : Array.from(new Set([...selectedIds, ...ids])))
+                  }
+                >
+                  {allSel ? 'CLEAR' : 'SELECT ALL'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto">
         {visible.map(a => {

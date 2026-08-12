@@ -93,6 +93,30 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
   const [animals,        setAnimals]       = useState<PickerAnimal[]>([])
   const [animalIds,      setAnimalIds]     = useState<string[]>([])
   const [categoriesError, setCategoriesError] = useState('')
+  const [perHead,        setPerHead]        = useState('')
+
+  // Categories charged as a rate per animal rather than a shared pot.
+  const PER_HEAD_CATEGORIES = ['AI Technician Fee', 'Semen Straws']
+  const isPerHeadCategory =
+    expenseType === 'owner_specific' && PER_HEAD_CATEGORIES.includes(categoryName)
+
+  // Live per-owner totals for the selected animals.
+  const perOwnerBreakdown = (() => {
+    const rate = Number(perHead) || 0
+    const map = new Map<string, { key: string; name: string; count: number; amount: number; isSelf: boolean }>()
+    for (const id of animalIds) {
+      const a = animals.find(x => x.id === id)
+      const key = a?.owner_id ?? '__self__'
+      const owner = a?.owner_id ? owners.find(o => o.id === a.owner_id) : null
+      const name = owner ? (owner.company_name || owner.owner_name || owner.name) : 'Your cattle'
+      if (!map.has(key)) map.set(key, { key, name, count: 0, amount: 0, isSelf: !a?.owner_id })
+      const row = map.get(key)!
+      row.count += 1
+      row.amount += rate
+    }
+    return [...map.values()].sort((x, y) =>
+      x.key === '__self__' ? -1 : y.key === '__self__' ? 1 : x.name.localeCompare(y.name))
+  })()
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -104,7 +128,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
     setDescribeText(''); setLeaseHint(null); setDateHint(null)
     setScope('whole_herd'); setExpQtr(currentQtr()); setExpYear(currentYr()); setSelectedLeaseId(null)
     setCategoryName(''); setCategoryId(null); setAmount(''); setExpenseDate(todayStr())
-    setDescription(''); setOwnerId(null); setExpenseType('shared'); setAnimalIds([])
+    setDescription(''); setOwnerId(null); setExpenseType('shared'); setAnimalIds([]); setPerHead('')
 
     // Fail loudly. A 401 (expired session) used to leave this list silently
     // empty, which looked like "there are no categories" and blocked saving
@@ -288,6 +312,37 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
   // ── Save manual expense ──────────────────────────────────────────────────────
 
   async function handleSaveManual() {
+    // Per-head categories charge a rate per animal; the single Amount field
+    // does not apply to them.
+    if (isPerHeadCategory) {
+      const rate = parseFloat(perHead)
+      if (!categoryName)                  { setSaveError('Select a category'); return }
+      if (isNaN(rate) || rate <= 0)       { setSaveError('Enter a cost per head'); return }
+      if (animalIds.length === 0)         { setSaveError('Select at least one animal'); return }
+
+      setIsSaving(true); setSaveError('')
+      try {
+        const result = await postAnimalSplitExpense({
+          animalIds,
+          animals,
+          selfOwnerId:   owners.find(o => o.is_self)?.id ?? null,
+          totalAmount:   0,
+          perHeadAmount: rate,
+          categoryName,
+          categoryId,
+          description:   description.trim() || `${categoryName} — ${animalIds.length} head @ ${fmt(rate)}`,
+          expenseDate,
+        })
+        if (!result.ok) { setSaveError(result.error ?? 'Save failed'); return }
+        onSuccess(); onClose()
+      } catch {
+        setSaveError('Save failed. Please try again.')
+      } finally {
+        setIsSaving(false)
+      }
+      return
+    }
+
     const amt = parseFloat(amount)
     if (!categoryName || isNaN(amt) || amt <= 0) { setSaveError('Category and amount required'); return }
     if (expenseType === 'owner_specific' && !ownerId) { setSaveError('Select an owner'); return }
@@ -712,19 +767,66 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
 
               {expenseType === 'shared' && ScopeSelector()}
 
-              {expenseType === 'animal_specific' && (
+              {(expenseType === 'animal_specific' || isPerHeadCategory) && (
                 <AnimalMultiSelect
                   animals={animals}
                   selectedIds={animalIds}
                   onChange={setAnimalIds}
+                  owners={owners.map(o => ({ id: o.id, name: o.company_name || o.owner_name || o.name, is_self: o.is_self }))}
+                  groupByOwner={isPerHeadCategory}
                 />
               )}
 
+              {/* Per-head categories (AI tech fee, semen straws): a rate per
+                  animal rather than a pot of money split between them. */}
+              {isPerHeadCategory && (
+                <>
+                  <Field label="Cost per head ($)" required>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={perHead}
+                      onChange={e => setPerHead(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </Field>
+
+                  {animalIds.length > 0 && Number(perHead) > 0 && (
+                    <div className="rounded-xl px-4 py-3 flex flex-col gap-1"
+                      style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                      <div className="flex justify-between">
+                        <span className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                          {animalIds.length} animal{animalIds.length !== 1 ? 's' : ''} × {fmt(Number(perHead))}
+                        </span>
+                        <span className="text-sm font-bold" style={{ color: 'var(--text)' }}>
+                          {fmt(animalIds.length * Number(perHead))}
+                        </span>
+                      </div>
+                      <div className="mt-1 pt-1 flex flex-col gap-0.5" style={{ borderTop: '1px solid var(--border)' }}>
+                        {perOwnerBreakdown.map(b => (
+                          <div key={b.key} className="flex justify-between">
+                            <span className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                              {b.name} ({b.count})
+                            </span>
+                            <span className="type-helper" style={{ color: 'var(--text)' }}>
+                              {fmt(b.amount)}{b.isSelf ? ' — your cost' : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
+                {!isPerHeadCategory && (
                 <Field label="Amount ($)" required>
                   <Input type="number" step="0.01" min="0" value={amount}
                     onChange={e => setAmount(e.target.value)} placeholder="0.00" />
                 </Field>
+                )}
                 <Field label="Date">
                   <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
                 </Field>
