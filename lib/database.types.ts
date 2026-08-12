@@ -1870,6 +1870,7 @@ export type Database = {
           ai_preg_check_days_out: number
           ai_tech_fee_per_cow: number
           brand_photo_url: string | null
+          calendar_feed_token: string
           city: string | null
           created_at: string | null
           default_administered_by: string | null
@@ -1893,6 +1894,7 @@ export type Database = {
           ai_preg_check_days_out?: number
           ai_tech_fee_per_cow?: number
           brand_photo_url?: string | null
+          calendar_feed_token?: string
           city?: string | null
           created_at?: string | null
           default_administered_by?: string | null
@@ -1916,6 +1918,7 @@ export type Database = {
           ai_preg_check_days_out?: number
           ai_tech_fee_per_cow?: number
           brand_photo_url?: string | null
+          calendar_feed_token?: string
           city?: string | null
           created_at?: string | null
           default_administered_by?: string | null

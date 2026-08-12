@@ -22,6 +22,9 @@ const PUBLIC_API = [
   "/api/vet/setup",
   "/api/vet/session",
   "/api/webhooks/",
+  // ICS calendar feed: Google fetches it with no cookies, so the secret token
+  // in the path is the credential rather than a session.
+  "/api/calendar/",
 ];
 
 // Which cookie gates which API prefix, and whether that cookie carries an
