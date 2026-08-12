@@ -42,6 +42,7 @@ export type Database = {
         Row: {
           age_class: string | null
           ai_cost: number | null
+          ai_fee_per_head: number | null
           approximate_age: string | null
           beef_production_flagged_at: string | null
           birth_type: string | null
@@ -96,6 +97,7 @@ export type Database = {
         Insert: {
           age_class?: string | null
           ai_cost?: number | null
+          ai_fee_per_head?: number | null
           approximate_age?: string | null
           beef_production_flagged_at?: string | null
           birth_type?: string | null
@@ -150,6 +152,7 @@ export type Database = {
         Update: {
           age_class?: string | null
           ai_cost?: number | null
+          ai_fee_per_head?: number | null
           approximate_age?: string | null
           beef_production_flagged_at?: string | null
           birth_type?: string | null
@@ -1509,6 +1512,7 @@ export type Database = {
           expense_type: string | null
           id: string
           include_calves: boolean | null
+          invoice_id: string | null
           is_lease_specific: boolean | null
           lease_id: string | null
           notes: string | null
@@ -1536,6 +1540,7 @@ export type Database = {
           expense_type?: string | null
           id?: string
           include_calves?: boolean | null
+          invoice_id?: string | null
           is_lease_specific?: boolean | null
           lease_id?: string | null
           notes?: string | null
@@ -1563,6 +1568,7 @@ export type Database = {
           expense_type?: string | null
           id?: string
           include_calves?: boolean | null
+          invoice_id?: string | null
           is_lease_specific?: boolean | null
           lease_id?: string | null
           notes?: string | null
@@ -1592,6 +1598,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_expenses_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
           {

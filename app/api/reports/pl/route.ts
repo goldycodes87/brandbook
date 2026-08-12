@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
   // Direct expenses
   const { data: ownerExp } = await supabase
     .from('lease_expenses')
-    .select('category_name, total_amount')
+    .select('id, category_name, total_amount')
     .eq('owner_id', owner_id)
     .gte('expense_date', yearStart)
     .lte('expense_date', yearEnd)
@@ -78,15 +78,22 @@ export async function GET(req: NextRequest) {
   if (animalIds.length > 0) {
     const { data: ae } = await supabase
       .from('lease_expenses')
-      .select('category_name, total_amount')
+      .select('id, category_name, total_amount')
       .in('animal_id', animalIds)
       .gte('expense_date', yearStart)
       .lte('expense_date', yearEnd)
     animalExp = ae ?? []
   }
 
+  // Deduplicate by row id: an animal-specific split carries BOTH owner_id and
+  // animal_id, so it matches both queries and would otherwise be double-counted.
+  const seenExpenseIds = new Set<string>()
   const directExpByCategory: Record<string, number> = {}
   for (const e of [...(ownerExp ?? []), ...animalExp]) {
+    if (e?.id) {
+      if (seenExpenseIds.has(e.id)) continue
+      seenExpenseIds.add(e.id)
+    }
     directExpByCategory[e.category_name] = (directExpByCategory[e.category_name] ?? 0) + e.total_amount
   }
   const directExpTotal = Object.values(directExpByCategory).reduce((s, v) => s + v, 0)

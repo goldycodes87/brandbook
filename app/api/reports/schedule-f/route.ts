@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
   // ── Expenses by schedule_f_line ───────────────────────────────────────────
   const { data: ownerExp } = await supabase
     .from('lease_expenses')
-    .select('category_name, total_amount, category_id')
+    .select('id, category_name, total_amount, category_id')
     .eq('owner_id', owner_id)
     .gte('expense_date', yearStart)
     .lte('expense_date', yearEnd)
@@ -104,14 +104,23 @@ export async function GET(req: NextRequest) {
   if (animalIds.length > 0) {
     const { data: ae } = await supabase
       .from('lease_expenses')
-      .select('category_name, total_amount, category_id')
+      .select('id, category_name, total_amount, category_id')
       .in('animal_id', animalIds)
       .gte('expense_date', yearStart)
       .lte('expense_date', yearEnd)
     animalExp = ae ?? []
   }
 
-  const allExp = [...(ownerExp ?? []), ...animalExp]
+  // Deduplicate by row id: an animal-specific split carries BOTH owner_id and
+  // animal_id, so it matches both queries above and would otherwise be counted
+  // twice on this owner's Schedule F.
+  const seenExpenseIds = new Set<string>()
+  const allExp = [...(ownerExp ?? []), ...animalExp].filter((e: any) => {
+    if (!e?.id) return true
+    if (seenExpenseIds.has(e.id)) return false
+    seenExpenseIds.add(e.id)
+    return true
+  })
   const catIds = [...new Set(allExp.map((e: any) => e.category_id).filter(Boolean))]
 
   let catMap: Record<string, string> = {}

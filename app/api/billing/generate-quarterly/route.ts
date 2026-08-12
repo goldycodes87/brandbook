@@ -195,6 +195,12 @@ export async function POST(req: NextRequest) {
 
   const wholeHerdLineItems: LineItem[] = []
 
+  // Every lease_expenses row that contributes to this invoice. Stamped onto
+  // those rows as invoice_id once the invoice is created, so an expense can
+  // report whether it has been billed (and later, paid) instead of guessing
+  // from quarter/year.
+  const billedExpenseIds = new Set<string>()
+
   for (const expense of wholeHerdExpenses) {
     const expType =
       expense.expense_categories?.expense_type ||
@@ -203,6 +209,7 @@ export async function POST(req: NextRequest) {
 
     if (expType === 'owner_specific') {
       if (expense.owner_id !== owner_id) continue
+      billedExpenseIds.add(expense.id)
       wholeHerdLineItems.push({
         description:  expense.description || expense.category_name || 'Expense',
         quantity:     1,
@@ -252,6 +259,7 @@ export async function POST(req: NextRequest) {
     if (shareAmt <= 0) continue
 
     const sharePct = (ownerHerdPct * 100).toFixed(1)
+    billedExpenseIds.add(expense.id)
     wholeHerdLineItems.push({
       description:  expense.description || expense.category_name || 'Expense',
       quantity:     1,
@@ -341,6 +349,7 @@ export async function POST(req: NextRequest) {
     for (const expense of expenses) {
       if (expense.expense_type === 'owner_specific') {
         if (expense.owner_id !== owner_id) continue
+        billedExpenseIds.add(expense.id)
         leaseLineItems.push({
           description:  expense.description || expense.category_name || 'Expense',
           quantity:     1,
@@ -356,6 +365,7 @@ export async function POST(req: NextRequest) {
         const { data: animalRow } = await supabase
           .from('animals').select('owner_id').eq('id', expense.animal_id).maybeSingle()
         if ((animalRow as { owner_id: string | null } | null)?.owner_id !== owner_id) continue
+        billedExpenseIds.add(expense.id)
         leaseLineItems.push({
           description:  expense.description || expense.category_name || 'Expense',
           quantity:     1,
@@ -388,6 +398,7 @@ export async function POST(req: NextRequest) {
       const ownerShare = expense.total_amount * (ownerDays / totalDays)
       const sharePct   = ((ownerDays / totalDays) * 100).toFixed(1)
 
+      billedExpenseIds.add(expense.id)
       leaseLineItems.push({
         description:  expense.description || expense.category_name || 'Expense',
         quantity:     1,
@@ -490,5 +501,18 @@ export async function POST(req: NextRequest) {
 
   if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
 
-  return NextResponse.json({ invoice, preview }, { status: 201 })
+  // Link every expense that contributed to this invoice. Non-fatal: a failure
+  // here costs the invoiced/paid badge on those rows, not the invoice itself.
+  let expensesLinked = 0
+  if (billedExpenseIds.size > 0) {
+    const ids = [...billedExpenseIds]
+    const { error: linkErr } = await supabase
+      .from('lease_expenses')
+      .update({ invoice_id: invoice.id })
+      .in('id', ids)
+    if (linkErr) console.error('[generate-quarterly] failed to stamp invoice_id:', linkErr.message)
+    else expensesLinked = ids.length
+  }
+
+  return NextResponse.json({ invoice, preview, expenses_linked: expensesLinked }, { status: 201 })
 }

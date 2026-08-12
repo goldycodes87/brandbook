@@ -23,6 +23,8 @@ import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
 import { OpenPregnancyCard } from '@/components/animals/PregnancyCard'
 import type { ReproEventShape, CalfRecord } from '@/components/animals/PregnancyCard'
 import { CowCalfCard } from '@/components/animals/CowCalfCard'
+import { ExpenseHistory } from '@/components/animals/ExpenseHistory'
+import { AiFeeOverride } from '@/components/animals/AiFeeOverride'
 import { DispositionSheet } from '@/components/animals/DispositionSheet'
 import { SaleSheet } from '@/components/animals/SaleSheet'
 import { HarvestSheet } from '@/components/animals/HarvestSheet'
@@ -40,6 +42,7 @@ type OwnerRef       = { id: string; name: string; email?: string; phone?: string
 type SireLibraryRef = { id: string; bull_name: string; breed?: string | null; naab_code?: string | null; stud?: string | null; bull_type: string }
 
 interface Animal {
+  ai_fee_per_head?: number | null
   id: string
   tag_number: string
   name: string | null
@@ -509,6 +512,12 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
           </PanelSection>
         </Panel>
       )}
+
+      {/* Direct expenses booked against this animal, with invoice status */}
+      <ExpenseHistory animalId={animal.id} />
+
+      {/* Per-animal AI fee override */}
+      <AiFeeOverride animalId={animal.id} value={animal.ai_fee_per_head ?? null} />
 
       {/* Origin / purchase info */}
       {(animal.origin === 'purchased' || animal.purchase_price || animal.purchase_date || animal.vendor) && (

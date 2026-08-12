@@ -92,6 +92,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
   const [ownerId,        setOwnerId]       = useState<string | null>(null)
   const [animals,        setAnimals]       = useState<PickerAnimal[]>([])
   const [animalIds,      setAnimalIds]     = useState<string[]>([])
+  const [categoriesError, setCategoriesError] = useState('')
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -105,12 +106,31 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
     setCategoryName(''); setCategoryId(null); setAmount(''); setExpenseDate(todayStr())
     setDescription(''); setOwnerId(null); setExpenseType('shared'); setAnimalIds([])
 
-    apiGet('/api/expenses/categories').then(r => r.json()).then(d => {
-      const all: CategoryRow[] = []
-      const grouped = d.data ?? {}
-      for (const arr of Object.values(grouped)) all.push(...(arr as CategoryRow[]))
-      setCategories(all)
-    }).catch(() => {})
+    // Fail loudly. A 401 (expired session) used to leave this list silently
+    // empty, which looked like "there are no categories" and blocked saving
+    // with no explanation.
+    setCategoriesError('')
+    apiGet('/api/expenses/categories')
+      .then(async r => {
+        if (!r.ok) {
+          setCategoriesError(
+            r.status === 401
+              ? 'Your session expired — sign in again to load expense categories.'
+              : `Could not load expense categories (error ${r.status}).`
+          )
+          return null
+        }
+        return r.json()
+      })
+      .then(d => {
+        if (!d) return
+        const all: CategoryRow[] = []
+        const grouped = d.data ?? {}
+        for (const arr of Object.values(grouped)) all.push(...(arr as CategoryRow[]))
+        setCategories(all)
+        if (all.length === 0) setCategoriesError('No expense categories are configured.')
+      })
+      .catch(() => setCategoriesError('Could not load expense categories — check your connection.'))
 
     apiGet('/api/leases').then(r => r.json()).then(d => setLeases(d.data ?? [])).catch(() => {})
     apiGet('/api/grazing-owners?limit=100').then(r => r.json()).then(d => setOwners(d.data ?? [])).catch(() => {})
@@ -650,6 +670,11 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
               </div>
 
               <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>CATEGORY</p>
+              {categoriesError && (
+                <p className="type-helper px-3 py-2 rounded" style={{ color: 'var(--danger-fg)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
+                  {categoriesError}
+                </p>
+              )}
               <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto rounded-xl" style={{ border: '1px solid var(--border)' }}>
                 {categories
                   .filter(c => {

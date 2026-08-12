@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   // ── a. Read animal + ranch_settings + existing repro events ────────────────
   const [{ data: animal }, { data: ranch }, { data: existingEvents }] = await Promise.all([
     supabase.from('animals')
-      .select('id, owner_id, sex, dob, breeding_eligible')
+      .select('id, owner_id, sex, dob, breeding_eligible, ai_fee_per_head')
       .eq('id', animal_id).single(),
     supabase.from('ranch_settings')
       .select('ai_tech_fee_per_cow, ai_preg_check_days_out')
@@ -103,7 +103,13 @@ export async function POST(req: NextRequest) {
   let resolvedStrawCost: number | null = null
 
   if (conception_method === 'ai') {
-    resolvedAiCost = aiCostInput != null ? Number(aiCostInput) : (techFeeDefault || null)
+    // Resolution order: explicit value sent with this breeding, then the
+    // per-animal override set on the animal detail page, then the ranch
+    // default from Settings. Nothing is hardcoded.
+    const animalFeeOverride = animal.ai_fee_per_head != null ? Number(animal.ai_fee_per_head) : null
+    resolvedAiCost = aiCostInput != null
+      ? Number(aiCostInput)
+      : (animalFeeOverride ?? (techFeeDefault || null))
 
     if (semen_inventory_id) {
       if (strawCostInput != null) {
@@ -167,8 +173,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── f. Create owner_specific lease_expenses for AI on owned animals ────────
-  if (conception_method === 'ai' && animal.owner_id) {
+  // ── f. Create owner_specific lease_expenses for AI ─────────────────────────
+  // Ranch-owned animals (owner_id null) route to the "Legacy (Me)" owner
+  // (grazing_owners.is_self) so the cost still lands in expense history and
+  // Schedule F. That owner is excluded from customer invoicing, and the P/L
+  // breeding-costs line skips ranch-owned animals so this is not counted twice.
+  let expenseOwnerId: string | null = animal.owner_id ?? null
+  if (conception_method === 'ai' && !expenseOwnerId) {
+    const { data: selfOwner } = await supabase
+      .from('grazing_owners')
+      .select('id')
+      .eq('is_self', true)
+      .maybeSingle()
+    expenseOwnerId = selfOwner?.id ?? null
+  }
+
+  if (conception_method === 'ai' && expenseOwnerId) {
     const { quarter, year } = quarterOf(event_date)
     const sirePart = sire_name_text ? ` — ${sire_name_text}` : ''
 
@@ -181,7 +201,7 @@ export async function POST(req: NextRequest) {
         description:           `AI tech fee${sirePart}`,
         total_amount:          resolvedAiCost,
         expense_date:          event_date,
-        owner_id:              animal.owner_id,
+        owner_id:              expenseOwnerId,
         is_lease_specific:     false,
         quarter,
         year,
@@ -196,7 +216,7 @@ export async function POST(req: NextRequest) {
         description:           `Semen straw${sirePart}`,
         total_amount:          resolvedStrawCost,
         expense_date:          event_date,
-        owner_id:              animal.owner_id,
+        owner_id:              expenseOwnerId,
         is_lease_specific:     false,
         quarter,
         year,
