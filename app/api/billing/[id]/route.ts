@@ -1,11 +1,16 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
+  const cookieStore = await cookies()
+  if (cookieStore.get('brandbook_owner_session')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   const { id } = await params
   const supabase = createAdminClient()
 

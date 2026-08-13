@@ -38,24 +38,15 @@ EPD abbreviations: BW=birth weight, WW=weaning weight, YW=yearling weight, Milk=
 Dollar values: $W=Weaned Calf Value, $F=Feedlot, $G=Grid, $B=Beef Value.`
 
 export async function POST(req: NextRequest) {
-  console.log('[import] route hit')
-  console.log('[import] method:', req.method)
-
   const formData = await req.formData().catch(e => {
     console.error('[import] formData error:', e.message)
     return null
   })
 
-  console.log('[import] formData:', !!formData)
-
   const file = formData?.get('file') as File | null
   const stud = (formData?.get('stud') as string) || 'Unknown'
 
-  console.log('[import] file:', file?.name, file?.size)
-  console.log('[import] stud:', stud)
-
   if (!file) {
-    console.error('[import] no file received')
     return NextResponse.json({ error: 'No file received' }, { status: 400 })
   }
 
@@ -71,7 +62,6 @@ export async function POST(req: NextRequest) {
   try {
     const key = `genetics/imports/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
     pdfUrl = await uploadToR2(key, buffer, file.type)
-    console.log('[import] uploaded to R2:', pdfUrl)
   } catch (e) {
     console.error('[import] R2 upload failed (non-fatal):', (e as Error).message)
   }
@@ -100,9 +90,6 @@ export async function POST(req: NextRequest) {
       ],
     })
 
-    console.log('[import] claude response stop_reason:', response.stop_reason)
-    console.log('[import] content blocks:', response.content.length)
-
     responseText = response.content
       .filter(b => b.type === 'text')
       .map(b => (b as { type: 'text'; text: string }).text)
@@ -121,8 +108,6 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Could not parse AI response as JSON', raw: responseText }, { status: 422 })
   }
-
-  console.log('[import] bulls found:', bulls.length)
 
   return NextResponse.json({
     stud,

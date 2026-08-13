@@ -37,6 +37,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .select('id, title, due_date, notes, reminder_type, created_at, animal_id')
     .or('is_dismissed.is.null,is_dismissed.eq.false')
     .order('due_date', { ascending: true })
+    .limit(500)
 
   const events: CalendarEvent[] = (reminders ?? []).map(r => ({
     id:          r.id,

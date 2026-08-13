@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Field, Textarea } from '@/components/ui/Field'
 import { apiGet, apiPost } from '@/lib/fetch'
+import { fmtTs } from '@/lib/format'
 
 interface VetMessage {
   id: string
@@ -15,10 +16,6 @@ interface VetMessage {
   created_at: string
   read_at: string | null
   animal: { id: string; tag_number: string; name: string | null } | null
-}
-
-function fmtTs(ts: string): string {
-  return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 export default function VetMessagesPage() {

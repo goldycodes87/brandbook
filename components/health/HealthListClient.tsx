@@ -10,11 +10,7 @@ import { HEALTH_EVENT_CHIP, WITHDRAWAL_CHIP } from '@/components/ui/tokens'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { HealthEventForm, type HealthEventData } from '@/components/health/HealthEventForm'
 import { apiGet } from '@/lib/fetch'
-
-function fmtDate(d: string | null): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+import { fmtDate } from '@/lib/format'
 
 interface HealthEvent extends HealthEventData {
   id: string

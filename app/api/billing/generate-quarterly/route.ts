@@ -4,10 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loadQuarterAllocations, quarterRange, type ExpenseMeta } from '@/lib/expense-allocation-data'
 import type { Allocation } from '@/lib/expense-allocation'
-
-function fmtDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+import { fmtDate } from '@/lib/format'
 
 type LineItem = {
   description: string

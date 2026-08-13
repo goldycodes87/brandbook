@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { Field, Textarea, Select } from '@/components/ui/Field'
 import Link from 'next/link'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
+import { fmtTs } from '@/lib/format'
 
 interface CaseNote {
   id: string
@@ -27,10 +28,6 @@ interface VetCaseDetail {
   updated_at: string
   animal: { id: string; tag_number: string; name: string | null; breed: string | null; sex: string | null } | null
   notes: CaseNote[]
-}
-
-function fmtTs(ts: string): string {
-  return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 export default function VetCaseDetailPage() {

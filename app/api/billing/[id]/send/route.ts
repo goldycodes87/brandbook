@@ -48,9 +48,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         method: 'POST',
         headers: { cookie: req.headers.get('cookie') ?? '' },
       })
-      console.log('[payment link] status:', plRes.status)
       const plData = await plRes.json()
-      console.log('[payment link] response:', JSON.stringify(plData))
       paymentUrl = plData.payment_link_url || null
     } catch (e: unknown) {
       console.error('[payment link error]', (e as Error).message)
@@ -179,12 +177,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   // ── Generate PDF buffer for attachment ────────────────────────────────────
   let pdfBuffer: Buffer | null = null
   try {
-    console.log('[send] generating PDF')
     pdfBuffer = await generateInvoicePdfBuffer(id)
-    console.log('[send] PDF size:', pdfBuffer?.length, 'bytes')
-    if (!pdfBuffer || pdfBuffer.length === 0) {
-      console.error('[send] PDF buffer is empty')
-    }
   } catch (e: unknown) {
     console.error('[send] PDF generation failed:', (e as Error).message)
   }
@@ -205,13 +198,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       filename: `Invoice-${invoice.invoice_number}.pdf`,
       content:  pdfBuffer.toString('base64'),
     }]
-    const att = emailPayload.attachments?.[0]
-    console.log('[send] attaching PDF:', att?.filename, String(att?.content).length, 'base64 chars')
   } else {
     console.warn('[send] no PDF attachment — sending without')
   }
 
-  console.log('[send] sending email to:', owner.email)
   const { error: sendError } = await resend.emails.send(emailPayload)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (sendError) return NextResponse.json({ error: (sendError as any).message ?? 'Email send failed' }, { status: 500 })

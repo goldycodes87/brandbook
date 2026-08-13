@@ -40,8 +40,6 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
   const body = await req.json()
 
-  console.log('[health POST] body:', JSON.stringify(body))
-
   const { data, error } = await supabase
     .from('health_events')
     .insert({
@@ -58,8 +56,6 @@ export async function POST(req: NextRequest) {
     })
     .select()
     .single()
-
-  console.log('[health POST] result:', error?.message || 'success')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data }, { status: 201 })

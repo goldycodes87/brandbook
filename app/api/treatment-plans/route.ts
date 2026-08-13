@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     .from('treatment_plans')
     .select('*, animal:animal_id ( id, tag_number, name )')
     .order('created_at', { ascending: false })
+    .limit(200)
 
   if (caseId) query = query.eq('case_id', caseId)
   if (animalId) query = query.eq('animal_id', animalId)

@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { AddPeriodSheet } from './AddPeriodSheet'
 import { AddLeaseExpenseSheet, type LeaseExpense } from './AddLeaseExpenseSheet'
 import { apiPatch, apiDelete } from '@/lib/fetch'
+import { fmtDate } from '@/lib/format'
 import type { Lease } from './LeaseSheet'
 
 interface AumOwnerRow {
@@ -73,10 +74,6 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
 
-function fmtDate(d: string | null) {
-  if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 export function LeaseBillingTab({ leaseId, lease, ranchName }: Props) {
   const [periods, setPeriods]   = useState<Period[]>([])

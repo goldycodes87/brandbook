@@ -25,17 +25,13 @@ function normalizeColor(c: string): string {
 
 function getDamBreeds(dam: Dam | null): BreedEntry[] {
   if (!dam) return []
-  console.log('[BREED DEBUG] getDamBreeds — id:', dam.id, 'breeds:', JSON.stringify(dam.breeds), 'breed:', dam.breed)
   if (dam.breeds && dam.breeds.length > 0) return dam.breeds
   if (dam.breed) return [{ breed: dam.breed, pct: 100 }]
-  console.log('[BREED DEBUG] getDamBreeds: no breeds found')
   return []
 }
 
 function getSireBreeds(sireBreed: string | null): BreedEntry[] {
-  console.log('[BREED DEBUG] getSireBreeds — sireBreed:', sireBreed)
   if (sireBreed) return [{ breed: sireBreed, pct: 100 }]
-  console.log('[BREED DEBUG] getSireBreeds: no sire breed')
   return []
 }
 
@@ -144,11 +140,7 @@ export default function CalvingEntryPage() {
 
   // Preview breed whenever dam or sire changes
   useEffect(() => {
-    console.log('[breed TRIGGER] dam:', dam?.tag_number, 'breeds:', JSON.stringify(dam?.breeds), 'breed:', dam?.breed)
-    console.log('[breed TRIGGER] sire source:', sireSource, '| sireBreed:', sireBreed, '| selectedSire:', JSON.stringify(selectedSire))
-
     if (!dam || !selectedSire) {
-      console.log('[breed] missing dam or sire, skipping')
       return
     }
 
@@ -163,16 +155,11 @@ export default function CalvingEntryPage() {
       sireBreeds = sb.breed ? [{ breed: sb.breed, pct: 100 }] : []
     }
 
-    console.log('[breed] damBreeds:', JSON.stringify(damBreeds))
-    console.log('[breed] sireBreeds:', JSON.stringify(sireBreeds))
-
     if (!damBreeds.length && !sireBreeds.length) {
-      console.log('[breed] no breed data available')
       return
     }
 
-    const result = calcCalfBreeds(damBreeds, sireBreeds)
-    console.log('[breed] result:', JSON.stringify(result))
+    calcCalfBreeds(damBreeds, sireBreeds)
   }, [dam, selectedSire, sireSource])
 
   const searchDams = async (q: string) => {
@@ -189,7 +176,6 @@ export default function CalvingEntryPage() {
   }
 
   const selectDam = async (d: Dam) => {
-    console.log('[BREED DEBUG] dam selected:', d.id, 'tag:', d.tag_number, 'breed:', d.breed, 'breeds:', JSON.stringify(d.breeds))
     setDam(d)
     setSearch('')
     setDams([])
@@ -246,27 +232,11 @@ export default function CalvingEntryPage() {
       sireBreeds = [{ breed: sireBreed, pct: 100 }]
     }
 
-    console.log('[breed TRIGGER] dam:', dam?.tag_number, 'breeds:', JSON.stringify(dam?.breeds), 'breed:', dam?.breed)
-    console.log('[breed TRIGGER] sire source:', sireSource, '| sireBreed:', sireBreed)
-    console.log('[breed TRIGGER] sireBreeds:', JSON.stringify(sireBreeds))
     const autoBreeds = calf.sireKnown
       ? calcCalfBreeds(damBreeds, sireBreeds)
       : damBreeds.map(b => ({ breed: b.breed, pct: b.pct }))
-    console.log('[breed TRIGGER] calcCalfBreeds result:', JSON.stringify(autoBreeds))
-    console.log('[breed TRIGGER] setting calf_data.breeds to:', JSON.stringify(autoBreeds))
 
     try {
-      const submitPayload = {
-        tag_number:      calf.calfTag.trim(),
-        ear_tag_color:   calf.calfColor,
-        breeds:          autoBreeds,
-        sire_id:         calf.sireKnown ? calf.sireId : null,
-        sire_library_id: calf.sireKnown ? calf.sireLibraryId : null,
-      }
-      console.log('[calving FORM] submitting calf_data:', JSON.stringify(submitPayload, null, 2))
-      console.log('[FORM SUBMIT] sire_library_id:', calf.sireKnown ? calf.sireLibraryId : null)
-      console.log('[FORM SUBMIT] sireSource:', sireSource, '| selectedSire id:', (selectedSire as SireLibraryResult)?.id ?? (selectedSire as SireResult)?.id ?? null)
-
       const res = await apiPost('/api/reproduction', {
           animal_id:          dam.id,
           event_type:         'calved',

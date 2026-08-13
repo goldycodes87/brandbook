@@ -30,11 +30,9 @@ interface SettlementSheetProps {
   onSaved: () => void
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+import { fmtMoneyDecimals as fmtMoney } from '@/lib/format'
 
-function fmtMoney(v: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(v)
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function calcShare(calves: number, pct: number, rounding: string | null): number {
   const raw = calves * pct / 100

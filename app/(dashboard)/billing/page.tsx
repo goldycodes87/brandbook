@@ -12,6 +12,7 @@ import { InvoiceForm } from '@/components/billing/InvoiceForm'
 import { QuarterlyInvoiceSheet } from '@/components/billing/QuarterlyInvoiceSheet'
 import { Send, CheckCircle, FileText, DollarSign } from 'lucide-react'
 import { apiGet, apiPatch } from '@/lib/fetch'
+import { fmtDate, fmtMoneyDecimals as fmtMoney } from '@/lib/format'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -46,15 +47,6 @@ interface Invoice {
 function ownerDisplay(owner: Owner | null): string {
   if (!owner) return '—'
   return owner.company_name || owner.owner_name || owner.name
-}
-
-function fmtDate(d: string | null): string {
-  if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function fmtMoney(n: number): string {
-  return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function daysOverdue(d: string | null): number | null {

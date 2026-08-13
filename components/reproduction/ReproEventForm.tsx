@@ -13,6 +13,7 @@ import type { SegmentItem } from '@/components/ui/SegmentedControl'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 import { calcCalfBreeds, type BreedEntry } from '@/lib/breed-calculator'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { fmtDate as fmtDateLong } from '@/lib/format'
 
 type EventType = 'bred' | 'preg_check' | 'calved' | 'weaned' | 'flushed' | 'bse' | 'semen_collection'
 type ConceptionMethod = 'natural' | 'ai' | 'embryo'
@@ -77,10 +78,6 @@ function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr)
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
-}
-
-function fmtDateLong(d: string): string {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 interface DamRef {

@@ -54,10 +54,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  console.log('[repro POST] called')
-  console.log('[repro POST] type:', body?.event_type)
-  console.log('[repro POST] body:', JSON.stringify(body, null, 2))
-  console.log('[calving POST] full body:', JSON.stringify(body, null, 2))
   const {
     animal_id,
     event_type,
@@ -92,10 +88,6 @@ export async function POST(req: NextRequest) {
   if (!event_type) return NextResponse.json({ error: 'event_type is required' }, { status: 400 })
   if (!event_date) return NextResponse.json({ error: 'event_date is required' }, { status: 400 })
 
-  if (event_type === 'calved' && calf_data) {
-    console.log('[BREED DEBUG] received breeds:', JSON.stringify(calf_data?.breeds))
-    console.log('[BREED DEBUG] sire_id:', calf_data?.sire_id, 'sire_library_id:', calf_data?.sire_library_id)
-  }
 
   const supabase = createAdminClient()
 
@@ -138,7 +130,6 @@ export async function POST(req: NextRequest) {
       .insert(eventRow)
       .select()
       .single()
-    console.log('[weaning] insert result:', JSON.stringify(insertResult, null, 2))
     const { data, error } = insertResult
     if (error) {
       console.error('[weaning] error:', error.message, error.code, JSON.stringify(error))
@@ -149,16 +140,10 @@ export async function POST(req: NextRequest) {
       const { data: dam } = await supabase.from('animals').select('sex').eq('id', animal_id).single()
       if (dam?.sex === 'heifer') {
         await supabase.from('animals').update({ sex: 'cow' }).eq('id', animal_id)
-        console.log('[repro] heifer promoted to cow:', animal_id)
       }
     }
 
     if (event_type === 'weaned') {
-      console.log('[weaning] animal_id:', animal_id)
-      console.log('[weaning] calf_id:', weaned_calf_id)
-      console.log('[weaning] date:', event_date)
-      console.log('[weaning] weight:', weaning_weight_lbs)
-
       if (weaned_calf_id) {
         const { data: calfAnimal, error: calfFetchErr } = await supabase
           .from('animals')
@@ -174,15 +159,11 @@ export async function POST(req: NextRequest) {
           calfAnimal?.calf_sex === 'heifer_calf' ? 'heifer' :
           calfAnimal?.calf_sex === 'bull_calf'   ? 'bull'   : 'steer'
 
-        const sexUpdateResult = await supabase.from('animals').update({
+        await supabase.from('animals').update({
           sex:                newSex,
           weaning_date:       weaning_date || event_date,
           weaning_weight_lbs: weaning_weight_lbs ?? null,
         }).eq('id', weaned_calf_id).select()
-
-        console.log('[weaning] calf sex update result:', JSON.stringify(sexUpdateResult, null, 2))
-      } else {
-        console.log('[weaning] no weaned_calf_id provided — skipping calf sex update')
       }
     }
 
@@ -208,8 +189,6 @@ export async function POST(req: NextRequest) {
     vigor_score:            cd_vigor_score,
     notes:                  cd_notes,
   } = calf_data || {}
-
-  console.log('[calving POST] calf_data destructured — sire_library_id:', cd_sire_library_id, '| sire_id:', cd_sire_id, '| breeds:', JSON.stringify(cd_breeds))
 
   const { data: reproEvent, error: reproErr } = await supabase
     .from('reproduction_events')
@@ -258,13 +237,6 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (calfErr) return NextResponse.json({ error: calfErr.message }, { status: 500 })
-  console.log('[calving POST] calf inserted:', JSON.stringify({
-    id:              newCalf.id,
-    breeds:          newCalf.breeds,
-    sire_id:         newCalf.sire_id,
-    sire_library_id: newCalf.sire_library_id,
-    ear_tag_color:   newCalf.ear_tag_color,
-  }))
 
   // Link calf back to the reproduction event
   await supabase
@@ -289,7 +261,6 @@ export async function POST(req: NextRequest) {
   // Promote heifer to cow on first calving
   if (damRecord?.sex === 'heifer') {
     await supabase.from('animals').update({ sex: 'cow' }).eq('id', animal_id)
-    console.log('[repro] heifer promoted to cow:', animal_id)
   }
 
   return NextResponse.json(

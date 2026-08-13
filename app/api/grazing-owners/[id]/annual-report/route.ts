@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { uploadToR2 } from '@/lib/r2'
 import { generatePDF } from '@/lib/generate-invoice-pdf'
+import { fmtDate, fmtMoneyDecimals as fmtMoney } from '@/lib/format'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -180,14 +181,6 @@ export async function generateAnnualReportPdf(id: string, year: number) {
   const ownerName = ownerData
     ? (ownerData.company_name || ownerData.owner_name || ownerData.name || 'Owner')
     : 'Owner'
-
-  function fmtDate(d: string | null | undefined) {
-    if (!d) return '—'
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
-  function fmtMoney(n: number | null | undefined) {
-    return '$' + Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
 
   const deathLossPct = summary.death_loss_pct
   const deathLossChip = deathLossPct <= (contract?.death_loss_allowable_pct ?? 10) ? 'success'

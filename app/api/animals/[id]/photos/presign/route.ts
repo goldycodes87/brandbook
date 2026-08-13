@@ -36,6 +36,5 @@ export async function POST(req: NextRequest, { params }: Params) {
   const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 300 })
   const publicUrl    = `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${key}`
 
-  console.log('[presign] key:', key, 'for animal:', id, 'original filename:', filename)
   return NextResponse.json({ presigned_url: presignedUrl, public_url: publicUrl, key })
 }

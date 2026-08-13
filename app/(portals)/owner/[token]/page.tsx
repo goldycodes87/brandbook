@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, use, useCallback } from 'react'
+import { fmtDate, fmtMoney, fmtTs, calcAge } from '@/lib/format'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -158,28 +159,6 @@ interface AllocationReport {
 type Tab = 'portfolio' | 'animals' | 'messages' | 'more'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
-
-function fmtDate(d: string | null): string {
-  if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function fmtMoney(n: number | null | undefined): string {
-  return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
-
-function fmtTs(ts: string): string {
-  return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
-
-function calcAge(dob: string | null): string {
-  if (!dob) return '—'
-  const birth = new Date(dob + 'T00:00:00')
-  const now = new Date()
-  const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth())
-  if (months < 24) return `${months}mo`
-  return `${Math.floor(months / 12)}yr`
-}
 
 function getPhotoUrl(photos: string[] | null | undefined): string | null {
   if (!photos || photos.length === 0) return null

@@ -13,6 +13,7 @@ import { ReproEventForm } from '@/components/reproduction/ReproEventForm'
 import { SearchField } from '@/components/ui/Field'
 import type { TabItem } from '@/components/ui/Tabs'
 import { apiGet } from '@/lib/fetch'
+import { fmtDate } from '@/lib/format'
 
 interface AnimalResult { id: string; tag_number: string; name: string | null; sex: string | null; ear_tag_color?: string | null }
 
@@ -42,10 +43,6 @@ interface ReproEvent {
   calf:   { id: string; tag_number: string; name: string | null; sex: string | null } | null
 }
 
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 
 function eventDetail(ev: ReproEvent): string {

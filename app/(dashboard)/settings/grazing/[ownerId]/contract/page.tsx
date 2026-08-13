@@ -12,6 +12,7 @@ import { ContextBanner } from '@/components/ui/ContextBanner'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { AddOwnerSheet, type GrazingOwner } from '@/components/settings/AddOwnerSheet'
 import { apiGet } from '@/lib/fetch'
+import { fmtDate, fmtMoney } from '@/lib/format'
 import { ChevronLeft, Pencil, FileText } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,15 +64,6 @@ function fmt(v: number | null | undefined, prefix = '', suffix = '') {
   return `${prefix}${v}${suffix}`
 }
 
-function fmtDate(d: string | null | undefined) {
-  if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-function fmtMoney(v: number | null | undefined) {
-  if (v == null) return '—'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v)
-}
 
 function LabelValue({ label, value }: { label: string; value: React.ReactNode }) {
   return (

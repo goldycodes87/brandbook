@@ -10,10 +10,7 @@ import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
-function fmtDate(d: string | null): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+import { fmtDate } from '@/lib/format'
 
 export default async function VetAnimalsPage() {
   const vet = await getVetSession()

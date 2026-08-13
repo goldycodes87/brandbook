@@ -12,11 +12,7 @@ import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { StatusChip } from '@/components/ui/Chip'
 import { REPRO_CHIP, SEX_CHIP } from '@/components/ui/tokens'
 import { ReproListClient } from '@/components/reproduction/ReproListClient'
-
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+import { fmtDate } from '@/lib/format'
 
 async function SummaryStats() {
   const supabase   = createAdminClient()

@@ -34,6 +34,7 @@ import { BullPerformanceSection } from '@/components/animals/BullPerformanceSect
 import { PregCheckSheet } from '@/components/reproduction/PregCheckSheet'
 import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/fetch'
 import { deriveReproStatus } from '@/lib/repro-status'
+import { fmtDate, calcAge } from '@/lib/format'
 
 type WeightRow     = { id: string; weight_lbs: number; weighed_at: string; source: string; notes: string | null }
 type HealthEvent   = { id: string; event_type: string; event_date: string; drug_name?: string; dose_amount?: number; dose_unit?: string; withdrawal_days?: number; withdrawal_clear_date?: string; bcs_score?: number; administered_by?: string; notes?: string }
@@ -139,25 +140,9 @@ const TABS = [
   { value: 'documents'    as Tab, label: 'DOCUMENTS' },
 ]
 
-function calcAge(dob: string | null): string {
-  if (!dob) return '—'
-  const ms   = Date.now() - new Date(dob).getTime()
-  const days = Math.floor(ms / 86400000)
-  if (days < 30)  return `${days} days`
-  if (days < 365) return `${Math.floor(days / 30)} months`
-  const yrs = Math.floor(days / 365)
-  const mo  = Math.floor((days % 365) / 30)
-  return mo ? `${yrs}yr ${mo}mo` : `${yrs} years`
-}
-
 function fmt(n: number | null | undefined, unit = ''): string {
   if (n == null) return '—'
   return `${n}${unit ? ' ' + unit : ''}`
-}
-
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 function WeightSparkline({ weights }: { weights: WeightRow[] }) {
@@ -1218,56 +1203,46 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   useEffect(() => { fetchAnimal() }, [fetchAnimal])
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('[photo client] file selected:', e.target.files?.[0]?.name, e.target.files?.[0]?.size)
     const file = e.target.files?.[0]
     if (!file) {
-      console.log('[photo client] no file selected')
       return
     }
     setUploadingPhoto(true)
     setPhotoError('')
     try {
       // Step 1: Get presigned URL
-      console.log('[photo client] step 1: getting presigned URL')
       const presignRes = await fetch(`/api/animals/${id}/photos/presign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ filename: file.name, content_type: file.type || 'image/jpeg' }),
       })
-      console.log('[photo client] presign status:', presignRes.status)
       if (!presignRes.ok) {
         const err = await presignRes.json()
         setPhotoError(err.error || 'Failed to get upload URL')
         return
       }
       const { presigned_url, public_url } = await presignRes.json()
-      console.log('[photo client] presigned URL received, public_url:', public_url)
 
       // Step 2: Upload directly to R2 (no Vercel body size limit)
-      console.log('[photo client] step 2: uploading to R2, size:', file.size)
       const uploadRes = await fetch(presigned_url, {
         method: 'PUT',
         body: file,
         headers: { 'Content-Type': file.type || 'image/jpeg' },
       })
-      console.log('[photo client] R2 upload status:', uploadRes.status)
       if (!uploadRes.ok) {
         setPhotoError('Upload to storage failed (' + uploadRes.status + ')')
         return
       }
 
       // Step 3: Save URL to animal record
-      console.log('[photo client] step 3: saving URL to animal')
       const saveRes = await fetch(`/api/animals/${id}/photos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ url: public_url }),
       })
-      console.log('[photo client] save status:', saveRes.status)
       const saveData = await saveRes.json()
-      console.log('[photo client] save data:', saveData)
       if (!saveRes.ok) {
         setPhotoError(saveData.error || 'Failed to save photo')
         return

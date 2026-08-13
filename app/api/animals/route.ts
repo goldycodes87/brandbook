@@ -1,10 +1,10 @@
+export const dynamic = 'force-dynamic'
+
 // IMPORTANT: Never nest animals
 // table joins inside animals query.
 // PostgREST PGRST201 - self-join
 // ambiguity. Always use separate
 // queries for related animals.
-
-export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'

@@ -1,11 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Panel } from '@/components/ui/Panel'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
-
-function fmtDate(d: string | null): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+import { fmtDate } from '@/lib/format'
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr)

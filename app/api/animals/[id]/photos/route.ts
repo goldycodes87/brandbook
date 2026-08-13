@@ -29,7 +29,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Failed to save photo to animal record' }, { status: 500 })
     }
 
-    console.log('[photo] saved presigned URL to animal:', id, 'photos:', updatedPhotos.length)
     return NextResponse.json({ url, photos: updatedPhotos })
   }
 
@@ -57,7 +56,6 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { error: updateError } = await supabase.from('animals').update({ photos: updatedPhotos }).eq('id', id)
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
-  console.log('[photo] legacy upload saved, photos:', updatedPhotos.length)
   return NextResponse.json({ url: uploadedUrl, photos: updatedPhotos })
 }
 

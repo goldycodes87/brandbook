@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { InvoiceForm } from '@/components/billing/InvoiceForm'
 import { Send, Download, CheckCircle, RotateCcw, ArrowLeft, Printer, Link, DollarSign } from 'lucide-react'
 import { apiGet, apiPatch } from '@/lib/fetch'
+import { fmtDate, fmtMoneyDecimals as fmtMoney } from '@/lib/format'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -51,15 +52,6 @@ interface Invoice {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
-
-function fmtDate(d: string | null): string {
-  if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-}
-
-function fmtMoney(n: number): string {
-  return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 
 function ownerDisplay(owner: Owner | null): string {
   if (!owner) return '—'

@@ -7,6 +7,7 @@ import { EarTagDot } from '@/components/ui/EarTagDot'
 import { AssignAnimalsSheet } from './AssignAnimalsSheet'
 import { RemoveAnimalsSheet } from './RemoveAnimalsSheet'
 import Badge from '@/components/ui/Badge'
+import { fmtDate } from '@/lib/format'
 
 interface LeaseAnimal {
   id: string
@@ -31,10 +32,6 @@ function aumFor(sex: string | null, weaningDate: string | null): number {
   return s ? (AUM_FACTOR[s] ?? 1.0) : 1.0
 }
 
-function fmtDate(d: string | null) {
-  if (!d) return null
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 interface Props {
   leaseId: string

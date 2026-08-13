@@ -8,10 +8,7 @@ import { Panel } from '@/components/ui/Panel'
 
 export const dynamic = 'force-dynamic'
 
-function fmtDate(d: string | null): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+import { fmtDate } from '@/lib/format'
 
 export default async function VetAnimalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const vet = await getVetSession()

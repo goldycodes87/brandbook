@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 // IMPORTANT: Never nest animals
 // table joins inside animals query.
 // PostgREST PGRST201 error.
@@ -5,8 +7,6 @@
 // donor_dam as separate queries.
 // See: github.com/supabase/postgrest
 // This rule cannot be changed.
-
-export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'

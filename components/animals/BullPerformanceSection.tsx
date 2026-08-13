@@ -8,6 +8,7 @@ import { Chip, StatusChip } from '@/components/ui/Chip'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ANIMAL_STATUS_CHIP, SEX_CHIP, getSexValue } from '@/components/ui/tokens'
+import { fmtDate } from '@/lib/format'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,11 +42,6 @@ interface YearGroup {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtDate(d: string | null | undefined) {
-  if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 function avgOf(nums: number[]): number | null {
   if (!nums.length) return null

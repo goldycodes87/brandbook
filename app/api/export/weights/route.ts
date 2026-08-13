@@ -19,6 +19,7 @@ export async function GET() {
     .from('weights')
     .select('animal_id, weight_lbs, weighed_at, source, notes, animals(tag_number)')
     .order('weighed_at', { ascending: false })
+    .limit(10000)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

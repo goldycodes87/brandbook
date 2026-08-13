@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { SEX_CHIP } from '@/components/ui/tokens'
+import { fmtDate, fmtDateShort } from '@/lib/format'
 import type { ReproEventShape, CalfRecord } from './PregnancyCard'
 
 interface SireLibraryEntry {
@@ -51,20 +52,6 @@ const DISPOSITION_CHIP: Record<string, { tone: 'success' | 'neutral' | 'info' | 
   sold_beef:            { tone: 'gold',     label: 'BEEF PRODUCTION'   },
   deceased:             { tone: 'danger',   label: 'DECEASED'          },
   transferred:          { tone: 'accent',   label: 'TRANSFERRED'       },
-}
-
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-}
-
-function fmtDateShort(d: string | null | undefined): string {
-  if (!d) return ''
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: '2-digit',
-  })
 }
 
 export function CowCalfCard({

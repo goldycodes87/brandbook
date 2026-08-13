@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Field, Textarea } from '@/components/ui/Field'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { apiGet, apiPost } from '@/lib/fetch'
+import { fmtTs } from '@/lib/format'
 
 // ─── Vet types ─────────────────────────────────────────────────────────────
 
@@ -45,12 +46,6 @@ interface OwnerThread {
   owner_name: string
   messages: OwnerMessage[]
   unread_count: number
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function fmtTs(ts: string): string {
-  return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 // ─── Page ───────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fmtDate } from '@/lib/format'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -9,10 +10,6 @@ function daysBetween(start: string, end: string): number {
   const s = new Date(start + 'T00:00:00')
   const e = new Date(end   + 'T00:00:00')
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
-}
-
-function fmtDate(d: string): string {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 const AUM_FACTORS: Record<string, number> = {

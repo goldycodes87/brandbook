@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { StatusChip, Chip } from '@/components/ui/Chip'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { SEX_CHIP } from '@/components/ui/tokens'
+import { fmtDate } from '@/lib/format'
 
 export interface ReproEventShape {
   id: string
@@ -69,12 +70,6 @@ const EASE_LABELS: Record<number, string> = {
   5: 'Abnormal',
 }
 
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return '—'
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-}
 
 interface TimelineRowProps {
   color: string

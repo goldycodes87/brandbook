@@ -19,6 +19,7 @@ export async function GET() {
     .from('sales')
     .select('sale_date, buyer, destination, sale_weight_lbs, price_per_lb, gross_proceeds, notes, created_at, animals(tag_number)')
     .order('sale_date', { ascending: false })
+    .limit(10000)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

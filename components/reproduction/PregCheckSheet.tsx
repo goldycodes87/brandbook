@@ -8,6 +8,7 @@ import { Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { apiPost, apiPatch } from '@/lib/fetch'
+import { fmtDate } from '@/lib/format'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,11 +39,6 @@ function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00')
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
-}
-
-function fmtDate(s: string | null | undefined): string {
-  if (!s) return '—'
-  return new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 // ── Open Cow Decision ────────────────────────────────────────────────────────

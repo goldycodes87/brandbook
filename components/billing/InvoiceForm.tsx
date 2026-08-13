@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
+import { fmtMoneyDecimals as fmtMoney } from '@/lib/format'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,9 +70,6 @@ function toNum(s: string): number {
   return isNaN(n) ? 0 : n
 }
 
-function fmtMoney(n: number): string {
-  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 
 function addDays(date: string, days: number): string {
   if (!date) return ''

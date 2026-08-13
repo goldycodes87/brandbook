@@ -97,10 +97,6 @@ export async function POST(req: NextRequest) {
 
   const rawText = responseText
 
-  console.log('[process] response length:', rawText.length)
-  console.log('[process] first 300:', rawText.slice(0, 300))
-  console.log('[process] last 200:', rawText.slice(-200))
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let bulls: any[] = []
 
@@ -110,7 +106,6 @@ export async function POST(req: NextRequest) {
       const trimmed = rawText.trim()
       if (trimmed.startsWith('[')) {
         bulls = JSON.parse(trimmed)
-        console.log('[process] strategy 1 success:', bulls.length)
       }
     } catch (_) {}
   }
@@ -121,7 +116,6 @@ export async function POST(req: NextRequest) {
       const stripped = rawText.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim()
       if (stripped.startsWith('[')) {
         bulls = JSON.parse(stripped)
-        console.log('[process] strategy 2 success:', bulls.length)
       }
     } catch (_) {}
   }
@@ -133,7 +127,6 @@ export async function POST(req: NextRequest) {
       const end   = rawText.lastIndexOf(']')
       if (start !== -1 && end !== -1 && end > start) {
         bulls = JSON.parse(rawText.slice(start, end + 1))
-        console.log('[process] strategy 3 success:', bulls.length)
       }
     } catch (_) {}
   }
@@ -149,15 +142,11 @@ export async function POST(req: NextRequest) {
       }
       if (objects.length > 0) {
         bulls = objects
-        console.log('[process] strategy 4 success:', bulls.length)
       }
     } catch (_) {}
   }
 
-  console.log('[process] final bull count:', bulls.length)
-
   if (bulls.length === 0) {
-    console.log('[process] all strategies failed, raw sample:', rawText.slice(0, 1000))
     return NextResponse.json({
       stud:         stud || 'Unknown',
       pdf_url:      pdfUrl,
