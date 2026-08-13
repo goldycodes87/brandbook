@@ -168,7 +168,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
 
   function finishSave() {
     setSaveDone(true)
-    setTimeout(() => { setSaveDone(false); finishSave() }, 900)
+    setTimeout(() => { setSaveDone(false); onSuccess(); onClose() }, 900)
   }
 
   // ── Receipt scan ────────────────────────────────────────────────────────────
@@ -760,7 +760,9 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
               ) : (
                 <div className="flex flex-col rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
                   {categories
-                    .filter(c => c.expense_type === expenseType)
+                    .filter(c => expenseType === 'animal_specific'
+                      ? (c.expense_type === 'animal_specific' || c.expense_type === 'shared')
+                      : c.expense_type === expenseType)
                     .map((cat, i, arr) => (
                       <button key={cat.id} type="button"
                         onClick={() => { setCategoryId(cat.id); setCategoryName(cat.name); setManualStep('details') }}

@@ -87,6 +87,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
     0,
   )
 
+  // AI/semen = origin cost (stored on animal) + ongoing breeding costs (from repro events).
+  // Kept separate in the API so callers can see both parts, but displayed as one line.
+  const aiSemenOrigin  = (animal.ai_cost || 0) + (animal.semen_cost || 0)
+  const embryoImplant  = (animal.embryo_cost || 0) + (animal.implant_fee || 0)
+
   const totalInvested = baseCost + vetCosts + breedingCosts + grazingCosts + animalExpenseCosts
 
   return NextResponse.json({
@@ -97,15 +102,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
     total_invested: totalInvested,
     manual_override: animal.manual_grazing_cost_override != null,
     breakdown: {
-      purchase_price: animal.purchase_price || 0,
-      ai_cost: animal.ai_cost || 0,
-      semen_cost: animal.semen_cost || 0,
-      embryo_cost: animal.embryo_cost || 0,
-      implant_fee: animal.implant_fee || 0,
-      vet_bills: vetCosts,
-      breeding_costs: breedingCosts,
-      grazing: grazingCosts,
-      animal_expenses: animalExpenseCosts,
+      purchase_price:    animal.purchase_price || 0,
+      ai_semen_costs:    aiSemenOrigin + breedingCosts,
+      embryo_implant:    embryoImplant,
+      vet_bills:         vetCosts,
+      grazing:           grazingCosts,
+      animal_expenses:   animalExpenseCosts,
     },
   })
 }

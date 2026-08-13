@@ -100,12 +100,9 @@ interface CostBasis {
   manual_override: boolean
   breakdown: {
     purchase_price: number
-    ai_cost: number
-    semen_cost: number
-    embryo_cost: number
-    implant_fee: number
+    ai_semen_costs: number
+    embryo_implant: number
     vet_bills: number
-    breeding_costs: number
     grazing: number
     animal_expenses: number
   }
@@ -224,10 +221,9 @@ function FinancialsBreakdown({ costBasis, revenue, animalId, onRefresh }: { cost
         <div className="rounded-[var(--radius-md)] p-3 flex flex-col gap-1.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
           {([
             ['Purchase price', bd.purchase_price],
-            ['AI / semen costs', bd.ai_cost + bd.semen_cost],
-            ['Embryo / implant', bd.embryo_cost + bd.implant_fee],
+            ['AI / semen costs', bd.ai_semen_costs],
+            ['Embryo / implant', bd.embryo_implant],
             ['Vet bills', bd.vet_bills],
-            ...(bd.breeding_costs > 0 ? [['Breeding costs', bd.breeding_costs] as [string, number]] : []),
             ['Grazing costs', bd.grazing],
             ...(bd.animal_expenses > 0 ? [['Animal expenses', bd.animal_expenses] as [string, number]] : []),
           ] as [string, number][]).map(([label, val]) => (
