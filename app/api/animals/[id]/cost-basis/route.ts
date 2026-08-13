@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data: animal } = await supabase
     .from('animals')
-    .select('id, origin, sex, weaning_date, purchase_price, ai_cost, semen_cost, embryo_cost, implant_fee, manual_grazing_cost_override')
+    .select('id, origin, sex, weaning_date, purchase_price, ai_cost, semen_cost, embryo_cost, implant_fee, manual_grazing_cost_override, owner_id')
     .eq('id', id)
     .maybeSingle()
 
@@ -47,30 +47,51 @@ export async function GET(_req: NextRequest, { params }: Params) {
   } else if (animal.manual_grazing_cost_override != null) {
     grazingCosts = animal.manual_grazing_cost_override
   } else {
-    // Fetch assignments with lease rate data
+    // Resolve owner billing rate (external owners have a contract rate stored on grazing_owners)
+    let externalOwnerRate: number | null = null
+    if (animal.owner_id) {
+      const { data: owner } = await supabase
+        .from('grazing_owners')
+        .select('is_self, billing_rate')
+        .eq('id', animal.owner_id)
+        .maybeSingle()
+      if (owner && !owner.is_self && owner.billing_rate != null) {
+        externalOwnerRate = Number(owner.billing_rate)
+      }
+    }
+
+    // Fetch assignments with lease data
     const { data: assignments } = await supabase
       .from('grazing_assignments')
       .select('start_date, end_date, lease_id')
       .eq('animal_id', id)
 
     if (assignments && assignments.length > 0) {
-      // Fetch leases separately (no nested join needed here since grazing_assignments isn't animals)
       const leaseIds = [...new Set(assignments.map(a => a.lease_id))]
       const { data: leases } = await supabase
         .from('leases')
-        .select('id, rate_per_head, rate_type')
+        .select('id, rate_per_head, rate_type, is_home_ranch')
         .in('id', leaseIds)
 
       const leaseMap = Object.fromEntries((leases ?? []).map(l => [l.id, l]))
 
       grazingCosts = assignments.reduce((sum, a) => {
         const lease = leaseMap[a.lease_id]
-        if (!lease || !['per_head', 'per_head_month'].includes(lease.rate_type ?? '')) return sum
+        if (!lease) return sum
         const start = new Date(a.start_date)
         const end = a.end_date ? new Date(a.end_date) : new Date()
         const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
         const months = days / 30
-        return sum + months * (lease.rate_per_head || 0)
+
+        if (externalOwnerRate != null) {
+          // External owner (P&L, Holloman, etc.): use their contract rate on every pasture
+          return sum + months * externalOwnerRate
+        } else {
+          // Legacy / ranch-owned: home ranch is own land ($0), leased pastures use the lease rate
+          if (lease.is_home_ranch) return sum
+          if (!['per_head', 'per_head_month'].includes(lease.rate_type ?? '')) return sum
+          return sum + months * (lease.rate_per_head || 0)
+        }
       }, 0)
     }
   }
