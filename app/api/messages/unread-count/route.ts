@@ -6,13 +6,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function GET() {
   const supabase = createAdminClient()
 
-  // Unread = messages from vet to rancher that haven't been read
-  const { count, error } = await supabase
+  // Unread vet messages (vet to rancher)
+  const { count: vetCount } = await supabase
     .from('vet_messages')
     .select('id', { count: 'exact', head: true })
     .eq('direction', 'vet_to_rancher')
     .is('read_at', null)
 
-  if (error) return NextResponse.json({ count: 0 })
-  return NextResponse.json({ count: count ?? 0 })
+  // Unread owner messages (owner to rancher)
+  const { count: ownerCount } = await supabase
+    .from('owner_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('direction', 'owner_to_rancher')
+    .is('read_at', null)
+
+  return NextResponse.json({ count: (vetCount ?? 0) + (ownerCount ?? 0) })
 }

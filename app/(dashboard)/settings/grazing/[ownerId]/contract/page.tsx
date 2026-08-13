@@ -93,6 +93,27 @@ export default function ContractPage({ params }: { params: Promise<{ ownerId: st
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [loading, setLoading]       = useState(true)
   const [sheetOpen, setSheetOpen]   = useState(false)
+  const [inviting, setInviting]     = useState(false)
+  const [inviteSent, setInviteSent] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+
+  const handleSendInvite = async () => {
+    setInviting(true)
+    setInviteError('')
+    try {
+      const res = await fetch(`/api/billing/owners/${ownerId}/invite`, { method: 'POST' })
+      if (!res.ok) {
+        const d = await res.json()
+        setInviteError(d.error ?? 'Failed to send invite')
+      } else {
+        setInviteSent(true)
+      }
+    } catch {
+      setInviteError('Connection error')
+    } finally {
+      setInviting(false)
+    }
+  }
 
   const currentYear = new Date().getFullYear()
 
@@ -138,16 +159,31 @@ export default function ContractPage({ params }: { params: Promise<{ ownerId: st
         title={owner?.name ?? 'Grazing Owner'}
         subtitle="Contract &amp; Settlement"
         actions={
-          <Button
-            intent="secondary"
-            size="sm"
-            onClick={() => setSheetOpen(true)}
-            leading={<Pencil size={14} />}
-          >
-            EDIT CONTRACT
-          </Button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Button
+              intent="secondary"
+              size="sm"
+              onClick={handleSendInvite}
+              disabled={inviting || inviteSent}
+            >
+              {inviteSent ? 'INVITE SENT ✓' : inviting ? 'SENDING…' : 'SEND PORTAL INVITE'}
+            </Button>
+            <Button
+              intent="secondary"
+              size="sm"
+              onClick={() => setSheetOpen(true)}
+              leading={<Pencil size={14} />}
+            >
+              EDIT CONTRACT
+            </Button>
+          </div>
         }
       />
+      {inviteError && (
+        <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: '#fee2e2', color: '#dc2626', fontSize: 13 }}>
+          {inviteError}
+        </div>
+      )}
 
       {/* Contract details */}
       {contract ? (
