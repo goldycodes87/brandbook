@@ -65,7 +65,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
       grazingCosts = assignments.reduce((sum, a) => {
         const lease = leaseMap[a.lease_id]
-        if (!lease || lease.rate_type !== 'per_head') return sum
+        if (!lease || !['per_head', 'per_head_month'].includes(lease.rate_type ?? '')) return sum
         const start = new Date(a.start_date)
         const end = a.end_date ? new Date(a.end_date) : new Date()
         const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
