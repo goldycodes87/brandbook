@@ -72,6 +72,8 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
   const [isSaving,       setIsSaving]      = useState(false)
   const [saveError,      setSaveError]     = useState('')
   const [saveDone,       setSaveDone]      = useState(false)
+  // multi-step manual flow: type → category → details
+  const [manualStep,     setManualStep]    = useState<'type'|'category'|'details'>('type')
   // scan / describe review
   const [parsedItems,    setParsedItems]   = useState<ParsedItem[]>([])
   const [receiptUrl,     setReceiptUrl]    = useState<string | null>(null)
@@ -130,6 +132,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
     setScope('whole_herd'); setExpQtr(currentQtr()); setExpYear(currentYr()); setSelectedLeaseId(null)
     setCategoryName(''); setCategoryId(null); setAmount(''); setExpenseDate(todayStr())
     setDescription(''); setOwnerId(null); setExpenseType('shared'); setAnimalIds([]); setPerHead('')
+    setManualStep('type')
 
     // Fail loudly. A 401 (expired session) used to leave this list silently
     // empty, which looked like "there are no categories" and blocked saving
@@ -600,11 +603,21 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
             {mode !== 'select' && (
               <button type="button" className="type-helper mb-0.5 flex items-center gap-1"
                 style={{ color: 'var(--text-muted)' }}
-                onClick={() => mode === 'review' ? setMode('scan') : setMode('select')}>
+                onClick={() => {
+                  if (mode === 'review') return setMode('scan')
+                  if (mode === 'manual' && manualStep === 'category') return setManualStep('type')
+                  if (mode === 'manual' && manualStep === 'details')  return setManualStep('category')
+                  setMode('select')
+                }}>
                 ← Back
               </button>
             )}
-            <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>LOG EXPENSE</h2>
+            <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>
+              {mode === 'manual' && manualStep === 'type'     ? 'EXPENSE TYPE'
+               : mode === 'manual' && manualStep === 'category' ? 'SELECT CATEGORY'
+               : mode === 'manual' && manualStep === 'details'  ? 'EXPENSE DETAILS'
+               : 'LOG EXPENSE'}
+            </h2>
           </div>
           <button type="button" onClick={onClose} style={{ color: 'var(--text-muted)' }}>
             <X size={20} />
@@ -710,60 +723,85 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
           {/* ── REVIEW (scan or describe) ────────────────────────────── */}
           {mode === 'review' && ItemReview()}
 
-          {/* ── MANUAL ENTRY ─────────────────────────────────────────── */}
-          {mode === 'manual' && (
+          {/* ── MANUAL: STEP 1 — TYPE ────────────────────────────────── */}
+          {mode === 'manual' && manualStep === 'type' && (
             <>
-              <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>EXPENSE TYPE</p>
-              <div className="grid grid-cols-3 gap-2">
+              <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                What kind of expense is this?
+              </p>
+              <div className="flex flex-col gap-3">
                 {([
-                  { t: 'shared' as ExpenseType,          emoji: '🌾', label: 'SHARED',  sub: 'Herd %' },
-                  { t: 'owner_specific' as ExpenseType,  emoji: '👤', label: 'OWNER',   sub: 'One owner' },
-                  { t: 'animal_specific' as ExpenseType, emoji: '🐄', label: 'ANIMAL',  sub: 'Split across animals' },
+                  { t: 'shared'          as ExpenseType, emoji: '🌾', label: 'SHARED',         sub: 'Hay, mineral tubs, pasture treatment — split across all owners by herd %' },
+                  { t: 'owner_specific'  as ExpenseType, emoji: '👤', label: 'OWNER SPECIFIC',  sub: 'AI tech fee, semen straws, preg check — charged per animal to each owner' },
+                  { t: 'animal_specific' as ExpenseType, emoji: '🐄', label: 'ANIMAL SPECIFIC', sub: 'Vet bill, medication, procedure — split across selected animals' },
                 ]).map(({ t, emoji, label, sub }) => (
-                  <button key={t} type="button" onClick={() => { setExpenseType(t); setCategoryName(''); setCategoryId(null) }}
-                    className="flex flex-col items-center gap-1 p-3 rounded-xl text-center"
-                    style={{ border: `2px solid ${expenseType === t ? 'var(--accent)' : 'var(--border)'}`, background: expenseType === t ? 'var(--accent-soft)' : 'var(--surface-1)' }}>
-                    <span className="text-xl">{emoji}</span>
-                    <span className="text-xs font-bold" style={{ color: expenseType === t ? 'var(--accent)' : 'var(--text)' }}>{label}</span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{sub}</span>
+                  <button key={t} type="button"
+                    onClick={() => { setExpenseType(t); setCategoryName(''); setCategoryId(null); setManualStep('category') }}
+                    className="flex items-start gap-4 p-4 rounded-xl text-left transition-all"
+                    style={{ border: '2px solid var(--border)', background: 'var(--surface-1)' }}>
+                    <span className="text-3xl flex-shrink-0">{emoji}</span>
+                    <div>
+                      <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>{label}</p>
+                      <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>{sub}</p>
+                    </div>
                   </button>
                 ))}
               </div>
+            </>
+          )}
 
-              <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>CATEGORY</p>
-              {categoriesError && (
+          {/* ── MANUAL: STEP 2 — CATEGORY ────────────────────────────── */}
+          {mode === 'manual' && manualStep === 'category' && (
+            <>
+              {categoriesError ? (
                 <p className="type-helper px-3 py-2 rounded" style={{ color: 'var(--danger-fg)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
                   {categoriesError}
                 </p>
+              ) : (
+                <div className="flex flex-col rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                  {categories
+                    .filter(c => c.expense_type === expenseType)
+                    .map((cat, i, arr) => (
+                      <button key={cat.id} type="button"
+                        onClick={() => { setCategoryId(cat.id); setCategoryName(cat.name); setManualStep('details') }}
+                        className="text-left px-4 py-3.5 text-sm transition-all flex items-center justify-between"
+                        style={{
+                          borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : undefined,
+                          background: 'var(--surface-1)',
+                          color: 'var(--text)',
+                        }}>
+                        <span className="font-medium">{cat.name}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>›</span>
+                      </button>
+                    ))}
+                </div>
               )}
-              <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto rounded-xl" style={{ border: '1px solid var(--border)' }}>
-                {categories
-                  .filter(c => {
-                    if (expenseType === 'shared')          return c.expense_type === 'shared'
-                    if (expenseType === 'owner_specific')  return c.expense_type === 'owner_specific'
-                    if (expenseType === 'animal_specific') return c.expense_type === 'animal_specific'
-                    return true
-                  })
-                  .map((cat, i, arr) => (
-                    <button key={cat.id} type="button" onClick={() => { setCategoryId(cat.id); setCategoryName(cat.name) }}
-                      className="text-left px-4 py-2.5 text-sm transition-all"
-                      style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : undefined, background: categoryName === cat.name ? 'var(--accent-soft)' : 'transparent', color: categoryName === cat.name ? 'var(--accent)' : 'var(--text)', fontWeight: categoryName === cat.name ? 600 : 400 }}>
-                      {cat.name}
-                    </button>
-                  ))}
+            </>
+          )}
+
+          {/* ── MANUAL: STEP 3 — DETAILS ─────────────────────────────── */}
+          {mode === 'manual' && manualStep === 'details' && (
+            <>
+              {/* Selected category reminder */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--accent-soft)' }}>
+                <span className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{categoryName}</span>
               </div>
 
-              {expenseType === 'owner_specific' && (
+              {/* SHARED: scope + quarter */}
+              {expenseType === 'shared' && ScopeSelector()}
+
+              {/* OWNER SPECIFIC (non-per-head): owner selector */}
+              {expenseType === 'owner_specific' && !isPerHeadCategory && (
                 <>
                   <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>OWNER</p>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     {owners.map(o => {
                       const name = o.company_name || o.owner_name || o.name
                       return (
                         <button key={o.id} type="button" onClick={() => setOwnerId(o.id)}
-                          className="text-left px-3 py-2.5 rounded-lg"
-                          style={{ border: `1.5px solid ${ownerId === o.id ? 'var(--accent)' : 'var(--border)'}`, background: ownerId === o.id ? 'var(--accent-soft)' : 'var(--surface-1)', color: ownerId === o.id ? 'var(--accent)' : 'var(--text)' }}>
-                          {name}
+                          className="text-left px-3 py-3 rounded-xl"
+                          style={{ border: `2px solid ${ownerId === o.id ? 'var(--accent)' : 'var(--border)'}`, background: ownerId === o.id ? 'var(--accent-soft)' : 'var(--surface-1)', color: ownerId === o.id ? 'var(--accent)' : 'var(--text)' }}>
+                          <p className="font-semibold text-sm">{name}</p>
                         </button>
                       )
                     })}
@@ -771,8 +809,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
                 </>
               )}
 
-              {expenseType === 'shared' && ScopeSelector()}
-
+              {/* Animal picker (animal_specific or per-head owner) */}
               {(expenseType === 'animal_specific' || isPerHeadCategory) && (
                 <AnimalMultiSelect
                   animals={animals}
@@ -783,21 +820,13 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
                 />
               )}
 
-              {/* Per-head categories (AI tech fee, semen straws): a rate per
-                  animal rather than a pot of money split between them. */}
+              {/* Per-head rate (AI tech fee, semen straws) */}
               {isPerHeadCategory && (
                 <>
                   <Field label="Cost per head ($)" required>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={perHead}
-                      onChange={e => setPerHead(e.target.value)}
-                      placeholder="0.00"
-                    />
+                    <Input type="number" step="0.01" min="0" value={perHead}
+                      onChange={e => setPerHead(e.target.value)} placeholder="0.00" />
                   </Field>
-
                   {animalIds.length > 0 && Number(perHead) > 0 && (
                     <div className="rounded-xl px-4 py-3 flex flex-col gap-1"
                       style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
@@ -812,12 +841,8 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
                       <div className="mt-1 pt-1 flex flex-col gap-0.5" style={{ borderTop: '1px solid var(--border)' }}>
                         {perOwnerBreakdown.map(b => (
                           <div key={b.key} className="flex justify-between">
-                            <span className="type-helper" style={{ color: 'var(--text-muted)' }}>
-                              {b.name} ({b.count})
-                            </span>
-                            <span className="type-helper" style={{ color: 'var(--text)' }}>
-                              {fmt(b.amount)}{b.isSelf ? ' — your cost' : ''}
-                            </span>
+                            <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{b.name} ({b.count})</span>
+                            <span className="type-helper" style={{ color: 'var(--text)' }}>{fmt(b.amount)}{b.isSelf ? ' — your cost' : ''}</span>
                           </div>
                         ))}
                       </div>
@@ -826,12 +851,13 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
                 </>
               )}
 
+              {/* Amount + Date */}
               <div className="grid grid-cols-2 gap-3">
                 {!isPerHeadCategory && (
-                <Field label="Amount ($)" required>
-                  <Input type="number" step="0.01" min="0" value={amount}
-                    onChange={e => setAmount(e.target.value)} placeholder="0.00" />
-                </Field>
+                  <Field label="Amount ($)" required>
+                    <Input type="number" step="0.01" min="0" value={amount}
+                      onChange={e => setAmount(e.target.value)} placeholder="0.00" />
+                  </Field>
                 )}
                 <Field label="Date">
                   <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
@@ -873,7 +899,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
                 </Button>
               )}
 
-              {mode === 'manual' && (
+              {mode === 'manual' && manualStep === 'details' && (
                 <Button type="button" intent="primary" size="sm" className="flex-1"
                   loading={isSaving}
                   onClick={handleSaveManual}>
