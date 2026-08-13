@@ -206,48 +206,92 @@ export async function GET(
   })
 }
 
+const asIs     = (v: unknown) => v
+const orNull   = (v: unknown) => v || null
+const nullable = (v: unknown) => v ?? null
+const num      = (v: unknown) => (v != null ? Number(v) : null)
+
+/**
+ * Columns PATCH is allowed to write, and how each is read off the body.
+ *
+ * Anything absent from this map is ignored, so a client cannot write id,
+ * created_at, or a column that belongs to another flow (weaning, breeding
+ * eligibility, the AI fee override — each has its own endpoint).
+ */
+const PATCH_FIELDS: Record<string, (v: unknown) => unknown> = {
+  tag_number:           asIs,
+  name:                 nullable,
+  sex:                  asIs,
+  status:               v => v ?? 'active',
+  dob:                  orNull,
+  dob_estimated:        nullable,
+  approximate_age:      orNull,
+  ear_tag_color:        asIs,
+  ear_tag_number:       orNull,
+  birth_weight_lbs:     orNull,
+  purchase_price:       orNull,
+  purchase_date:        orNull,
+  vendor:               orNull,
+  owner_id:             orNull,
+  dam_id:               orNull,
+  sire_id:              orNull,
+  sire_library_id:      orNull,
+  registration_numbers: v => v ?? [],
+  notes:                orNull,
+  photos:               v => v ?? [],
+  origin:               nullable,
+  ai_cost:              num,
+  semen_cost:           num,
+  embryo_cost:          num,
+  implant_fee:          num,
+  manual_grazing_cost_override: num,
+  disposition:          nullable,
+  disposition_date:     orNull,
+  disposition_notes:    orNull,
+  cause_of_death:       orNull,
+  beef_production_flagged_at: orNull,
+}
+
+/**
+ * PARTIAL BY DESIGN: a key absent from the body leaves that column alone.
+ *
+ * This used to rebuild the entire row on every call, defaulting each missing
+ * field to null / [] / 'active'. Two callers send partial bodies — the grazing
+ * cost override on the animal page, and DispositionSheet — so saving either
+ * one wiped name, dob, breed, owner_id, dam_id, sire_id, photos, purchase
+ * price and all four AI/ET cost fields, and forced status back to 'active'.
+ * Marking an animal sold erased the very records Schedule F is built from.
+ *
+ * Absent and null are NOT the same thing: an explicit null still clears the
+ * column, which is how DispositionSheet releases owner_id on a transfer.
+ */
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createAdminClient()
   const body = await req.json()
 
-  const firstBreed = Array.isArray(body.breeds) ? body.breeds[0] : null
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
 
-  const updateData = {
-    tag_number:           body.tag_number,
-    name:                 body.name ?? null,
-    sex:                  body.sex,
-    status:               body.status ?? 'active',
-    dob:                  body.dob || null,
-    dob_estimated:        body.dob_estimated ?? null,
-    approximate_age:      body.approximate_age || null,
-    breed:                firstBreed?.breed || body.breed || null,
-    breed_percentage:     firstBreed?.pct   || body.breed_percentage || null,
-    breeds:               body.breeds ?? [],
-    ear_tag_color:        body.ear_tag_color,
-    ear_tag_number:       body.ear_tag_number || null,
-    birth_weight_lbs:     body.birth_weight_lbs || null,
-    purchase_price:       body.purchase_price || null,
-    purchase_date:        body.purchase_date || null,
-    vendor:               body.vendor || null,
-    owner_id:             body.owner_id || null,
-    dam_id:               body.dam_id || null,
-    sire_id:              body.sire_id || null,
-    sire_library_id:      body.sire_library_id || null,
-    registration_numbers: body.registration_numbers ?? [],
-    notes:                body.notes || null,
-    photos:               body.photos ?? [],
-    origin:               body.origin ?? null,
-    ai_cost:              body.ai_cost != null ? Number(body.ai_cost) : null,
-    semen_cost:           body.semen_cost != null ? Number(body.semen_cost) : null,
-    embryo_cost:          body.embryo_cost != null ? Number(body.embryo_cost) : null,
-    implant_fee:          body.implant_fee != null ? Number(body.implant_fee) : null,
-    manual_grazing_cost_override: body.manual_grazing_cost_override != null ? Number(body.manual_grazing_cost_override) : null,
-    disposition:          body.disposition ?? null,
-    disposition_date:     body.disposition_date || null,
-    disposition_notes:    body.disposition_notes || null,
-    cause_of_death:       body.cause_of_death || null,
-    beef_production_flagged_at: body.beef_production_flagged_at || null,
+  const updateData: Record<string, unknown> = {}
+  for (const [column, coerce] of Object.entries(PATCH_FIELDS)) {
+    if (has(column)) updateData[column] = coerce(body[column])
+  }
+
+  // `breeds` is the source of truth for breed / breed_percentage whenever it
+  // is sent, so those three move together and never disagree.
+  if (has('breeds')) {
+    const breeds = Array.isArray(body.breeds) ? body.breeds : []
+    const first  = breeds[0] as { breed?: string; pct?: number } | undefined
+    updateData.breeds           = breeds
+    updateData.breed            = first?.breed || body.breed || null
+    updateData.breed_percentage = first?.pct   || body.breed_percentage || null
+  } else {
+    if (has('breed'))            updateData.breed            = body.breed || null
+    if (has('breed_percentage')) updateData.breed_percentage = body.breed_percentage || null
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json({ error: 'No updatable fields in request body' }, { status: 400 })
   }
 
   const { data, error } = await supabase

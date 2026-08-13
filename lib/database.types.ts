@@ -1576,6 +1576,7 @@ export type Database = {
           receipt_url: string | null
           reproduction_event_id: string | null
           sire_library_id: string | null
+          split_group_id: string | null
           total_amount: number
           unit_cost: number | null
           vendor: string | null
@@ -1604,6 +1605,7 @@ export type Database = {
           receipt_url?: string | null
           reproduction_event_id?: string | null
           sire_library_id?: string | null
+          split_group_id?: string | null
           total_amount: number
           unit_cost?: number | null
           vendor?: string | null
@@ -1632,6 +1634,7 @@ export type Database = {
           receipt_url?: string | null
           reproduction_event_id?: string | null
           sire_library_id?: string | null
+          split_group_id?: string | null
           total_amount?: number
           unit_cost?: number | null
           vendor?: string | null
@@ -2827,6 +2830,44 @@ export type Database = {
       adjust_straw: {
         Args: { p_delta: number; p_inventory_id: string }
         Returns: number
+      }
+      replace_expense_split: {
+        Args: { p_group_id: string; p_rows: Json }
+        Returns: {
+          animal_id: string | null
+          bull_name: string | null
+          category_id: string | null
+          category_name: string
+          created_at: string | null
+          description: string | null
+          expense_date: string | null
+          expense_type: string | null
+          id: string
+          include_calves: boolean | null
+          invoice_id: string | null
+          is_lease_specific: boolean | null
+          lease_id: string | null
+          notes: string | null
+          owner_id: string | null
+          period_end: string | null
+          period_start: string | null
+          qty: number | null
+          quarter: number | null
+          receipt_url: string | null
+          reproduction_event_id: string | null
+          sire_library_id: string | null
+          split_group_id: string | null
+          total_amount: number
+          unit_cost: number | null
+          vendor: string | null
+          year: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "lease_expenses"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
     }
     Enums: {

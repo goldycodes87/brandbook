@@ -35,6 +35,8 @@ export interface LeaseExpense {
   sire_library_id: string | null
   bull_name: string | null
   include_calves: boolean | null
+  /** Set when this row is one animal's share of a multi-animal split. */
+  split_group_id?: string | null
   created_at: string
 }
 
@@ -134,6 +136,10 @@ export function AddLeaseExpenseSheet({
   const [notes,         setNotes]        = useState('')
   const [ownerId,       setOwnerId]      = useState<string | null>(null)
   const [animalIds,     setAnimalIds]    = useState<string[]>([])
+  // Non-null while editing a multi-animal split: the form is then editing the
+  // whole expense, and saving re-divides it across the selected animals.
+  const [splitGroupId,  setSplitGroupId]  = useState<string | null>(null)
+  const [splitInvoiced, setSplitInvoiced] = useState(false)
   const [owners,        setOwners]       = useState<GrazingOwner[]>([])
   const [animals,       setAnimals]      = useState<LeaseAnimal[]>([])
   const [aumData,       setAumData]      = useState<{ by_owner: AumOwnerRow[] } | null>(null)
@@ -191,7 +197,22 @@ export function AddLeaseExpenseSheet({
       setNotes(initialData.notes ?? '')
       setOwnerId(initialData.owner_id)
       setAnimalIds(initialData.animal_id ? [initialData.animal_id] : [])
+      setSplitGroupId(null)
       setIncludeCalves(Boolean(initialData.include_calves))
+
+      // A split row on its own shows one animal and one animal's share. Pull
+      // the whole group so the form edits the expense rather than a twelfth
+      // of it — saving the prefilled single row would shrink the split to one.
+      apiGet(`/api/expenses/${initialData.id}`)
+        .then(r => r.json())
+        .then(d => {
+          if (!d.split) return
+          setSplitGroupId(d.split.split_group_id)
+          setAnimalIds(d.split.animal_ids ?? [])
+          setTotalAmount(String(d.split.total_amount ?? ''))
+          setSplitInvoiced(Boolean(d.split.invoiced))
+        })
+        .catch(() => {})
       const ct: 'period' | 'one_time' = initialData.period_start ? 'period' : 'one_time'
       setCalcType(ct)
       setPeriodStart(initialData.period_start ?? qtrStartStr())
@@ -216,6 +237,8 @@ export function AddLeaseExpenseSheet({
       setNotes('')
       setOwnerId(null)
       setAnimalIds([])
+      setSplitGroupId(null)
+      setSplitInvoiced(false)
       setIncludeCalves(false)
       setCalcType('period')
       setPeriodStart(qtrStartStr())
@@ -247,6 +270,10 @@ export function AddLeaseExpenseSheet({
     if (!categoryName || isNaN(amt)) { setError('Category and amount are required'); return }
     if (expenseType === 'owner_specific' && ownerId === null) { setError('Select an owner'); return }
     if (expenseType === 'animal_specific' && animalIds.length === 0) { setError('Select at least one animal'); return }
+    if (splitGroupId && splitInvoiced) {
+      setError('This expense has already been invoiced. Void or credit the invoice instead of editing it.')
+      return
+    }
     if (descriptionRequired && !description.trim()) { setError('Description is required for this expense type'); return }
 
     const isWholeHerd = expenseType === 'shared' && scope === 'whole_herd'
@@ -301,6 +328,10 @@ export function AddLeaseExpenseSheet({
         notes:            notes || null,
         owner_id:         expenseType === 'owner_specific'  ? (ownerId === 'null' ? null : ownerId)  : null,
         animal_id:        expenseType === 'animal_specific' ? (animalIds[0] ?? null) : null,
+        // Editing a split: total_amount is the WHOLE expense and animal_ids is
+        // the membership. The server re-divides and replaces every row, so the
+        // per-head shares stay consistent with how the split was created.
+        ...(splitGroupId ? { animal_ids: animalIds } : {}),
         qty:              quantity ? parseFloat(quantity) : null,
         unit_cost:        unitCost ? parseFloat(unitCost) : null,
         include_calves:   expenseType === 'shared' ? includeCalves : false,
