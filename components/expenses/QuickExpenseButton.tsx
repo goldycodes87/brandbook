@@ -115,12 +115,12 @@ export function QuickExpenseButton() {
       <QuickExpenseSheet
         isOpen={expenseOpen}
         onClose={() => setExpenseOpen(false)}
-        onSuccess={() => setExpenseOpen(false)}
+        onSuccess={() => { setExpenseOpen(false); router.refresh() }}
       />
       <QuickHealthSheet
         isOpen={healthOpen}
         onClose={() => setHealthOpen(false)}
-        onSuccess={() => setHealthOpen(false)}
+        onSuccess={() => { setHealthOpen(false); router.refresh() }}
       />
     </>
   )

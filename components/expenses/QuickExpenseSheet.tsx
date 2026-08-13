@@ -71,6 +71,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
   const [owners,         setOwners]        = useState<GrazingOwner[]>([])
   const [isSaving,       setIsSaving]      = useState(false)
   const [saveError,      setSaveError]     = useState('')
+  const [saveDone,       setSaveDone]      = useState(false)
   // scan / describe review
   const [parsedItems,    setParsedItems]   = useState<ParsedItem[]>([])
   const [receiptUrl,     setReceiptUrl]    = useState<string | null>(null)
@@ -161,6 +162,11 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
     // For animal-specific splits. /api/animals caps limit at 200 server-side.
     apiGet('/api/animals?status=active&limit=200').then(r => r.json()).then(d => setAnimals(d.data ?? [])).catch(() => {})
   }, [isOpen])
+
+  function finishSave() {
+    setSaveDone(true)
+    setTimeout(() => { setSaveDone(false); finishSave() }, 900)
+  }
 
   // ── Receipt scan ────────────────────────────────────────────────────────────
 
@@ -301,7 +307,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
         return apiPost(url, payload)
       }))
 
-      onSuccess(); onClose()
+      finishSave()
     } catch {
       setSaveError('Save failed. Please try again.')
     } finally {
@@ -334,7 +340,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
           expenseDate,
         })
         if (!result.ok) { setSaveError(result.error ?? 'Save failed'); return }
-        onSuccess(); onClose()
+        finishSave()
       } catch {
         setSaveError('Save failed. Please try again.')
       } finally {
@@ -374,7 +380,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
           expenseDate,
         })
         if (!result.ok) { setSaveError(result.error ?? 'Save failed'); return }
-        onSuccess(); onClose()
+        finishSave()
         return
       }
 
@@ -404,7 +410,7 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
       const res  = await apiPost(url, payload)
       const json = await res.json()
       if (!res.ok) { setSaveError(json.error ?? 'Save failed'); return }
-      onSuccess(); onClose()
+      finishSave()
     } catch {
       setSaveError('Save failed. Please try again.')
     } finally {
@@ -849,23 +855,32 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
 
         {/* Footer */}
         <div className="flex gap-3 px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-          <Button type="button" intent="ghost" size="sm" onClick={onClose}>CANCEL</Button>
+          {saveDone ? (
+            <div className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold"
+              style={{ background: 'var(--success-bg, #dcfce7)', color: 'var(--success-fg, #16a34a)' }}>
+              ✓ EXPENSE SAVED
+            </div>
+          ) : (
+            <>
+              <Button type="button" intent="ghost" size="sm" onClick={onClose}>CANCEL</Button>
 
-          {mode === 'review' && (
-            <Button type="button" intent="primary" size="sm" className="flex-1"
-              loading={isSaving}
-              disabled={checkedCount === 0}
-              onClick={handleSaveItems}>
-              SAVE {checkedCount} EXPENSE{checkedCount !== 1 ? 'S' : ''}
-            </Button>
-          )}
+              {mode === 'review' && (
+                <Button type="button" intent="primary" size="sm" className="flex-1"
+                  loading={isSaving}
+                  disabled={checkedCount === 0}
+                  onClick={handleSaveItems}>
+                  SAVE {checkedCount} EXPENSE{checkedCount !== 1 ? 'S' : ''}
+                </Button>
+              )}
 
-          {mode === 'manual' && (
-            <Button type="button" intent="primary" size="sm" className="flex-1"
-              loading={isSaving}
-              onClick={handleSaveManual}>
-              SAVE EXPENSE
-            </Button>
+              {mode === 'manual' && (
+                <Button type="button" intent="primary" size="sm" className="flex-1"
+                  loading={isSaving}
+                  onClick={handleSaveManual}>
+                  SAVE EXPENSE
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
