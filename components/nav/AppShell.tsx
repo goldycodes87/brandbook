@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Tag, Heart, Baby,
   MapPin, DollarSign, Dna, TrendingUp,
   ShoppingCart, Package, Settings,
-  MoreHorizontal, X, LogOut, Bell,
+  MoreHorizontal, X, LogOut, Bell, FileBarChart,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/fetch'
@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: '/performance',  label: 'Performance',  icon: TrendingUp },
   { href: '/sales',        label: 'Sales',        icon: ShoppingCart },
   { href: '/inventory',    label: 'Inventory',    icon: Package },
+  { href: '/reports',      label: 'Reports',      icon: FileBarChart },
 ]
 
 const SETTINGS_ITEM = { href: '/settings', label: 'Settings', icon: Settings }
