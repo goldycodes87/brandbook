@@ -25,7 +25,6 @@ export interface PregCheckSheetProps {
   onClose:      () => void
   animal:       AnimalRef
   reminderId?:  string
-  bredEventId?: string
   bredDate?:    string
   bullName?:    string
   expectedCalvingDate?: string
@@ -111,13 +110,28 @@ export function PregCheckSheet({
     setPhase('form'); setDoneMsg('')
   }
 
+  /**
+   * A failed request RESOLVES — fetch only rejects on a network fault, so an
+   * unchecked `await apiPost(...)` sails past a 500 and the sheet declares
+   * success on a check that was never written. Working a chute full of cows,
+   * that is invisible until the herd report comes up short months later.
+   */
+  async function post(url: string, body: unknown, what: string) {
+    const res  = await apiPost(url, body)
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      throw new Error(json.error ?? `${what} failed (${res.status})`)
+    }
+    return res
+  }
+
   async function handleSave() {
     if (!result) { setError('Select a result'); return }
     setSaving(true); setError('')
 
     try {
-      // 1. Create preg check event
-      await apiPost('/api/reproduction', {
+      // 1. The preg check itself. Nothing else happens unless this lands.
+      await post('/api/reproduction', {
         animal_id:         animal.id,
         event_type:        'preg_check',
         event_date:        checkDate,
@@ -125,58 +139,73 @@ export function PregCheckSheet({
         preg_check_method: method,
         notes:             notes || null,
         ai_technician:     techName || null,
-      })
+      }, 'Saving the preg check')
 
-      // 2. Dismiss original reminder
-      if (reminderId) {
-        await apiPatch('/api/reminders', { id: reminderId, is_dismissed: true })
+      // 2. Dismiss the reminder. By id when we came from one, otherwise by
+      //    animal so the animal-page route does not leave it standing.
+      const dismissRes = await apiPatch('/api/reminders', reminderId
+        ? { id: reminderId, is_dismissed: true }
+        : { animal_id: animal.id, reminder_type: 'preg_check', is_dismissed: true })
+      if (!dismissRes.ok) {
+        // The check is saved; a stale reminder is cosmetic. Say so rather than
+        // discarding a result the vet already called.
+        setError('Preg check saved, but its reminder is still showing. Dismiss it by hand.')
       }
 
       if (result === 'confirmed') {
-        // 3a. Create calving reminder (14 days before expected calving)
         const calvingDate = expectedCalvingDate ?? (bredDate ? addDays(bredDate, 283) : null)
         if (calvingDate) {
           const reminderDue = addDays(calvingDate, -14)
-          await apiPost('/api/reminders', {
+          await post('/api/reminders', {
             animal_id:     animal.id,
             reminder_type: 'calving',
             due_date:      reminderDue,
             title:         `Calving due — ${animal.ear_tag_color ?? ''} ${animal.tag_number}`.trim(),
-          })
+          }, 'Creating the calving reminder')
+          setDoneMsg(`✓ Confirmed pregnant! Expected calving: ${fmtDate(calvingDate)}`)
+        } else {
+          // No bred event reached this sheet, so there is no date to count
+          // from. The check is saved; the calving reminder is not.
+          setDoneMsg('✓ Confirmed pregnant. No breeding date on file, so no calving reminder was set.')
         }
-        setDoneMsg(`✓ Confirmed pregnant! Expected calving: ${fmtDate(calvingDate ?? null)}`)
         setPhase('done')
 
       } else if (result === 'open') {
         setPhase('open_decision')
 
       } else if (result === 'recheck') {
-        // Create recheck reminder 14 days out
         const recheckDue = addDays(checkDate, 14)
-        await apiPost('/api/reminders', {
+        await post('/api/reminders', {
           animal_id:     animal.id,
           reminder_type: 'preg_check',
           due_date:      recheckDue,
           title:         `Recheck — ${animal.ear_tag_color ?? ''} ${animal.tag_number}`.trim(),
-        })
+        }, 'Creating the recheck reminder')
         setDoneMsg(`Recheck set for ${fmtDate(recheckDue)}`)
         setPhase('done')
       }
 
       onSuccess()
-    } catch {
-      setError('Save failed — please try again.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed — please try again.')
     } finally { setSaving(false) }
   }
 
   async function handleMonitor() {
     const monitorDue = addDays(checkDate, 30)
-    await apiPost('/api/reminders', {
-      animal_id:     animal.id,
-      reminder_type: 'preg_check',
-      due_date:      monitorDue,
-      title:         `Follow up — open cow ${animal.tag_number}`,
-    }).catch(() => {})
+    try {
+      await post('/api/reminders', {
+        animal_id:     animal.id,
+        reminder_type: 'preg_check',
+        due_date:      monitorDue,
+        title:         `Follow up — open cow ${animal.tag_number}`,
+      }, 'Creating the follow-up reminder')
+    } catch (e) {
+      // Swallowing this used to close the sheet as though the follow-up had
+      // been scheduled, and the cow was never looked at again.
+      setError(e instanceof Error ? e.message : 'Could not set the follow-up reminder.')
+      return
+    }
     onClose(); reset()
   }
 

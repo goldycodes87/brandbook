@@ -123,7 +123,23 @@ async function buildReportData(id: string, year: number) {
   const grossSales = sales.reduce((s, x) => s + (x.gross_proceeds ?? 0), 0)
   const saleFeeAuction = contract?.sale_fee_auction_pct ?? 3
   const saleFeeFlat    = contract?.sale_fee_private_flat ?? 350
-  const saleFees = sales.reduce((s) => s + (grossSales * saleFeeAuction / 100), 0)
+
+  // Per sale, on its own proceeds, at the rate its channel calls for.
+  //
+  // This read `sales.reduce((s) => s + grossSales * pct / 100, 0)`: it ignored
+  // each sale's own amount and charged the percentage against the year's TOTAL
+  // once per sale, so two sales billed twice the whole year's fee. It also
+  // applied the auction percentage to private sales -- sale_fee_private_flat
+  // was read from the contract and then never used.
+  const isAuction = (destination: string | null) =>
+    /barn|auction/i.test(destination ?? '')
+
+  const saleFees = sales.reduce(
+    (s, x) => s + (isAuction(x.destination)
+      ? (x.gross_proceeds ?? 0) * saleFeeAuction / 100
+      : saleFeeFlat),
+    0,
+  )
   const netProceeds = grossSales - saleFees
   const grazingFees = (invoices ?? []).reduce((s, inv) => s + (inv.total_amount ?? 0), 0)
   const deathLossPct = calvesBorn.length > 0

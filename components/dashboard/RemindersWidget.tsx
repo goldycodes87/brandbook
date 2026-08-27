@@ -16,6 +16,14 @@ interface ReminderAnimal {
   name: string | null
 }
 
+interface ReminderReproEvent {
+  id: string
+  event_date: string | null
+  expected_calving_date: string | null
+  sire_name_text: string | null
+  sire_library: { bull_name: string | null } | null
+}
+
 interface Reminder {
   id: string
   animal_id: string | null
@@ -25,6 +33,8 @@ interface Reminder {
   notes: string | null
   is_dismissed: boolean
   animal: ReminderAnimal | null
+  /** The breeding this reminder came from — the preg check needs its dates. */
+  reproduction_event: ReminderReproEvent | null
 }
 
 function daysDiff(due: string): number {
@@ -69,8 +79,11 @@ export function RemindersWidget() {
   async function dismiss(id: string) {
     setDismissing(p => ({ ...p, [id]: true }))
     try {
-      await apiPatch('/api/reminders', { id, is_dismissed: true })
-      setReminders(prev => prev.filter(r => r.id !== id))
+      const res = await apiPatch('/api/reminders', { id, is_dismissed: true })
+      // Only drop it from the list once the server agrees. Removing it
+      // optimistically hid failed dismissals until the next page load, so a
+      // reminder looked handled when it was still open.
+      if (res.ok) setReminders(prev => prev.filter(r => r.id !== id))
     } finally { setDismissing(p => ({ ...p, [id]: false })) }
   }
 
@@ -107,11 +120,21 @@ export function RemindersWidget() {
       </div>
 
       {pregSheet?.animal && (
+        // The bred event's dates travel with the reminder. Without them a
+        // CONFIRMED result had nothing to count 283 days from, so no calving
+        // reminder was created and the sheet still reported success.
         <PregCheckSheet
           isOpen
           onClose={() => setPregSheet(null)}
           animal={pregSheet.animal}
           reminderId={pregSheet.id}
+          bredDate={pregSheet.reproduction_event?.event_date ?? undefined}
+          bullName={
+            pregSheet.reproduction_event?.sire_library?.bull_name ??
+            pregSheet.reproduction_event?.sire_name_text ??
+            undefined
+          }
+          expectedCalvingDate={pregSheet.reproduction_event?.expected_calving_date ?? undefined}
           onSuccess={() => { setPregSheet(null); load() }}
         />
       )}

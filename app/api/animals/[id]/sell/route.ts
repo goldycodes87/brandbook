@@ -74,6 +74,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       .eq('id', id)
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+    // Take him off the pasture as of the sale.
+    //
+    // Marking the animal sold was not enough: shared expenses are pro-rated by
+    // grazing_assignments, not by animals.status, so an assignment left open
+    // kept accruing animal-days for an animal that was gone -- overcharging
+    // his owner and undercharging everyone else for the rest of the quarter.
+    const { error: grazeErr } = await supabase
+      .from('grazing_assignments')
+      .update({ end_date: sale_date })
+      .eq('animal_id', id)
+      .is('end_date', null)
+    if (grazeErr) {
+      console.error('[animals/sell] failed to close grazing assignment:', grazeErr.message)
+    }
   }
 
   return NextResponse.json({ ok: true, sale }, { status: 201 })

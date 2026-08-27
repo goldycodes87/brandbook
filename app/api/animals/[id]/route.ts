@@ -302,6 +302,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  // Leaving the herd ends the grazing, whatever the reason.
+  //
+  // Shared expenses are pro-rated by grazing_assignments, not animals.status,
+  // so an assignment left open keeps billing animal-days for an animal that is
+  // gone. DispositionSheet routes deceased and transferred through here rather
+  // than through /sell, so this is the choke point that catches both.
+  const LEFT_HERD = ['sold', 'deceased', 'transferred', 'harvested']
+  if (typeof updateData.status === 'string' && LEFT_HERD.includes(updateData.status)) {
+    const endedOn =
+      (typeof updateData.disposition_date === 'string' && updateData.disposition_date) ||
+      new Date().toISOString().slice(0, 10)
+
+    const { error: grazeErr } = await supabase
+      .from('grazing_assignments')
+      .update({ end_date: endedOn })
+      .eq('animal_id', id)
+      .is('end_date', null)
+
+    // Non-fatal: the disposition itself is recorded either way.
+    if (grazeErr) console.error('[animals PATCH] failed to close grazing assignment:', grazeErr.message)
+  }
+
   return NextResponse.json(data)
 }
 
