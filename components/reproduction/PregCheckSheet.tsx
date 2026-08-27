@@ -7,6 +7,7 @@ import { Field, Input } from '@/components/ui/Field'
 import { Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { EarTagDot } from '@/components/ui/EarTagDot'
+import { DispositionSheet } from '@/components/animals/DispositionSheet'
 import { apiPost, apiPatch } from '@/lib/fetch'
 import { fmtDate } from '@/lib/format'
 
@@ -18,6 +19,7 @@ interface AnimalRef {
   name: string | null
   ear_tag_color?: string | null
   sex?: string | null
+  owner_id?: string | null
 }
 
 export interface PregCheckSheetProps {
@@ -61,7 +63,7 @@ function OpenCowDecision({
       <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>NEXT STEPS</p>
       {[
         { emoji: '🔄', label: 'RE-BREED', sub: 'Schedule another AI session', action: onRebreed },
-        { emoji: '📋', label: 'CULL', sub: 'Remove from herd', action: onCull },
+        { emoji: '📋', label: 'CULL', sub: 'Record sale, death or transfer now', action: onCull },
         { emoji: '👁', label: 'MONITOR', sub: 'Watch and decide later', action: onMonitor },
       ].map(opt => (
         <button key={opt.label} type="button" onClick={opt.action}
@@ -101,13 +103,14 @@ export function PregCheckSheet({
   const [error,      setError]      = useState('')
   const [phase,      setPhase]      = useState<'form' | 'open_decision' | 'done'>('form')
   const [doneMsg,    setDoneMsg]    = useState('')
+  const [culling,    setCulling]    = useState(false)
 
   function reset() {
     setCheckDate(new Date().toISOString().slice(0, 10))
     setMethod('ultrasound'); setResult(null)
     setTechName(''); setNotes('')
     setSaving(false); setError('')
-    setPhase('form'); setDoneMsg('')
+    setPhase('form'); setDoneMsg(''); setCulling(false)
   }
 
   /**
@@ -211,6 +214,31 @@ export function PregCheckSheet({
 
   if (!isOpen) return null
 
+  // CULL hands off to the real disposition flow rather than a second, thinner
+  // copy of it — that sheet is what records the sale or death, closes out the
+  // grazing assignment and feeds Schedule F. It replaces this sheet outright
+  // instead of stacking on top: two fixed overlays fight over z-index, and the
+  // preg check is already saved by the time this screen is reachable.
+  //
+  // Backing out returns to the open-cow decision, so a mis-tap costs nothing.
+  if (culling) {
+    return (
+      <DispositionSheet
+        isOpen
+        onClose={() => setCulling(false)}
+        animal={{
+          id:            animal.id,
+          tag_number:    animal.tag_number,
+          name:          animal.name,
+          sex:           animal.sex ?? null,
+          ear_tag_color: animal.ear_tag_color,
+          owner_id:      animal.owner_id ?? null,
+        }}
+        onSuccess={() => { onSuccess(); onClose(); reset() }}
+      />
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end md:justify-center md:items-center md:p-4"
       style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
@@ -308,7 +336,7 @@ export function PregCheckSheet({
               animal={animal}
               onRebreed={() => { onClose(); reset(); router.push(`/reproduction/ai-session`) }}
               onMonitor={handleMonitor}
-              onCull={() => { onClose(); reset() }}
+              onCull={() => setCulling(true)}
             />
           )}
 

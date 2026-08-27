@@ -659,7 +659,13 @@ function OverviewTab({ animal, onDelete, ranchName, costBasis, revenue, onPhotoU
           <PregCheckSheet
             isOpen
             onClose={() => setPregCheckOpen(false)}
-            animal={{ id: animal.id, tag_number: animal.tag_number, name: animal.name, ear_tag_color: animal.ear_tag_color }}
+            animal={{
+              id: animal.id, tag_number: animal.tag_number, name: animal.name,
+              ear_tag_color: animal.ear_tag_color,
+              // Both needed if an open cow is culled from here — the
+              // disposition flow keys its options off sex and ownership.
+              sex: animal.sex, owner_id: animal.owner_id ?? null,
+            }}
             bredDate={latestBred?.event_date}
             bullName={latestBred?.sire_library?.bull_name ?? latestBred?.sire_name_text ?? undefined}
             expectedCalvingDate={latestBred?.expected_calving_date ?? undefined}

@@ -14,6 +14,9 @@ interface ReminderAnimal {
   tag_number: string
   ear_tag_color: string | null
   name: string | null
+  /** Carried so an open cow can be culled without leaving the sheet. */
+  sex: string | null
+  owner_id: string | null
 }
 
 interface ReminderReproEvent {

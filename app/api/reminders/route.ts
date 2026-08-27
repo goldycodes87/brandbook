@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from('reminders')
     .select(`*,
-      animal:animal_id ( id, tag_number, ear_tag_color, name ),
+      animal:animal_id ( id, tag_number, ear_tag_color, name, sex, owner_id ),
       reproduction_event:reproduction_event_id (
         id, event_date, expected_calving_date, sire_name_text,
         sire_library:sire_library_id ( bull_name )
