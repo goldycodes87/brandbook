@@ -38,6 +38,7 @@ interface AnimalLookup {
   ear_tag_number: string | null
   owner_id: string | null
   breeding_eligible?: boolean | null
+  cull_flagged_at?: string | null
 }
 
 interface Lease { id: string; property_name: string }
@@ -1709,7 +1710,7 @@ export default function ChutePage() {
         const res = await apiGet(`/api/reproduction?animal_id=${animal.id}&limit=50`)
         const j = await res.json()
         const repro = deriveReproStatus(
-          { sex: animal.sex, dob: animal.dob, breeding_eligible: animal.breeding_eligible },
+          { sex: animal.sex, dob: animal.dob, breeding_eligible: animal.breeding_eligible, cull_flagged_at: animal.cull_flagged_at },
           (j.data ?? []).map((e: { id: string; event_type: string; event_date: string; preg_check_result?: string | null; sire_name_text?: string | null; sire_library?: { bull_name?: string | null } | null; sire_library_id?: string | null; semen_inventory_id?: string | null; expected_calving_date?: string | null }) => e),
         )
         setCurrentRepro(repro)

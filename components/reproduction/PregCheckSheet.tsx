@@ -7,9 +7,9 @@ import { Field, Input } from '@/components/ui/Field'
 import { Chip } from '@/components/ui/Chip'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { EarTagDot } from '@/components/ui/EarTagDot'
-import { DispositionSheet } from '@/components/animals/DispositionSheet'
 import { apiPost, apiPatch } from '@/lib/fetch'
 import { fmtDate } from '@/lib/format'
+import { CULL_REASONS } from '@/lib/cull'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,7 +63,7 @@ function OpenCowDecision({
       <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>NEXT STEPS</p>
       {[
         { emoji: '🔄', label: 'RE-BREED', sub: 'Schedule another AI session', action: onRebreed },
-        { emoji: '📋', label: 'CULL', sub: 'Record sale, death or transfer now', action: onCull },
+        { emoji: '📋', label: 'CULL', sub: 'Add to the cull list — she stays until sold', action: onCull },
         { emoji: '👁', label: 'MONITOR', sub: 'Watch and decide later', action: onMonitor },
       ].map(opt => (
         <button key={opt.label} type="button" onClick={opt.action}
@@ -101,16 +101,16 @@ export function PregCheckSheet({
   const [notes,      setNotes]      = useState('')
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
-  const [phase,      setPhase]      = useState<'form' | 'open_decision' | 'done'>('form')
+  const [phase,      setPhase]      = useState<'form' | 'open_decision' | 'cull' | 'done'>('form')
   const [doneMsg,    setDoneMsg]    = useState('')
-  const [culling,    setCulling]    = useState(false)
+  const [cullReason, setCullReason] = useState<string | null>(null)
 
   function reset() {
     setCheckDate(new Date().toISOString().slice(0, 10))
     setMethod('ultrasound'); setResult(null)
     setTechName(''); setNotes('')
     setSaving(false); setError('')
-    setPhase('form'); setDoneMsg(''); setCulling(false)
+    setPhase('form'); setDoneMsg(''); setCullReason(null)
   }
 
   /**
@@ -212,32 +212,24 @@ export function PregCheckSheet({
     onClose(); reset()
   }
 
-  if (!isOpen) return null
-
-  // CULL hands off to the real disposition flow rather than a second, thinner
-  // copy of it — that sheet is what records the sale or death, closes out the
-  // grazing assignment and feeds Schedule F. It replaces this sheet outright
-  // instead of stacking on top: two fixed overlays fight over z-index, and the
-  // preg check is already saved by the time this screen is reachable.
-  //
-  // Backing out returns to the open-cow decision, so a mis-tap costs nothing.
-  if (culling) {
-    return (
-      <DispositionSheet
-        isOpen
-        onClose={() => setCulling(false)}
-        animal={{
-          id:            animal.id,
-          tag_number:    animal.tag_number,
-          name:          animal.name,
-          sex:           animal.sex ?? null,
-          ear_tag_color: animal.ear_tag_color,
-          owner_id:      animal.owner_id ?? null,
-        }}
-        onSuccess={() => { onSuccess(); onClose(); reset() }}
-      />
-    )
+  /**
+   * Add her to the cull list. She stays in the herd — she is only actually
+   * gone once she is sold under Disposition — so this writes a flag, not a
+   * status. The preg check is already saved by the time this is reachable.
+   */
+  async function handleCull() {
+    setSaving(true); setError('')
+    try {
+      await post(`/api/animals/${animal.id}/cull`, { reason: cullReason }, 'Adding to the cull list')
+      setDoneMsg(`#${animal.tag_number} added to the cull list${cullReason ? ` — ${cullReason}` : ''}. She stays in the herd until she's sold.`)
+      setPhase('done')
+      onSuccess()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not add her to the cull list.')
+    } finally { setSaving(false) }
   }
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end md:justify-center md:items-center md:p-4"
@@ -336,8 +328,45 @@ export function PregCheckSheet({
               animal={animal}
               onRebreed={() => { onClose(); reset(); router.push(`/reproduction/ai-session`) }}
               onMonitor={handleMonitor}
-              onCull={() => setCulling(true)}
+              onCull={() => setPhase('cull')}
             />
+          )}
+
+          {/* ── CULL REASON ─────────────────────────────────────────────── */}
+          {phase === 'cull' && (
+            <>
+              <ContextBanner tone="warning">
+                <strong>#{animal.tag_number}</strong> goes on the cull list. She stays in the
+                herd and keeps billing normally — record the sale under Disposition when she
+                actually leaves.
+              </ContextBanner>
+
+              <div>
+                <p className="type-section-label mb-2" style={{ color: 'var(--text-muted)' }}>REASON</p>
+                <div className="flex flex-wrap gap-2">
+                  {CULL_REASONS.map(r => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setCullReason(r === cullReason ? null : r)}
+                      className="px-3 py-2 rounded-lg text-sm font-semibold"
+                      style={{
+                        border:     `2px solid ${cullReason === r ? 'var(--accent)' : 'var(--border)'}`,
+                        background: cullReason === r ? 'var(--accent-soft)' : 'var(--surface-1)',
+                        color:      cullReason === r ? 'var(--accent)' : 'var(--text)',
+                      }}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+                <p className="type-helper mt-2" style={{ color: 'var(--text-muted)' }}>
+                  Optional — she goes on the list either way.
+                </p>
+              </div>
+
+              {error && <p className="type-helper px-3 py-2 rounded" style={{ color: 'var(--danger-fg)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>{error}</p>}
+            </>
           )}
 
           {/* ── DONE ────────────────────────────────────────────────────── */}
@@ -350,12 +379,24 @@ export function PregCheckSheet({
 
         {/* Footer */}
         <div className="flex gap-3 px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-          <Button type="button" intent="ghost" size="sm" onClick={() => { onClose(); reset() }}>
-            {phase === 'done' ? 'CLOSE' : 'CANCEL'}
+          <Button
+            type="button"
+            intent="ghost"
+            size="sm"
+            // From the reason picker, back out to the open-cow decision rather
+            // than closing — the preg check is saved and she is not yet flagged.
+            onClick={() => phase === 'cull' ? setPhase('open_decision') : (onClose(), reset())}
+          >
+            {phase === 'done' ? 'CLOSE' : phase === 'cull' ? 'BACK' : 'CANCEL'}
           </Button>
           {phase === 'form' && (
             <Button type="button" intent="primary" size="sm" className="flex-1" loading={saving} disabled={!result} onClick={handleSave}>
               SAVE PREG CHECK
+            </Button>
+          )}
+          {phase === 'cull' && (
+            <Button type="button" intent="danger" size="sm" className="flex-1" loading={saving} onClick={handleCull}>
+              ADD TO CULL LIST
             </Button>
           )}
         </div>

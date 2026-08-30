@@ -73,6 +73,8 @@ interface Animal {
   manual_grazing_cost_override: number | null
   beef_production_flagged_at: string | null
   breeding_eligible: boolean | null
+  cull_flagged_at: string | null
+  cull_reason: string | null
   photos: string[] | null
   brand_photo: string | null
   notes: string | null
@@ -868,11 +870,37 @@ function groupReproEvents(
 function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal; onLogEvent: () => void; onRefresh: () => void; onDispose?: (calfId: string) => void }) {
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [editingReproEvent, setEditingReproEvent] = useState<ReproEventShape | null>(null)
+  const [unculling, setUnculling] = useState(false)
 
   const events   = animal.reproduction_events ?? []
   const isFemale = animal.sex === 'cow' || animal.sex === 'heifer'
 
   const repro = deriveReproStatus(animal, events)
+
+  async function removeFromCullList() {
+    setUnculling(true)
+    try {
+      const res = await apiDelete(`/api/animals/${animal.id}/cull`)
+      if (res.ok) onRefresh()
+    } finally { setUnculling(false) }
+  }
+
+  // Shown above the cycle banner, not instead of it: she can be on the cull
+  // list and carrying a calf at the same time, and both matter.
+  const cullBanner = repro.onCullList ? (
+    <ContextBanner
+      tone="danger"
+      eyebrow="ON THE CULL LIST"
+      actions={
+        <Button intent="ghost" size="sm" loading={unculling} onClick={removeFromCullList}>
+          REMOVE
+        </Button>
+      }
+    >
+      {repro.cullReason ? `${repro.cullReason} — s` : 'S'}till in the herd. Record the sale
+      under Disposition when she actually leaves.
+    </ContextBanner>
+  ) : null
   let pregnancyBanner: React.ReactNode = null
   if (isFemale) {
     const { status, daysSinceBred, expectedCalvingDate, blockReason, lastPregCheckResult } = repro
@@ -915,6 +943,7 @@ function ReproTab({ animal, onLogEvent, onRefresh, onDispose }: { animal: Animal
         <Button intent="primary" size="sm" onClick={onLogEvent}>+ LOG EVENT</Button>
       </div>
 
+      {cullBanner}
       {pregnancyBanner}
 
       {/* Parentage panel for calves */}

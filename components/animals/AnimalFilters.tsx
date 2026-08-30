@@ -9,6 +9,7 @@ export function AnimalFilters() {
   const pathname    = usePathname()
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
+  const onCullList = searchParams.get('cull') === 'true'
 
   function update(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -50,6 +51,20 @@ export function AnimalFilters() {
         <option value="steer">Steer</option>
         <option value="calf">Calf</option>
       </Select>
+      {/* The cull list is a view of the herd, not a status — she is still
+          active until Disposition records the sale. */}
+      <button
+        type="button"
+        onClick={() => update('cull', onCullList ? '' : 'true')}
+        className="px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap"
+        style={{
+          border:     `1px solid ${onCullList ? 'var(--danger-fg)' : 'var(--border)'}`,
+          background: onCullList ? 'var(--danger-bg)' : 'var(--surface-1)',
+          color:      onCullList ? 'var(--danger-fg)' : 'var(--text-muted)',
+        }}
+      >
+        CULL LIST
+      </button>
     </div>
   )
 }

@@ -45,6 +45,7 @@ interface AnimalRow {
   ear_tag_color: string | null
   owner_id: string | null
   breeding_eligible: boolean | null
+  cull_flagged_at: string | null
   owner: { id: string; name: string } | null
   repro?: ReproStatusResult | null
 }
@@ -173,7 +174,7 @@ function AISessionInner() {
       const withRepro = all.map((a: AnimalRow) => ({
         ...a,
         repro: deriveReproStatus(
-          { sex: a.sex, dob: a.dob, breeding_eligible: a.breeding_eligible },
+          { sex: a.sex, dob: a.dob, breeding_eligible: a.breeding_eligible, cull_flagged_at: a.cull_flagged_at },
           (eventsByAnimal[a.id] ?? []).map((e: { id: string; event_type: string; event_date: string; preg_check_result?: string | null; sire_name_text?: string | null; sire_library?: { bull_name?: string | null } | null; sire_library_id?: string | null; semen_inventory_id?: string | null; expected_calving_date?: string | null }) => e),
         ),
       }))

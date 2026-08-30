@@ -23,6 +23,9 @@ export function AnimalTableRow({ a }: { a: AnimalListItem }) {
       <TD><BreedDisplay breeds={a.breeds} breed={a.breed} breedPercentage={a.breed_percentage} /></TD>
       <TD><StatusChip map={ANIMAL_STATUS_CHIP} value={a.status} size="sm" /></TD>
       <TD>
+        {/* CULL sits beside the cycle status, never instead of it — a flagged
+            cow carrying a calf is still CONFIRMED and still calves. */}
+        {a.repro?.onCullList && <Chip tone="danger" size="sm" className="mr-1">CULL</Chip>}
         {(a.sex === 'cow' || a.sex === 'heifer') ? (() => {
           const bs = a.breeding_status
           if (bs === 'confirmed')      return <Chip tone="success" size="sm">CONFIRMED</Chip>

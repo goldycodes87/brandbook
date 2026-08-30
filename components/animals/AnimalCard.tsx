@@ -96,6 +96,9 @@ export function AnimalCard({ animal }: { animal: AnimalListItem }) {
         </div>
 
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+          {/* Marked for culling but still in the herd — worth seeing at a
+              glance when sorting cattle, and easy to miss on the detail page. */}
+          {animal.repro?.onCullList && <Chip tone="danger" size="sm">CULL</Chip>}
           {animal.sex && <StatusChip map={SEX_CHIP} value={getSexValue(animal.sex, animal.calf_sex)} size="sm" />}
           {age && <Chip tone="neutral" size="sm">{age}</Chip>}
           {animal.latest_weight && (

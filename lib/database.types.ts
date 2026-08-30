@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -57,6 +57,8 @@ export type Database = {
           cause_of_death: string | null
           conception_method: string | null
           created_at: string | null
+          cull_flagged_at: string | null
+          cull_reason: string | null
           dam_id: string | null
           disposition: string | null
           disposition_date: string | null
@@ -112,6 +114,8 @@ export type Database = {
           cause_of_death?: string | null
           conception_method?: string | null
           created_at?: string | null
+          cull_flagged_at?: string | null
+          cull_reason?: string | null
           dam_id?: string | null
           disposition?: string | null
           disposition_date?: string | null
@@ -167,6 +171,8 @@ export type Database = {
           cause_of_death?: string | null
           conception_method?: string | null
           created_at?: string | null
+          cull_flagged_at?: string | null
+          cull_reason?: string | null
           dam_id?: string | null
           disposition?: string | null
           disposition_date?: string | null
@@ -1840,6 +1846,119 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_messages: {
+        Row: {
+          body: string
+          created_at: string | null
+          direction: string
+          id: string
+          owner_id: string
+          read_at: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          direction: string
+          id?: string
+          owner_id: string
+          read_at?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          direction?: string
+          id?: string
+          owner_id?: string
+          read_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_messages_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_requests: {
+        Row: {
+          animal_id: string | null
+          animal_type: string | null
+          breed: string | null
+          budget_max: number | null
+          budget_min: number | null
+          created_at: string | null
+          funds_disposition: string | null
+          funds_other_notes: string | null
+          id: string
+          notes: string | null
+          owner_id: string
+          quantity: number | null
+          rancher_notes: string | null
+          request_type: string
+          sell_reason: string | null
+          sell_timeline: string | null
+          status: string
+          timeframe: string | null
+        }
+        Insert: {
+          animal_id?: string | null
+          animal_type?: string | null
+          breed?: string | null
+          budget_max?: number | null
+          budget_min?: number | null
+          created_at?: string | null
+          funds_disposition?: string | null
+          funds_other_notes?: string | null
+          id?: string
+          notes?: string | null
+          owner_id: string
+          quantity?: number | null
+          rancher_notes?: string | null
+          request_type: string
+          sell_reason?: string | null
+          sell_timeline?: string | null
+          status?: string
+          timeframe?: string | null
+        }
+        Update: {
+          animal_id?: string | null
+          animal_type?: string | null
+          breed?: string | null
+          budget_max?: number | null
+          budget_min?: number | null
+          created_at?: string | null
+          funds_disposition?: string | null
+          funds_other_notes?: string | null
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          quantity?: number | null
+          rancher_notes?: string | null
+          request_type?: string
+          sell_reason?: string | null
+          sell_timeline?: string | null
+          status?: string
+          timeframe?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_requests_animal_id_fkey"
+            columns: ["animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_requests_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
             referencedColumns: ["id"]
           },
         ]

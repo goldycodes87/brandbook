@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
        photos, dob, created_at,
        owner_id, dam_id, sire_id,
        conception_method, breeding_eligible,
+       cull_flagged_at, cull_reason,
        birth_weight_lbs, weaning_weight_lbs,
        purchase_date, notes`,
       { count: 'exact' }

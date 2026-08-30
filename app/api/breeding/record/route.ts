@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   // ── a. Read animal + ranch_settings + existing repro events ────────────────
   const [{ data: animal }, { data: ranch }, { data: existingEvents }] = await Promise.all([
     supabase.from('animals')
-      .select('id, owner_id, sex, dob, breeding_eligible, ai_fee_per_head')
+      .select('id, owner_id, sex, dob, breeding_eligible, cull_flagged_at, cull_reason, ai_fee_per_head')
       .eq('id', animal_id).single(),
     supabase.from('ranch_settings')
       .select('ai_tech_fee_per_cow, ai_preg_check_days_out')
@@ -66,7 +66,12 @@ export async function POST(req: NextRequest) {
 
   // ── b. Re-breed guard ──────────────────────────────────────────────────────
   const repro = deriveReproStatus(
-    { sex: animal.sex, dob: animal.dob, breeding_eligible: animal.breeding_eligible },
+    {
+      sex: animal.sex, dob: animal.dob, breeding_eligible: animal.breeding_eligible,
+      // Without these the cull flag is invisible to the guard and a cow on the
+      // list would breed through as if she were never marked.
+      cull_flagged_at: animal.cull_flagged_at, cull_reason: animal.cull_reason,
+    },
     existingEvents ?? [],
   )
 

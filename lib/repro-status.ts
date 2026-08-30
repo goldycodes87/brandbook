@@ -28,12 +28,24 @@ export interface ReproStatusResult {
   expectedCalvingDate: string | null
   daysSinceBred: number | null
   daysSinceCalved: number | null
+  /**
+   * Marked for culling but still in the herd.
+   *
+   * Kept beside `status` rather than inside it on purpose: a cull cow carrying
+   * a calf is still CONFIRMED, and hiding that behind a 'cull' status would
+   * lose the pregnancy on every screen that reads this. It only ever forces
+   * breedable to false.
+   */
+  onCullList: boolean
+  cullReason: string | null
 }
 
 export interface AnimalForRepro {
   sex?: string | null
   dob?: string | null
   breeding_eligible?: boolean | null
+  cull_flagged_at?: string | null
+  cull_reason?: string | null
 }
 
 export interface ReproEventForStatus {
@@ -75,6 +87,8 @@ const ZERO: ReproStatusResult = {
   expectedCalvingDate: null,
   daysSinceBred: null,
   daysSinceCalved: null,
+  onCullList: false,
+  cullReason: null,
 }
 
 /**
@@ -95,11 +109,13 @@ const ZERO: ReproStatusResult = {
  *    - breeding_eligible === false  → held_back,   breedable false
  * 5. Otherwise → open, breedable true
  */
-export function deriveReproStatus(
+type CycleStatus = Omit<ReproStatusResult, 'onCullList' | 'cullReason'>
+
+function deriveCycleStatus(
   animal: AnimalForRepro,
   events: ReproEventForStatus[],
   today: Date = new Date(),
-): ReproStatusResult {
+): CycleStatus {
   const sex = animal.sex?.toLowerCase()
   if (sex !== 'cow' && sex !== 'heifer') return { ...ZERO }
 
@@ -233,5 +249,36 @@ export function deriveReproStatus(
     lastPregCheckResult: openFallthrough ? 'open' : null,
     lastPregCheckDate:   openFallthrough ? (pcAfterBred?.event_date ?? null) : null,
     lastCalvedDate, expectedCalvingDate: null, daysSinceBred, daysSinceCalved,
+  }
+}
+
+/**
+ * Reproductive status, with the cull list applied on top.
+ *
+ * The cycle rules above are untouched — a flagged cow keeps whatever status
+ * her events give her, so a pregnant cull cow still reads CONFIRMED with her
+ * calving date. Being on the list only ever removes breedability, which is the
+ * whole point of flagging her: she is not to be bred again while she waits to
+ * be sold.
+ */
+export function deriveReproStatus(
+  animal: AnimalForRepro,
+  events: ReproEventForStatus[],
+  today: Date = new Date(),
+): ReproStatusResult {
+  const base = deriveCycleStatus(animal, events, today)
+
+  if (!animal.cull_flagged_at) {
+    return { ...base, onCullList: false, cullReason: null }
+  }
+
+  return {
+    ...base,
+    onCullList:  true,
+    cullReason:  animal.cull_reason ?? null,
+    breedable:   false,
+    // Keep an existing reason (bred, postpartum) — it is the more specific
+    // answer to "why can't I breed her today".
+    blockReason: base.blockReason ?? 'Marked for culling',
   }
 }

@@ -12,7 +12,7 @@ import { AnimalSortableTable } from '@/components/animals/AnimalSortableTable'
 import type { AnimalListItem } from '@/components/animals/AnimalCard'
 
 interface PageProps {
-  searchParams: Promise<{ search?: string; status?: string; sex?: string; page?: string; sort?: string; dir?: string }>
+  searchParams: Promise<{ search?: string; status?: string; sex?: string; cull?: string; page?: string; sort?: string; dir?: string }>
 }
 
 async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['searchParams']> }) {
@@ -36,6 +36,7 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
         .from('animals')
         .select(
           `id, tag_number, name, dob, sex, calf_sex, status, breed, breed_percentage, breeds, owner_id, ear_tag_color, photos, breeding_eligible,
+           cull_flagged_at, cull_reason,
            owner:owner_id ( id, name )`,
           { count: 'exact' }
         )
@@ -44,6 +45,11 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
       if (searchParams.search) q = q.or(`tag_number.ilike.%${searchParams.search}%,name.ilike.%${searchParams.search}%`)
       if (searchParams.status) q = q.eq('status', searchParams.status)
       if (searchParams.sex)    q = q.eq('sex', searchParams.sex)
+      // The cull list is only ever animals still in the herd — once she is
+      // sold she belongs to the sales record, not to a list of pending work.
+      if (searchParams.cull === 'true') {
+        q = q.not('cull_flagged_at', 'is', null).eq('status', 'active')
+      }
       return q
     })(),
   ])
@@ -90,7 +96,10 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
     const isFemale = sex === 'cow' || sex === 'heifer'
     const repro = isFemale
       ? deriveReproStatus(
-          a as { sex?: string | null; dob?: string | null; breeding_eligible?: boolean | null },
+          a as {
+            sex?: string | null; dob?: string | null; breeding_eligible?: boolean | null
+            cull_flagged_at?: string | null; cull_reason?: string | null
+          },
           eventsByAnimal[aid] ?? [],
         )
       : null
@@ -125,7 +134,11 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
       <EmptyState
         variant="action"
         title="No animals found"
-        body={searchParams.search || searchParams.status || searchParams.sex ? 'Try clearing your filters.' : 'Add your first animal to get started.'}
+        body={searchParams.cull === 'true'
+          ? 'Nothing on the cull list.'
+          : searchParams.search || searchParams.status || searchParams.sex
+            ? 'Try clearing your filters.'
+            : 'Add your first animal to get started.'}
         action={
           !searchParams.search && !searchParams.status && !searchParams.sex
             ? <ButtonLink href="/animals/new" intent="primary">+ ADD ANIMAL</ButtonLink>
