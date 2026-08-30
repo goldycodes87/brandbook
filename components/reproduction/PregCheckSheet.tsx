@@ -10,6 +10,7 @@ import { EarTagDot } from '@/components/ui/EarTagDot'
 import { apiPost, apiPatch } from '@/lib/fetch'
 import { fmtDate } from '@/lib/format'
 import { CULL_REASONS } from '@/lib/cull'
+import { runPregCheckFollowup } from '@/lib/preg-check-followup'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -144,47 +145,35 @@ export function PregCheckSheet({
         ai_technician:     techName || null,
       }, 'Saving the preg check')
 
-      // 2. Dismiss the reminder. By id when we came from one, otherwise by
-      //    animal so the animal-page route does not leave it standing.
-      const dismissRes = await apiPatch('/api/reminders', reminderId
-        ? { id: reminderId, is_dismissed: true }
-        : { animal_id: animal.id, reminder_type: 'preg_check', is_dismissed: true })
-      if (!dismissRes.ok) {
-        // The check is saved; a stale reminder is cosmetic. Say so rather than
-        // discarding a result the vet already called.
-        setError('Preg check saved, but its reminder is still showing. Dismiss it by hand.')
+      // 2. Everything downstream — closing the reminder, opening the next
+      //    one — runs through the shared follow-up, which chute mode also
+      //    calls. Two copies of this is how 11 of 12 checks on 2026-08-28
+      //    ended up with no calving reminder.
+      const followup = await runPregCheckFollowup({
+        animalId:            animal.id,
+        tagNumber:           animal.tag_number,
+        earTagColor:         animal.ear_tag_color,
+        result,
+        checkDate,
+        expectedCalvingDate,
+        bredDate,
+      })
+
+      if (followup.problems.length > 0) {
+        setError(`Preg check saved, but ${followup.problems.join('; ')}.`)
       }
 
       if (result === 'confirmed') {
-        const calvingDate = expectedCalvingDate ?? (bredDate ? addDays(bredDate, 283) : null)
-        if (calvingDate) {
-          const reminderDue = addDays(calvingDate, -14)
-          await post('/api/reminders', {
-            animal_id:     animal.id,
-            reminder_type: 'calving',
-            due_date:      reminderDue,
-            title:         `Calving due — ${animal.ear_tag_color ?? ''} ${animal.tag_number}`.trim(),
-          }, 'Creating the calving reminder')
-          setDoneMsg(`✓ Confirmed pregnant! Expected calving: ${fmtDate(calvingDate)}`)
-        } else {
-          // No bred event reached this sheet, so there is no date to count
-          // from. The check is saved; the calving reminder is not.
-          setDoneMsg('✓ Confirmed pregnant. No breeding date on file, so no calving reminder was set.')
-        }
+        setDoneMsg(followup.calvingReminderDue
+          ? `✓ Confirmed pregnant! Expected calving: ${fmtDate(expectedCalvingDate ?? (bredDate ? addDays(bredDate, 283) : null))}`
+          : '✓ Confirmed pregnant. No breeding date on file, so no calving reminder was set.')
         setPhase('done')
 
       } else if (result === 'open') {
         setPhase('open_decision')
 
       } else if (result === 'recheck') {
-        const recheckDue = addDays(checkDate, 14)
-        await post('/api/reminders', {
-          animal_id:     animal.id,
-          reminder_type: 'preg_check',
-          due_date:      recheckDue,
-          title:         `Recheck — ${animal.ear_tag_color ?? ''} ${animal.tag_number}`.trim(),
-        }, 'Creating the recheck reminder')
-        setDoneMsg(`Recheck set for ${fmtDate(recheckDue)}`)
+        setDoneMsg(followup.recheckDue ? `Recheck set for ${fmtDate(followup.recheckDue)}` : 'Recheck saved.')
         setPhase('done')
       }
 

@@ -6,6 +6,7 @@ import { X, Camera, ChevronRight, Undo2, CheckCircle, Plus } from 'lucide-react'
 import { apiGet, apiPost, apiDelete } from '@/lib/fetch'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { deriveReproStatus, type ReproStatusResult } from '@/lib/repro-status'
+import { runPregCheckFollowup } from '@/lib/preg-check-followup'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -1653,6 +1654,10 @@ export default function ChutePage() {
   const [processed,        setProcessed]        = useState<ProcessedAnimal[]>([])
   const [saving,           setSaving]           = useState(false)
   const [saveError,        setSaveError]        = useState('')
+  // Non-blocking: the event saved, but something downstream of it did not —
+  // a reminder that stayed open, a calving reminder that was not created.
+  // Held across animals so a problem three cows back is still on screen.
+  const [saveWarnings,     setSaveWarnings]     = useState<string[]>([])
   const [currentRepro,     setCurrentRepro]     = useState<ReproStatusResult | null>(null)
   const [overrideDialog,   setOverrideDialog]   = useState<'confirm' | 'straw' | null>(null)
   const [overrideReturnStraw, setOverrideReturnStraw] = useState(false)
@@ -1807,6 +1812,27 @@ export default function ChutePage() {
             })
             const j = await res.json()
             if (j.data?.id) savedEvents.push({ task: 'preg_check', deleteUrl: `/api/reproduction/${j.data.id}` })
+
+            // Close the reminder and open the next one. Chute mode used to
+            // stop at the event, so a cow checked here stayed on the
+            // preg-check list and never got a calving reminder.
+            const lastBred = currentRepro?.lastBred
+            const followup = await runPregCheckFollowup({
+              animalId:            currentAnimal.id,
+              tagNumber:           currentAnimal.tag_number,
+              earTagColor:         currentAnimal.ear_tag_color,
+              result:              taskData.preg_result!,
+              checkDate:           date,
+              expectedCalvingDate: currentRepro?.expectedCalvingDate ?? null,
+              bredDate:            lastBred?.date ?? null,
+              decision:            taskData.preg_decision ?? null,
+            })
+            if (followup.problems.length > 0) {
+              setSaveWarnings(prev => [
+                ...prev,
+                `#${currentAnimal.tag_number}: ${followup.problems.join('; ')}`,
+              ])
+            }
           })())
         }
       }
@@ -1908,6 +1934,21 @@ export default function ChutePage() {
 
   return (
     <>
+      {saveWarnings.length > 0 && (
+        <div
+          className="fixed top-0 inset-x-0 z-[70] px-4 py-2 text-sm"
+          style={{ background: 'var(--warning-bg)', borderBottom: '1px solid var(--warning-fg)', color: 'var(--warning-fg)' }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-bold">Saved, but follow-up didn&apos;t complete</p>
+              {saveWarnings.map((w, i) => <p key={i} className="type-helper">{w}</p>)}
+            </div>
+            <button type="button" onClick={() => setSaveWarnings([])} className="font-bold flex-shrink-0">×</button>
+          </div>
+        </div>
+      )}
+
       {screen === 'setup' && (
         <SetupScreen
           tasks={tasks} setTasks={setTasks}
