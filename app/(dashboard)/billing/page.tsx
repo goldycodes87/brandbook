@@ -299,6 +299,9 @@ export default function BillingPage() {
         subtitle={`${invoices.length} invoice${invoices.length !== 1 ? 's' : ''}`}
         actions={
           <div className="flex gap-2">
+            <Button intent="ghost" size="sm" onClick={() => router.push('/expenses/review')}>
+              RECEIPTS
+            </Button>
             <Button intent="ghost" size="sm" onClick={() => router.push('/billing/allocations')}>
               EXPENSE SHARES
             </Button>

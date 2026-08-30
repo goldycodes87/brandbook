@@ -25,6 +25,12 @@ const PUBLIC_API = [
   // ICS calendar feed: Google fetches it with no cookies, so the secret token
   // in the path is the credential rather than a session.
   "/api/calendar/",
+  // Vercel cron and Resend's inbound webhook both arrive without a session.
+  // Neither is actually unauthenticated: cron routes check CRON_SECRET on the
+  // Authorization header, and the inbound webhook verifies its Svix signature
+  // before reading a byte of the payload. Both refuse outright when their
+  // secret is unset rather than falling open.
+  "/api/cron/",
 ];
 
 // Which cookie gates which API prefix, and whether that cookie carries an
