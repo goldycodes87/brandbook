@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DrugSelector, type DrugRecord } from '@/components/health/DrugSelector'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
+import { fmtMoneyDecimals as fmtMoney } from '@/lib/format'
 
 type EventType = 'treatment' | 'vaccine' | 'vet_visit' | 'illness' | 'bcs_log'
 
@@ -48,6 +49,7 @@ export interface HealthEventData {
   withdrawal_clear_date?: string | null
   bcs_score?: number | null
   administered_by?: string | null
+  administered_by_role?: 'vet' | 'ranch' | null
   notes?: string | null
 }
 
@@ -83,6 +85,11 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
   const [deleting, setDeleting]           = useState(false)
   const [error, setError]                 = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [administeredRole, setAdministeredRole] =
+    useState<'vet' | 'ranch' | null>(initialData?.administered_by_role ?? null)
+  // Shown on the "we administered" option so the labour charge is visible
+  // before it is incurred, not discovered on the owner's next invoice.
+  const [laborRate, setLaborRate] = useState<number | null>(null)
 
   const showDrug = eventType === 'treatment' || eventType === 'vaccine'
 
@@ -99,6 +106,15 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
       notes:           initialData?.notes ?? '',
     },
   })
+
+  // The labour rate is needed whether or not this is an edit, so it is read
+  // separately from the default-administered-by prefill below.
+  useEffect(() => {
+    apiGet('/api/settings/ranch').then(r => r.json()).then(d => {
+      const rate = (d.data ?? d).treatment_labor_per_head
+      setLaborRate(rate != null ? Number(rate) : null)
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (isEdit || initialData) return
@@ -127,6 +143,14 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
 
   const eventDate      = watch('event_date')
   const withdrawalDays = toNum(watch('withdrawal_days')) ?? (drug ? (drug.withdrawal_days_meat ?? null) : null)
+
+  // The label is the authority on withdrawal; a typed number is an override
+  // and is recorded as one, so the two are never confused on the record.
+  const typedWithdrawal = toNum(watch('withdrawal_days'))
+  const withdrawalSource: 'label' | 'override' | 'none' =
+    typedWithdrawal != null && drug && typedWithdrawal !== (drug.withdrawal_days_meat ?? null)
+      ? 'override'
+      : drug ? 'label' : 'none'
   const clearDate      = withdrawalDays && eventDate ? addDays(new Date(eventDate), withdrawalDays) : null
 
   const onSubmit = async (values: FormValues) => {
@@ -146,6 +170,10 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
         bcs_score:            toNum(values.bcs_score),
         administered_by:      values.administered_by || null,
         notes:                values.notes || null,
+        // The billing switch. Only meaningful on a drug event, so it is not
+        // sent on a BCS log or a plain vet visit.
+        administered_by_role: showDrug ? administeredRole : null,
+        withdrawal_source:    showDrug ? withdrawalSource : null,
       }
 
       const url = isEdit ? `/api/health/${eventId}` : '/api/health'
@@ -247,7 +275,39 @@ export function HealthEventForm({ animalId, eventId, initialData, mode = 'create
           </Field>
         )}
 
-        <Field label="Administered by">
+        {showDrug && (
+          <div className="flex flex-col gap-2">
+            <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>WHO GAVE IT</p>
+            {([
+              { role: 'vet'   as const, emoji: '🩺', label: 'The vet administered it',
+                hint: 'Her practice bills direct — nothing added here' },
+              { role: 'ranch' as const, emoji: '🤠', label: 'Vet prescribed, we administered',
+                hint: laborRate != null
+                  ? `Adds ${fmtMoney(laborRate)} labour to this animal's owner`
+                  : 'Set a treatment labour rate in Settings to charge for this' },
+            ]).map(opt => (
+              <button
+                key={opt.role}
+                type="button"
+                onClick={() => setAdministeredRole(administeredRole === opt.role ? null : opt.role)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left w-full"
+                style={{
+                  border: `1px solid ${administeredRole === opt.role ? 'var(--accent)' : 'var(--border)'}`,
+                  background: administeredRole === opt.role ? 'var(--surface-2)' : 'var(--surface-1)',
+                }}
+              >
+                <span>{opt.emoji}</span>
+                <span className="text-sm flex-1">
+                  {opt.label}
+                  <span className="block type-helper" style={{ color: 'var(--text-muted)' }}>{opt.hint}</span>
+                </span>
+                {administeredRole === opt.role && <span style={{ color: 'var(--accent)' }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <Field label="Administered by" helper="Name, if you want it on the record">
           <Input {...register('administered_by')} placeholder="Name or role" />
         </Field>
 

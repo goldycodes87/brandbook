@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { syncTreatmentLabor } from '@/lib/treatment-labor'
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
@@ -39,13 +40,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
   const body = await req.json()
+  const eventDate = body.event_date || new Date().toISOString().split('T')[0]
 
   const { data, error } = await supabase
     .from('health_events')
     .insert({
       animal_id:       body.animal_id,
       event_type:      body.event_type,
-      event_date:      body.event_date || new Date().toISOString().split('T')[0],
+      event_date:      eventDate,
       drug_name:       body.drug_name       || null,
       dose_amount:     body.dose_amount     || null,
       dose_unit:       body.dose_unit       || null,
@@ -53,10 +55,40 @@ export async function POST(req: NextRequest) {
       bcs_score:       body.bcs_score       || null,
       administered_by: body.administered_by || null,
       notes:           body.notes           || null,
+      // Who prescribed it and who physically gave it. The second is a billing
+      // switch, not a label — see lib/treatment-labor.ts.
+      prescribed_by_person_id:   body.prescribed_by_person_id   || null,
+      administered_by_role:      body.administered_by_role      || null,
+      administered_by_person_id: body.administered_by_person_id || null,
+      // 'label' when the days came from drug_library, 'override' when a human
+      // changed them. Without this an override looks like a lookup.
+      withdrawal_source:         body.withdrawal_source         || null,
+      signed_at:                 body.signed_at                 || null,
+      signature_url:             body.signature_url             || null,
     })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data }, { status: 201 })
+
+  const event = data as { id: string; animal_id: string; drug_name: string | null }
+
+  // Non-fatal: the treatment is recorded either way, and a missing labour line
+  // is a billing correction rather than a lost medical record.
+  const labor = await syncTreatmentLabor(supabase, {
+    healthEventId:      event.id,
+    animalId:           event.animal_id,
+    eventDate,
+    drugName:           event.drug_name,
+    administeredByRole: body.administered_by_role ?? null,
+    existingExpenseId:  null,
+  })
+
+  if (labor.expenseId) {
+    await supabase.from('health_events')
+      .update({ labor_expense_id: labor.expenseId })
+      .eq('id', event.id)
+  }
+
+  return NextResponse.json({ data, labor }, { status: 201 })
 }

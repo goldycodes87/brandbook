@@ -53,6 +53,7 @@ interface RanchSettings {
   ai_preg_check_days_out: string
   default_ai_technician: string
   ai_tech_fee_per_cow: string
+  treatment_labor_per_head: string
 }
 
 interface Profile {
@@ -91,6 +92,7 @@ function RanchTab() {
     phone: '', email: '', timezone: 'America/Denver', logo_url: '', brand_photo_url: '',
     default_ear_tag_color: '', default_breed: '', default_administered_by: '',
     ai_preg_check_days_out: '', default_ai_technician: '', ai_tech_fee_per_cow: '',
+    treatment_labor_per_head: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -315,6 +317,19 @@ function RanchTab() {
                 value={form.default_ai_technician}
                 onChange={set('default_ai_technician')}
                 placeholder="Technician name"
+              />
+            </Field>
+            <Field
+              label="Treatment labour per head ($)"
+              helper="Charged to the animal's owner when the vet prescribes and you administer. Leave blank to charge nothing."
+            >
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.treatment_labor_per_head}
+                onChange={set('treatment_labor_per_head')}
+                placeholder="15.00"
               />
             </Field>
           </div>
