@@ -11,11 +11,6 @@ import { apiPost } from '@/lib/fetch'
 type Mode    = 'upload' | 'draw'
 type PenSize = 'sm' | 'md' | 'lg'
 
-const MODE_ITEMS: SegmentItem<Mode>[] = [
-  { value: 'upload', label: 'UPLOAD PHOTO' },
-  { value: 'draw',   label: 'DRAW BRAND'   },
-]
-
 const PEN_ITEMS: SegmentItem<PenSize>[] = [
   { value: 'sm', label: 'SM' },
   { value: 'md', label: 'MD' },
@@ -27,6 +22,14 @@ const PEN_WIDTHS: Record<PenSize, number> = { sm: 2, md: 4, lg: 8 }
 export interface BrandDrawingPadProps {
   onSave: (url: string) => void
   existingUrl?: string
+  /**
+   * Where the image is posted. Defaults to the admin route; the owner
+   * onboarding passes the portal one, because an owner drawing their own brand
+   * has a portal session and no admin cookie.
+   */
+  endpoint?: string
+  /** Overrides the "UPLOAD PHOTO / DRAW BRAND" wording for other subjects. */
+  labels?: { upload: string; draw: string }
 }
 
 function dataURLToBlob(dataUrl: string): Blob {
@@ -38,7 +41,7 @@ function dataURLToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: mime })
 }
 
-export function BrandDrawingPad({ onSave, existingUrl }: BrandDrawingPadProps) {
+export function BrandDrawingPad({ onSave, existingUrl, endpoint = '/api/settings/upload-brand', labels }: BrandDrawingPadProps) {
   const sigCanvas              = useRef<SignatureCanvas>(null)
   const [mode, setMode]        = useState<Mode>('upload')
   const [penSize, setPenSize]  = useState<PenSize>('md')
@@ -46,6 +49,11 @@ export function BrandDrawingPad({ onSave, existingUrl }: BrandDrawingPadProps) {
   const [uploading, setUploading] = useState(false)
   const [saved, setSaved]      = useState(false)
   const [error, setError]      = useState('')
+
+  const MODE_ITEMS: SegmentItem<Mode>[] = [
+    { value: 'upload', label: labels?.upload ?? 'UPLOAD PHOTO' },
+    { value: 'draw',   label: labels?.draw   ?? 'DRAW BRAND'   },
+  ]
 
   const switchMode = (v: Mode) => { setMode(v); setSaved(false); setError('') }
 
@@ -62,7 +70,7 @@ export function BrandDrawingPad({ onSave, existingUrl }: BrandDrawingPadProps) {
       const blob    = dataURLToBlob(dataUrl)
       const fd      = new FormData()
       fd.append('image', blob, 'brand-drawing.png')
-      const res  = await apiPost('/api/settings/upload-brand', fd)
+      const res  = await apiPost(endpoint, fd)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Upload failed'); return }
       onSave(data.url)
@@ -81,7 +89,7 @@ export function BrandDrawingPad({ onSave, existingUrl }: BrandDrawingPadProps) {
     try {
       const fd = new FormData()
       fd.append('image', file)
-      const res  = await apiPost('/api/settings/upload-brand', fd)
+      const res  = await apiPost(endpoint, fd)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Upload failed'); return }
       onSave(data.url)

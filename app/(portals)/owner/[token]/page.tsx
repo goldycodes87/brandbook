@@ -787,6 +787,20 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   }, [])
 
   useEffect(() => {
+    // Take the portal session first: it is the one that knows whether this
+    // person has been through first run. Links already in owners' inboxes
+    // point here rather than at /welcome, so the redirect has to happen from
+    // this page too — otherwise Andy and P&L would never see onboarding.
+    fetch('/api/portal/accept', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    })
+      .then(r => r.json())
+      .then(j => { if (j?.ok && j.onboarded === false) window.location.href = '/onboarding' })
+      .catch(() => {})
+
     fetch('/api/portals/owner/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
