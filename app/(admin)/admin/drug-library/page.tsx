@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { AdminRoom, NotMovedYet } from '@/components/admin/AdminRoom'
+import { AdminRoom } from '@/components/admin/AdminRoom'
+import { DrugLibraryRoom } from '@/components/admin/DrugLibraryRoom'
 
 export default function DrugLibraryPage() {
   return (
@@ -9,10 +10,7 @@ export default function DrugLibraryPage() {
       title="DRUG LIBRARY"
       subtitle="The formulary a vet picks from at the chute, and the withdrawal each carries."
     >
-      <NotMovedYet
-        from="nowhere — it has never had a home"
-        items={["37 active products with label withdrawals", "Add your own, with meat and milk days", "Retired products, kept for provenance"]}
-      />
+      <DrugLibraryRoom />
     </AdminRoom>
   )
 }
