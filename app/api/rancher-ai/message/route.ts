@@ -5,6 +5,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
 import { runAgentTurn, buildSystemPrompt } from '@/lib/rancher-ai/agent'
+import { loadMemory, renderMemory, extractMemory } from '@/lib/rancher-ai/memory'
 
 /**
  * One turn of a conversation with RancherAI.
@@ -76,6 +77,11 @@ export async function POST(req: NextRequest) {
     .map(o => o.company_name || o.owner_name || o.name || '')
     .filter(Boolean)
 
+  // What it learned in earlier conversations, distilled. Not the old
+  // transcripts — those get long, and burying one durable fact under fifty
+  // forgettable ones is how an assistant stops noticing the durable one.
+  const memory = await loadMemory(session.ranchId, session.authUserId)
+
   const systemPrompt = buildSystemPrompt({
     ranchName: ranch.ranch_name || 'this ranch',
     ownerName: ranch.owner_name ?? null,
@@ -84,7 +90,7 @@ export async function POST(req: NextRequest) {
     headCount: headCount ?? 0,
     owners,
     speaking: session.name,
-  })
+  }) + renderMemory(memory)
 
   // ── History ─────────────────────────────────────────────────────────────────
   const { data: priorRows } = await supabase
@@ -132,6 +138,22 @@ export async function POST(req: NextRequest) {
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId),
   ])
+
+  // Distilled every few turns, not every turn: it costs a model call, and two
+  // messages rarely contain a durable fact. Deliberately not awaited — a slow
+  // extraction must never make somebody wait for an answer they already have.
+  const { count: messageCount } = await supabase
+    .from('ai_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', conversationId)
+
+  if ((messageCount ?? 0) % 6 === 0) {
+    void extractMemory({
+      conversationId,
+      ranchId: session.ranchId,
+      authUserId: session.authUserId,
+    }).catch(() => {})
+  }
 
   return NextResponse.json({
     conversation_id: conversationId,

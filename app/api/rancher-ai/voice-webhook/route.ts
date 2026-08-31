@@ -2,7 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { TOOLS_BY_NAME } from '@/lib/rancher-ai/tools'
+import { TOOLS_BY_NAME, confirmLastProposal } from '@/lib/rancher-ai/tools'
+import { executeProposal } from '@/lib/rancher-ai/execute'
 
 /**
  * Where Vapi reaches in during a call.
@@ -52,6 +53,41 @@ function parseToolCalls(payload: Record<string, unknown>): ParsedCall[] {
   return out
 }
 
+/**
+ * The most recent proposal on this conversation, if it is still fresh.
+ *
+ * Five minutes because a proposal is only meaningful in the moment it was read
+ * out. Confirming one from earlier in the call — or from a call that ended
+ * twenty minutes ago — would save something nobody currently has in mind.
+ */
+const PROPOSAL_TTL_MS = 5 * 60_000
+
+async function lastProposal(conversationId: string) {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('ai_messages')
+    .select('tool_calls, created_at')
+    .eq('conversation_id', conversationId)
+    .not('tool_calls', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const row = data as { tool_calls: unknown; created_at: string } | null
+  if (!row) return null
+  if (Date.now() - new Date(row.created_at).getTime() > PROPOSAL_TTL_MS) return null
+
+  const calls = Array.isArray(row.tool_calls)
+    ? (row.tool_calls as Array<{ result?: { proposal?: { action: string; payload: Record<string, unknown> } } }>)
+    : []
+
+  for (let i = calls.length - 1; i >= 0; i--) {
+    const proposal = calls[i]?.result?.proposal
+    if (proposal?.action && proposal.payload) return proposal
+  }
+  return null
+}
+
 function todayIn(timezone: string): string {
   try {
     return new Intl.DateTimeFormat('en-CA', {
@@ -95,8 +131,44 @@ export async function POST(req: NextRequest) {
     const ranch = ranchRow as { id: string; timezone: string | null } | null
     const today = todayIn(ranch?.timezone || 'America/Denver')
 
+    const call0 = (msg.call ?? payload.call ?? {}) as Record<string, unknown>
+    const metadata = (call0.metadata ?? {}) as Record<string, unknown>
+    const conversationId = typeof metadata.conversation_id === 'string' ? metadata.conversation_id : null
+    const authUserId = typeof metadata.auth_user_id === 'string' ? metadata.auth_user_id : null
+    const actorName  = typeof metadata.speaking === 'string' ? metadata.speaking : 'Voice'
+
     const results = []
     for (const call of calls) {
+      // ── A spoken yes ────────────────────────────────────────────────────────
+      if (call.name === confirmLastProposal.spec.name) {
+        // The proposal is read back off the conversation rather than out of the
+        // call, so what gets written is the payload the tool built — not
+        // whatever the model reconstructed from its own speech.
+        const pending = conversationId ? await lastProposal(conversationId) : null
+
+        if (!pending) {
+          results.push({ toolCallId: call.id, result: JSON.stringify({ error: 'There is nothing waiting to be confirmed.' }) })
+          continue
+        }
+        if (!authUserId) {
+          // Without knowing who is on the phone there is nobody to attribute
+          // the record to, and an unattributed treatment is worse than none.
+          results.push({ toolCallId: call.id, result: JSON.stringify({ error: 'This call is not signed in, so nothing can be saved from it.' }) })
+          continue
+        }
+
+        const done = await executeProposal({
+          action: pending.action,
+          payload: pending.payload,
+          channel: 'voice',
+          conversationId,
+          authUserId,
+          actorName,
+        })
+        results.push({ toolCallId: call.id, result: JSON.stringify(done) })
+        continue
+      }
+
       const tool = TOOLS_BY_NAME.get(call.name)
       if (!tool) {
         results.push({ toolCallId: call.id, result: JSON.stringify({ error: `No tool called ${call.name}` }) })
@@ -105,11 +177,23 @@ export async function POST(req: NextRequest) {
       try {
         const result = await tool.run(call.args, {
           ranchId: ranch?.id ?? null,
-          // A voice call has no signed-in user at this point; the write tools
-          // only propose, so nothing is attributed from here.
-          authUserId: 'voice',
+          authUserId: authUserId ?? 'voice',
           today,
         })
+
+        // A proposal made mid-call is parked on the conversation so a later
+        // "yes" has something concrete to commit.
+        const asRecord = result as { proposal?: { action: string; payload: Record<string, unknown> } }
+        if (asRecord?.proposal && conversationId) {
+          await supabase.from('ai_messages').insert({
+            conversation_id: conversationId,
+            role: 'assistant',
+            content: '',
+            tool_calls: [{ name: call.name, input: call.args, result }],
+            channel: 'voice',
+          })
+        }
+
         results.push({ toolCallId: call.id, result: JSON.stringify(result) })
       } catch (e) {
         results.push({

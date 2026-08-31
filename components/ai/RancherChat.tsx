@@ -61,6 +61,7 @@ export function RancherChat() {
 
   const [callState, setCallState] = useState<'off' | 'connecting' | 'live'>('off')
   const [voiceError, setVoiceError] = useState('')
+  const [loaded, setLoaded] = useState(false)
 
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -72,6 +73,28 @@ export function RancherChat() {
 
   // A live call outlives a re-render but must not outlive the page.
   useEffect(() => () => { vapiRef.current?.stop(); vapiRef.current = null }, [])
+
+  // Pick the thread back up. A conversation that vanishes when the app closes
+  // is a search box, not a conversation — and on a phone the app closes every
+  // time somebody takes a call.
+  useEffect(() => {
+    apiGet('/api/rancher-ai/conversation')
+      .then(r => r.json())
+      .then(j => {
+        if (!j?.conversation) { setLoaded(true); return }
+        setConversationId(j.conversation.id)
+        setTurns((j.messages ?? []).map((m: { role: string; content: string; used?: Turn['used'] }) => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content,
+          used: m.used ?? [],
+          // A proposal from a previous sitting has been answered or abandoned;
+          // either way it must not still be offering a button.
+          settled: 'done' as const,
+        })))
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [])
 
   const send = useCallback(async (text: string) => {
     const content = text.trim()
@@ -169,17 +192,34 @@ export function RancherChat() {
         }
       })
 
+      // A call needs a thread to write into before it starts talking — the
+      // webhook has no way to create one mid-sentence, and a proposal with
+      // nowhere to park is a proposal that can never be confirmed.
+      let threadId = conversationId
+      if (!threadId) {
+        const opened = await apiPost('/api/rancher-ai/conversation', { title: 'Voice call' })
+        const oj = await opened.json().catch(() => ({}))
+        threadId = oj.conversation_id ?? null
+        if (threadId) setConversationId(threadId)
+      }
+
       vapi.start({
+        transcriber: config.transcriber,
         model: {
           provider: 'anthropic',
           model: 'claude-opus-5',
           messages: [{ role: 'system', content: config.systemPrompt }],
           tools: config.tools,
         },
+        voice: config.voice,
         firstMessage: config.firstMessage,
-        // Whatever the model says gets spoken, so it must not be given
-        // a reason to emit markdown.
-        metadata: { conversation_id: conversationId },
+        // Read back by the webhook. Without these a call cannot save a record
+        // or attribute one to anybody.
+        metadata: {
+          conversation_id: threadId,
+          auth_user_id: config.authUserId,
+          speaking: config.speaking,
+        },
       } as unknown as Parameters<typeof vapi.start>[0])
     } catch {
       setVoiceError('Could not start voice. Check the microphone permission.')
@@ -197,7 +237,9 @@ export function RancherChat() {
   return (
     <div className="flex flex-col" style={{ minHeight: 'calc(100dvh - 120px)' }}>
       <div className="flex-1 flex flex-col gap-4 pb-4">
-        {turns.length === 0 && (
+        {/* Held back until the thread has loaded, so reopening the app does not
+            flash the empty state at somebody who has a conversation waiting. */}
+        {loaded && turns.length === 0 && (
           <div className="flex flex-col gap-3 pt-2">
             <p className="type-body" style={{ color: 'var(--text-secondary)' }}>
               Ask about the herd, the money or what&apos;s coming up. It reads the real records —

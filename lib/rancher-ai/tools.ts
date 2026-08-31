@@ -836,6 +836,40 @@ const proposeTreatment: RancherTool = {
   },
 }
 
+/**
+ * Voice only. The tap-to-confirm card does not exist on a phone call, so a
+ * spoken yes needs somewhere to land — otherwise voice can describe a job it
+ * can never finish.
+ *
+ * Not in RANCHER_TOOLS: the text agent must never reach this, because on
+ * screen the confirmation IS the button, and a model that can write without
+ * one would make the button decorative.
+ *
+ * The safety is that this takes no arguments worth mishearing. It commits the
+ * proposal already on the table, exactly as it was read back.
+ */
+export const confirmLastProposal: RancherTool = {
+  spec: {
+    name: 'confirm_last_proposal',
+    description:
+      'Save the proposal you just read out, after the rancher has said yes. ' +
+      'Only call this when you have read the whole thing back and heard a clear yes. ' +
+      'Anything less than a yes is a no — say you have left it alone.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        heard: { type: 'string', description: 'What the rancher actually said, word for word.' },
+      },
+      required: ['heard'],
+    },
+  },
+  async run() {
+    // Executed by the voice webhook, which holds the proposal for the call.
+    // Reaching this body means it was called outside that path.
+    return { error: 'There is nothing waiting to be confirmed.' }
+  },
+}
+
 export const RANCHER_TOOLS: RancherTool[] = [
   findAnimals,
   calvingSchedule,

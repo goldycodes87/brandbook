@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
 import { buildSystemPrompt } from '@/lib/rancher-ai/agent'
-import { RANCHER_TOOLS } from '@/lib/rancher-ai/tools'
+import { RANCHER_TOOLS, confirmLastProposal } from '@/lib/rancher-ai/tools'
+import { loadMemory, renderMemory } from '@/lib/rancher-ai/memory'
 
 /**
  * The assistant Vapi should run, built fresh for whoever is calling.
@@ -46,6 +47,10 @@ export async function GET() {
     .map(o => o.company_name || o.owner_name || o.name || '')
     .filter(Boolean)
 
+  // The same memory the text agent gets. A fact learned by typing should not
+  // have to be learned again by speaking.
+  const memory = await loadMemory(session.ranchId, session.authUserId)
+
   const base = buildSystemPrompt({
     ranchName: ranch.ranch_name || 'this ranch',
     ownerName: ranch.owner_name ?? null,
@@ -54,7 +59,7 @@ export async function GET() {
     headCount: headCount ?? 0,
     owners,
     speaking: session.name,
-  })
+  }) + renderMemory(memory)
 
   // Spoken answers are not written answers. This is appended rather than
   // folded into buildSystemPrompt so the text agent stays unaffected.
@@ -65,14 +70,31 @@ YOU ARE BEING LISTENED TO, NOT READ
 - No markdown, no bullet characters, no headings — every character you emit gets spoken aloud.
 - Read tag numbers digit by digit: "four two", not "forty-two". A misheard tag is the wrong animal.
 - Say dollars plainly: "twelve hundred and fifty" rather than "$1,250.00".
-- Before anything gets saved, read the whole thing back and wait for a clear yes. If you hear anything less than a yes, treat it as a no.`
+- Before anything gets saved, read the whole thing back and wait for a clear yes. If you hear anything less than a yes, treat it as a no.
+
+SAVING SOMETHING BY VOICE
+- A propose_ tool does not save. Read its summary back in full, including the withdrawal date or the dollar amount, then ask "do you want me to save that".
+- Only on a clear yes, call confirm_last_proposal. "Maybe", "hang on", silence, or a repeated question are all no — say you have left it alone and move on.
+- If they change a detail, call the propose_ tool again with the correction. Never confirm a proposal that no longer matches what they just said.`
+
+  // Vapi's own voices need no second vendor — the Vapi key is the only
+  // credential. Swap the provider here for 11labs and a voice id if a
+  // particular voice is wanted; nothing else has to change.
+  const voice = {
+    provider: process.env.VAPI_VOICE_PROVIDER || 'vapi',
+    voiceId:  process.env.VAPI_VOICE_ID       || 'Elliot',
+  }
 
   return NextResponse.json({
     systemPrompt,
     firstMessage: `${session.name.split(' ')[0]}. What do you need?`,
-    // The tool schemas Vapi declares to its model. Same names the webhook
-    // dispatches on, so the two cannot drift.
-    tools: RANCHER_TOOLS.map(t => ({
+    voice,
+    // Nova-3 handles wind and a running engine better than the default, which
+    // is the condition this gets used in.
+    transcriber: { provider: 'deepgram', model: 'nova-3', language: 'en-US' },
+    // Every tool the text agent has, plus the one that only makes sense on a
+    // call: there is no button to tap, so a spoken yes needs somewhere to land.
+    tools: [...RANCHER_TOOLS, confirmLastProposal].map(t => ({
       type: 'function',
       function: {
         name: t.spec.name,
@@ -82,5 +104,8 @@ YOU ARE BEING LISTENED TO, NOT READ
     })),
     ranchName: ranch.ranch_name || 'this ranch',
     speaking: session.name,
+    // Handed to Vapi as call metadata and read back by the webhook. Without
+    // these the call cannot write anything or save its transcript.
+    authUserId: session.authUserId,
   })
 }
