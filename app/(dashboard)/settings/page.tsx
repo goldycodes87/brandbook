@@ -15,7 +15,7 @@ import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
 import Link from 'next/link'
-import { Check, Tag, AlertTriangle, FileText, MapPin, Calendar, Plus } from 'lucide-react'
+import { Check, Tag, AlertTriangle, FileText, MapPin, Calendar } from 'lucide-react'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -486,116 +486,14 @@ function DashboardTab() {
   )
 }
 
-interface ExpenseCategory {
-  id: string
-  name: string
-  description: string | null
-}
-
-// ─── Grazing Tab ─────────────────────────────────────────────────────────────
-//
-// Owners and their contracts moved to Admin → Owners. What stayed is the
-// expense-category list, which belongs with Billing & Rates and moves when
-// that room does.
-
-function GrazingTab() {
-  const [categories, setCategories] = useState<ExpenseCategory[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [showAddCategory, setShowAddCategory] = useState(false)
-  const [newCatName, setNewCatName] = useState('')
-  const [addingCat, setAddingCat]   = useState(false)
-
-  const load = useCallback(async () => {
-    const cats = await apiGet('/api/billing/expenses/categories').then(r => r.json())
-    setCategories(Array.isArray(cats.data) ? cats.data : [])
-  }, [])
-
-  useEffect(() => {
-    apiGet('/api/billing/expenses/categories')
-      .then(r => r.json())
-      .then(cats => { setCategories(Array.isArray(cats.data) ? cats.data : []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
-
-  const handleAddCategory = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newCatName.trim()) return
-    setAddingCat(true)
-    try {
-      const res = await apiPost('/api/billing/expenses/categories', { name: newCatName.trim() })
-      if (res.ok) {
-        setNewCatName('')
-        setShowAddCategory(false)
-        await load()
-      }
-    } finally {
-      setAddingCat(false)
-    }
-  }
-
-  if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
-
-  return (
-    <div className="flex flex-col gap-6">
-      <ContextBanner tone="info">
-        Owners, contracts and portal invites now live under Settings → Admin Settings → Owners.
-      </ContextBanner>
-
-      <Panel title="EXPENSE CATEGORIES" subtitle="Categories for shared expense billing">
-        <PanelSection>
-          <div className="flex flex-col gap-2">
-            {categories.map(cat => (
-              <div key={cat.id} className="flex items-center justify-between py-1.5"
-                style={{ borderBottom: '1px solid var(--border)' }}>
-                <div>
-                  <p className="type-field-label" style={{ color: 'var(--text)' }}>{cat.name}</p>
-                  {cat.description && (
-                    <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>{cat.description}</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {showAddCategory ? (
-            <form onSubmit={handleAddCategory} className="flex items-end gap-2 mt-3">
-              <div className="flex-1">
-                <Field label="Category name">
-                  <Input
-                    value={newCatName}
-                    onChange={e => setNewCatName(e.target.value)}
-                    placeholder="e.g. Hauling"
-                    autoFocus
-                  />
-                </Field>
-              </div>
-              <Button type="submit" intent="primary" size="sm" loading={addingCat}>ADD</Button>
-              <Button type="button" intent="ghost" size="sm" onClick={() => setShowAddCategory(false)}>CANCEL</Button>
-            </form>
-          ) : (
-            <Button
-              intent="ghost" size="sm" className="mt-3"
-              onClick={() => setShowAddCategory(true)}
-              leading={<Plus size={14} />}
-            >
-              ADD CATEGORY
-            </Button>
-          )}
-        </PanelSection>
-      </Panel>
-    </div>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'account' | 'notifications' | 'users' | 'grazing' | 'dashboard'
+type Tab = 'account' | 'notifications' | 'users' | 'dashboard'
 
 const TABS: TabItem[] = [
   { value: 'account',       label: 'My Account' },
   { value: 'notifications', label: 'Notifications' },
   { value: 'users',         label: 'Users & Access' },
-  { value: 'grazing',       label: 'Custom Grazing' },
   { value: 'dashboard',     label: 'Dashboard' },
 ]
 
@@ -646,7 +544,6 @@ export default function SettingsPage() {
       {tab === 'account'       && <AccountTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'users'         && <UsersTab />}
-      {tab === 'grazing'       && <GrazingTab />}
       {tab === 'dashboard'     && <DashboardTab />}
     </PageContainer>
   )

@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAdminSession } from '@/lib/admin-auth'
 
+// GET stays open — the invoice form and both expense sheets read this list.
 export async function GET() {
   const supabase = createAdminClient()
   const { data, error } = await supabase
@@ -15,7 +17,12 @@ export async function GET() {
   return NextResponse.json({ data: data ?? [] })
 }
 
+// Adding a category changes what every future expense can be filed under, so
+// it is configuration rather than day-to-day entry.
 export async function POST(req: NextRequest) {
+  const s = await getAdminSession()
+  if (!s?.canConfigure) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const body     = await req.json()
   const supabase = createAdminClient()
 

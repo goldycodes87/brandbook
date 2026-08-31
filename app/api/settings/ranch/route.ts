@@ -2,7 +2,10 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAdminSession } from '@/lib/admin-auth'
 
+// GET stays open to any signed-in user — a dozen screens read the ranch name,
+// timezone and default breed off it. Only the write is admin work.
 export async function GET() {
   const supabase = createAdminClient()
   const { data } = await supabase
@@ -30,6 +33,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const s = await getAdminSession()
+  if (!s?.canConfigure) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const supabase = createAdminClient()
   const body = await req.json()
 

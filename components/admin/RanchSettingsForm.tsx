@@ -43,15 +43,13 @@ export interface RanchSettings {
   logo_url: string; brand_photo_url: string
   default_ear_tag_color: string; default_breed: string; default_administered_by: string
   ai_preg_check_days_out: string; default_ai_technician: string
-  ai_tech_fee_per_cow: string; treatment_labor_per_head: string
 }
 
 const EMPTY: RanchSettings = {
   ranch_name: '', owner_name: '', address: '', city: '', state: '', zip: '',
   phone: '', email: '', timezone: 'America/Denver', logo_url: '', brand_photo_url: '',
   default_ear_tag_color: '', default_breed: '', default_administered_by: '',
-  ai_preg_check_days_out: '', default_ai_technician: '', ai_tech_fee_per_cow: '',
-  treatment_labor_per_head: '',
+  ai_preg_check_days_out: '', default_ai_technician: '',
 }
 
 export function RanchSettingsForm({ show }: { show: 'profile' | 'defaults' }) {
@@ -105,7 +103,14 @@ export function RanchSettingsForm({ show }: { show: 'profile' | 'defaults' }) {
     e.preventDefault()
     setSaving(true); setError(''); setSaved(false)
     try {
-      const res = await apiPatch('/api/settings/ranch', form)
+      // Only this form's own fields go back. The GET returns the whole row, so
+      // sending `form` wholesale would write back whatever this screen happens
+      // to be holding — including the two rates that now live in Billing &
+      // Rates, quietly undoing a change made there.
+      const payload = Object.fromEntries(
+        (Object.keys(EMPTY) as Array<keyof RanchSettings>).map(k => [k, form[k]]),
+      )
+      const res = await apiPatch('/api/settings/ranch', payload)
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Save failed'); return }
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -262,26 +267,6 @@ export function RanchSettingsForm({ show }: { show: 'profile' | 'defaults' }) {
             </PanelSection>
           </Panel>
 
-          {/* These two are rates, not defaults, and belong in Billing & Rates.
-              They stay here until that room is built so neither becomes
-              unreachable in the meantime. */}
-          <Panel title="RATES" subtitle="Moving to Billing & Rates">
-            <PanelSection>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="AI tech fee per cow ($)" helper="Default technician fee charged per cow bred">
-                  <Input type="number" min="0" step="0.01" value={form.ai_tech_fee_per_cow}
-                         onChange={set('ai_tech_fee_per_cow')} placeholder="175.00" />
-                </Field>
-                <Field
-                  label="Treatment labour per head ($)"
-                  helper="Charged to the animal's owner when the vet prescribes and you administer. Blank charges nothing."
-                >
-                  <Input type="number" min="0" step="0.01" value={form.treatment_labor_per_head}
-                         onChange={set('treatment_labor_per_head')} placeholder="15.00" />
-                </Field>
-              </div>
-            </PanelSection>
-          </Panel>
         </>
       )}
 
