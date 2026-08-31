@@ -17,6 +17,7 @@ import {
   Package,
   Settings,
   MessageSquare,
+  Sparkles,
   MoreHorizontal,
   X,
   LogOut,
@@ -26,6 +27,7 @@ import { apiFetch, apiGet } from '@/lib/fetch'
 
 const NAV_ITEMS = [
   { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/ai',           label: 'Ask',          icon: Sparkles },
   { href: '/animals',      label: 'Animals',      icon: Beef },
   { href: '/health',       label: 'Health',       icon: Stethoscope },
   { href: '/reproduction', label: 'Reproduction', icon: GitBranch },

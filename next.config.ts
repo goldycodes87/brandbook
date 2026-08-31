@@ -5,7 +5,11 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
+  // self, not (). The old value denied the microphone to our own origin too,
+  // which silently blocks voice — and the camera, which the brand-photo and
+  // tag-reading screens need. Third parties are still denied; geolocation
+  // stays off entirely because nothing here asks for it.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), interest-cohort=()" },
 ];
 
 const nextConfig: NextConfig = {

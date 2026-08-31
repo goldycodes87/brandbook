@@ -38,6 +38,10 @@ const PUBLIC_API = [
   // before reading a byte of the payload. Both refuse outright when their
   // secret is unset rather than falling open.
   "/api/cron/",
+  // Vapi reaches in mid-call to run a tool, and its servers carry no cookie of
+  // ours. The route checks a shared secret on every request and returns 503
+  // when that secret is unset, so an unconfigured deploy answers nobody.
+  "/api/rancher-ai/voice-webhook",
 ];
 
 // Which cookie gates which API prefix, and whether that cookie carries an
