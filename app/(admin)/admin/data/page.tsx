@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { AdminRoom, NotMovedYet } from '@/components/admin/AdminRoom'
+import { AdminRoom } from '@/components/admin/AdminRoom'
+import { DataRoom } from '@/components/admin/DataRoom'
 
 export default function DataPage() {
   return (
@@ -9,10 +10,7 @@ export default function DataPage() {
       title="DATA"
       subtitle="Import, export and cleanup. The room that can undo the herd record."
     >
-      <NotMovedYet
-        from="Settings → Data"
-        items={["Bulk animal import from a spreadsheet", "Export animals, weights, health, sales", "Data cleanup and de-duplication"]}
-      />
+      <DataRoom />
     </AdminRoom>
   )
 }
