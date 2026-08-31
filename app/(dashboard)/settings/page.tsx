@@ -1275,10 +1275,47 @@ const TABS: TabItem[] = [
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('ranch')
+  // Null until we know. Rendering the row optimistically would flash a door at
+  // people who cannot open it.
+  const [admin, setAdmin] = useState<{ canReachAdmin: boolean; role: string } | null>(null)
+
+  useEffect(() => {
+    let off = false
+    apiGet('/api/admin/me')
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!off && j) setAdmin(j) })
+      .catch(() => {})
+    return () => { off = true }
+  }, [])
 
   return (
     <PageContainer>
       <PageHeader title="Settings" />
+
+      {/* One login, one site. Anyone carrying an admin role gets the door to
+          the operation's configuration here; everyone else never learns it
+          exists. The section is gated server-side regardless. */}
+      {admin?.canReachAdmin && (
+        <Link
+          href="/admin"
+          className="flex items-center gap-3 px-4 py-3 rounded-lg mb-5"
+          style={{ border: '1px solid var(--accent)', background: 'var(--surface-1)' }}
+        >
+          <span style={{ fontSize: 18 }}>🗄️</span>
+          <span className="flex-1">
+            <span className="block text-sm font-semibold" style={{ color: 'var(--text)' }}>
+              Admin Settings
+            </span>
+            <span className="block type-helper" style={{ color: 'var(--text-muted)' }}>
+              {admin.role === 'cpa'
+                ? 'Billing and reports for the whole operation'
+                : 'Ranch, people, owners, billing, defaults and data'}
+            </span>
+          </span>
+          <span style={{ color: 'var(--accent)' }}>→</span>
+        </Link>
+      )}
+
       <Tabs items={TABS} value={tab} onChange={v => setTab(v as Tab)} className="mb-6" />
       {tab === 'ranch'         && <RanchTab />}
       {tab === 'account'       && <AccountTab />}
