@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { AdminRoom, NotMovedYet } from '@/components/admin/AdminRoom'
+import { AdminRoom } from '@/components/admin/AdminRoom'
+import { OwnersRoom } from '@/components/admin/OwnersRoom'
 
 export default function OwnersPage() {
   return (
@@ -9,10 +10,7 @@ export default function OwnersPage() {
       title="OWNERS"
       subtitle="The people whose cattle you run, and the terms you run them on."
     >
-      <NotMovedYet
-        from="Settings → Custom Grazing"
-        items={["Add and edit grazing owners", "Contracts, rates and sale fees", "Portal links and onboarding state", "Per-owner AI fee overrides"]}
-      />
+      <OwnersRoom />
     </AdminRoom>
   )
 }
