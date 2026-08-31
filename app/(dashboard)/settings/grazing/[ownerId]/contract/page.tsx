@@ -139,12 +139,12 @@ export default function ContractPage({ params }: { params: Promise<{ ownerId: st
     <PageContainer>
       {/* Back nav */}
       <Link
-        href="/settings"
+        href="/admin/owners"
         className="flex items-center gap-1 type-label"
         style={{ color: 'var(--text-muted)', marginBottom: '8px', textDecoration: 'none' }}
       >
         <ChevronLeft size={14} />
-        Back to Settings
+        Back to Owners
       </Link>
 
       <PageHeader
