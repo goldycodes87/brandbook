@@ -1,22 +1,19 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Panel, PanelSection } from '@/components/ui/Panel'
-import { Field, Input, Select } from '@/components/ui/Field'
+import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
-import { Chip } from '@/components/ui/Chip'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
-import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
 import Link from 'next/link'
 import { Check, Tag, AlertTriangle, FileText, MapPin, Calendar } from 'lucide-react'
-import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
+import { apiGet, apiPatch } from '@/lib/fetch'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -39,15 +36,6 @@ interface NotifPrefs {
   weight_reminders: boolean
   email_notifications: boolean
   alert_lead_days: number
-}
-
-interface UserRow {
-  id: string
-  name: string
-  email: string
-  role: string
-  invite_accepted_at: string | null
-  created_at: string
 }
 
 // ─── Ranch Tab ───────────────────────────────────────────────────────────────
@@ -215,151 +203,6 @@ function NotificationsTab() {
   )
 }
 
-// ─── Users Tab ────────────────────────────────────────────────────────────────
-
-function UsersTab() {
-  const [users, setUsers] = useState<UserRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showInvite, setShowInvite] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteName, setInviteName] = useState('')
-  const [inviteRole, setInviteRole] = useState('viewer')
-  const [inviting, setInviting] = useState(false)
-  const [inviteError, setInviteError] = useState('')
-  const [inviteSent, setInviteSent] = useState(false)
-  const [revoking, setRevoking] = useState<string | null>(null)
-
-  const fetchUsers = useCallback(() => {
-    apiGet('/api/settings/users')
-      .then(r => r.json())
-      .then(d => { setUsers(Array.isArray(d.data) ? d.data : []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
-
-  useEffect(() => { fetchUsers() }, [fetchUsers])
-
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setInviting(true); setInviteError(''); setInviteSent(false)
-    try {
-      const res = await apiPost('/api/settings/invite', { email: inviteEmail, name: inviteName, role: inviteRole })
-      const d = await res.json()
-      if (!res.ok) { setInviteError(d.error ?? 'Invite failed'); return }
-      setInviteSent(true)
-      setInviteEmail(''); setInviteName(''); setInviteRole('viewer')
-      fetchUsers()
-      setTimeout(() => { setShowInvite(false); setInviteSent(false) }, 2000)
-    } catch { setInviteError('Connection error') }
-    finally { setInviting(false) }
-  }
-
-  const handleRevoke = async (id: string) => {
-    if (!confirm('Remove this user? This cannot be undone.')) return
-    setRevoking(id)
-    try {
-      await apiDelete(`/api/settings/users/${id}`)
-      fetchUsers()
-    } finally { setRevoking(null) }
-  }
-
-  const roleLabel = (r: string) => r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-
-  if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <p className="type-section-label" style={{ color: 'var(--text-muted)' }}>{users.length} USER{users.length !== 1 ? 'S' : ''}</p>
-        <Button intent="primary" size="sm" onClick={() => setShowInvite(v => !v)}>
-          {showInvite ? 'CANCEL' : '+ INVITE USER'}
-        </Button>
-      </div>
-
-      {showInvite && (
-        <Panel title="INVITE USER">
-          <PanelSection>
-            <form onSubmit={handleInvite} className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Name" required>
-                  <Input value={inviteName} onChange={e => setInviteName(e.target.value)} placeholder="Jane Rancher" required />
-                </Field>
-                <Field label="Email" required>
-                  <Input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="jane@example.com" type="email" required />
-                </Field>
-              </div>
-              <Field label="Role">
-                <Select value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
-                  <option value="owner">Owner</option>
-                  <option value="manager">Manager</option>
-                  <option value="viewer">Viewer</option>
-                </Select>
-              </Field>
-              {inviteError && (
-                <p className="text-sm px-3 py-2 rounded-[var(--radius-md)]"
-                  style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
-                  {inviteError}
-                </p>
-              )}
-              {inviteSent && (
-                <p className="text-sm px-3 py-2 rounded-[var(--radius-md)]"
-                  style={{ color: 'var(--success-fg)', backgroundColor: 'var(--success-bg)', border: '1px solid var(--success-border)' }}>
-                  Invite sent!
-                </p>
-              )}
-              <div className="flex justify-end">
-                <Button type="submit" intent="primary" loading={inviting}>SEND INVITE</Button>
-              </div>
-            </form>
-          </PanelSection>
-        </Panel>
-      )}
-
-      {users.length === 0 ? (
-        <EmptyState variant="neutral" title="No users" body="Invite your team to get started." />
-      ) : (
-        <Panel>
-          <Table>
-            <THead>
-              <TR>
-                <TH>Name</TH>
-                <TH>Email</TH>
-                <TH>Role</TH>
-                <TH>Status</TH>
-                <TH></TH>
-              </TR>
-            </THead>
-            <TBody>
-              {users.map(u => (
-                <TR key={u.id}>
-                  <TD>{u.name}</TD>
-                  <TD style={{ color: 'var(--text-muted)' }}>{u.email}</TD>
-                  <TD><Chip tone="neutral" size="sm">{roleLabel(u.role)}</Chip></TD>
-                  <TD>
-                    <Chip tone={u.invite_accepted_at ? 'success' : 'warning'} size="sm">
-                      {u.invite_accepted_at ? 'Active' : 'Pending'}
-                    </Chip>
-                  </TD>
-                  <TD>
-                    <Button
-                      intent="ghost"
-                      size="sm"
-                      loading={revoking === u.id}
-                      onClick={() => handleRevoke(u.id)}
-                      style={{ color: 'var(--danger-fg)' }}
-                    >
-                      REMOVE
-                    </Button>
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </Panel>
-      )}
-    </div>
-  )
-}
-
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
@@ -488,12 +331,11 @@ function DashboardTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'account' | 'notifications' | 'users' | 'dashboard'
+type Tab = 'account' | 'notifications' | 'dashboard'
 
 const TABS: TabItem[] = [
   { value: 'account',       label: 'My Account' },
   { value: 'notifications', label: 'Notifications' },
-  { value: 'users',         label: 'Users & Access' },
   { value: 'dashboard',     label: 'Dashboard' },
 ]
 
@@ -543,7 +385,6 @@ export default function SettingsPage() {
       <Tabs items={TABS} value={tab} onChange={v => setTab(v as Tab)} className="mb-6" />
       {tab === 'account'       && <AccountTab />}
       {tab === 'notifications' && <NotificationsTab />}
-      {tab === 'users'         && <UsersTab />}
       {tab === 'dashboard'     && <DashboardTab />}
     </PageContainer>
   )
