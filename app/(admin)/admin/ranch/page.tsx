@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { AdminRoom, NotMovedYet } from '@/components/admin/AdminRoom'
+import { AdminRoom } from '@/components/admin/AdminRoom'
+import { RanchSettingsForm } from '@/components/admin/RanchSettingsForm'
 
 export default function RanchPage() {
   return (
@@ -9,10 +10,7 @@ export default function RanchPage() {
       title="RANCH"
       subtitle="The name, address and brand every invite, invoice and report is stamped with."
     >
-      <NotMovedYet
-        from="Settings → Ranch Profile"
-        items={["Ranch name, owner name, address, timezone", "Logo upload", "Ranch brand — photo or drawing"]}
-      />
+      <RanchSettingsForm show="profile" />
     </AdminRoom>
   )
 }

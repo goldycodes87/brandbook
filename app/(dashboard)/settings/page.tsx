@@ -14,13 +14,14 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/Table'
 import { Tabs } from '@/components/ui/Tabs'
 import type { TabItem } from '@/components/ui/Tabs'
-import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
 import { AddOwnerSheet, type GrazingOwner } from '@/components/settings/AddOwnerSheet'
 import Link from 'next/link'
 import { Check, Download, Tag, AlertTriangle, FileText, MapPin, Calendar, Mail, Plus, Pencil } from 'lucide-react'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+
 
 const EAR_TAG_COLORS = [
   { name: 'Yellow',  hex: '#F5C518' },
@@ -34,27 +35,6 @@ const EAR_TAG_COLORS = [
   { name: 'Silver',  hex: '#9CA3AF' },
   { name: 'Black',   hex: '#1F2937' },
 ]
-
-interface RanchSettings {
-  ranch_name: string
-  owner_name: string
-  address: string
-  city: string
-  state: string
-  zip: string
-  phone: string
-  email: string
-  timezone: string
-  logo_url: string
-  brand_photo_url: string
-  default_ear_tag_color: string
-  default_breed: string
-  default_administered_by: string
-  ai_preg_check_days_out: string
-  default_ai_technician: string
-  ai_tech_fee_per_cow: string
-  treatment_labor_per_head: string
-}
 
 interface Profile {
   id: string
@@ -84,279 +64,6 @@ interface UserRow {
 }
 
 // ─── Ranch Tab ───────────────────────────────────────────────────────────────
-
-function RanchTab() {
-  const logoFileRef = useRef<HTMLInputElement>(null)
-  const [form, setForm] = useState<RanchSettings>({
-    ranch_name: '', owner_name: '', address: '', city: '', state: '', zip: '',
-    phone: '', email: '', timezone: 'America/Denver', logo_url: '', brand_photo_url: '',
-    default_ear_tag_color: '', default_breed: '', default_administered_by: '',
-    ai_preg_check_days_out: '', default_ai_technician: '', ai_tech_fee_per_cow: '',
-    treatment_labor_per_head: '',
-  })
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState('')
-  const [uploadingLogo, setUploadingLogo] = useState(false)
-
-  useEffect(() => {
-    apiGet('/api/settings/ranch')
-      .then(r => r.json())
-      .then(d => {
-        const s = d.data ?? d
-        setForm(f => ({
-          ...f,
-          ...Object.fromEntries(Object.entries(s as Record<string, unknown>).map(([k, v]) => [k, v ?? ''])),
-        }))
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
-
-  const set = (k: keyof RanchSettings) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm(f => ({ ...f, [k]: e.target.value }))
-
-  const handleBrandSave = async (url: string) => {
-    setForm(f => ({ ...f, brand_photo_url: url }))
-    await apiPatch('/api/settings/ranch', { brand_photo_url: url })
-  }
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploadingLogo(true)
-    try {
-      const fd = new FormData()
-      fd.append('image', file)
-      const res  = await fetch('/api/settings/upload-logo', { method: 'POST', body: fd })
-      const json = await res.json()
-      if (json.url) setForm(f => ({ ...f, logo_url: json.url }))
-    } finally {
-      setUploadingLogo(false)
-      if (logoFileRef.current) logoFileRef.current.value = ''
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true); setError(''); setSaved(false)
-    try {
-      const res = await apiPatch('/api/settings/ranch', form)
-      if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Save failed'); return }
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch { setError('Connection error') }
-    finally { setSaving(false) }
-  }
-
-  if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <Panel title="RANCH PROFILE">
-        <PanelSection>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Ranch name">
-              <Input value={form.ranch_name} onChange={set('ranch_name')} placeholder="Circle K Ranch" />
-            </Field>
-            <Field label="Owner name">
-              <Input value={form.owner_name} onChange={set('owner_name')} placeholder="John Smith" />
-            </Field>
-            <Field label="Phone">
-              <Input value={form.phone} onChange={set('phone')} placeholder="(555) 000-0000" type="tel" />
-            </Field>
-            <Field label="Email">
-              <Input value={form.email} onChange={set('email')} placeholder="ranch@example.com" type="email" />
-            </Field>
-          </div>
-        </PanelSection>
-        <PanelSection>
-          <Field label="Address">
-            <Input value={form.address} onChange={set('address')} placeholder="123 Ranch Road" />
-          </Field>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-            <div className="col-span-2">
-              <Field label="City">
-                <Input value={form.city} onChange={set('city')} placeholder="Laramie" />
-              </Field>
-            </div>
-            <Field label="State">
-              <Input value={form.state} onChange={set('state')} placeholder="WY" maxLength={2} />
-            </Field>
-            <Field label="ZIP">
-              <Input value={form.zip} onChange={set('zip')} placeholder="82070" />
-            </Field>
-          </div>
-        </PanelSection>
-        <PanelSection>
-          <Field label="Timezone">
-            <Select value={form.timezone} onChange={set('timezone')}>
-              <option value="America/New_York">Eastern</option>
-              <option value="America/Chicago">Central</option>
-              <option value="America/Denver">Mountain</option>
-              <option value="America/Phoenix">Mountain (no DST)</option>
-              <option value="America/Los_Angeles">Pacific</option>
-              <option value="America/Anchorage">Alaska</option>
-              <option value="Pacific/Honolulu">Hawaii</option>
-            </Select>
-          </Field>
-        </PanelSection>
-      </Panel>
-
-      <Panel title="BRANDING">
-        <PanelSection>
-          <p className="type-field-label mb-3" style={{ color: 'var(--text)' }}>Ranch logo</p>
-          <div className="flex items-center gap-4">
-            {form.logo_url ? (
-              <img
-                src={form.logo_url}
-                alt="Logo"
-                className="h-14 w-auto max-w-[120px] object-contain rounded-lg"
-                style={{ border: '1px solid var(--border)', background: 'white', padding: 4 }}
-              />
-            ) : (
-              <div
-                className="h-14 w-24 rounded-lg flex items-center justify-center"
-                style={{ border: '2px dashed var(--border)', background: 'var(--surface-2)' }}
-              >
-                <span className="type-helper" style={{ color: 'var(--text-muted)' }}>No logo</span>
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              <Button type="button" intent="secondary" size="sm" loading={uploadingLogo} onClick={() => logoFileRef.current?.click()}>
-                UPLOAD LOGO
-              </Button>
-              {form.logo_url && (
-                <Button type="button" intent="ghost" size="sm" onClick={() => setForm(f => ({ ...f, logo_url: '' }))}>
-                  REMOVE
-                </Button>
-              )}
-            </div>
-          </div>
-          <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-        </PanelSection>
-        <PanelSection>
-          <p className="type-field-label mb-3" style={{ color: 'var(--text)' }}>Brand image</p>
-          <BrandDrawingPad
-            existingUrl={form.brand_photo_url || undefined}
-            onSave={handleBrandSave}
-          />
-        </PanelSection>
-      </Panel>
-
-      <Panel title="CATTLE DEFAULTS" subtitle="Applied to your animals when no owner is assigned">
-        <PanelSection>
-          <div className="flex flex-col gap-4">
-            <Field label="Default ear tag color">
-              <div className="flex flex-wrap gap-2 mt-1">
-                {EAR_TAG_COLORS.map(c => (
-                  <button
-                    key={c.name}
-                    type="button"
-                    title={c.name}
-                    onClick={() => setForm(f => ({ ...f, default_ear_tag_color: f.default_ear_tag_color === c.name ? '' : c.name }))}
-                    className="relative w-8 h-8 rounded-full transition-transform duration-100 active:scale-90"
-                    style={{
-                      backgroundColor: c.hex,
-                      border: form.default_ear_tag_color === c.name ? '3px solid var(--accent)' : '2px solid var(--border)',
-                      boxShadow: form.default_ear_tag_color === c.name ? '0 0 0 1px var(--accent)' : undefined,
-                    }}
-                  >
-                    {form.default_ear_tag_color === c.name && (
-                      <Check
-                        size={14}
-                        className="absolute inset-0 m-auto"
-                        style={{ color: c.name === 'White' || c.name === 'Yellow' || c.name === 'Silver' ? '#000' : '#fff' }}
-                      />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </Field>
-            <Field label="Default breed">
-              <Input value={form.default_breed} onChange={set('default_breed')} placeholder="e.g. Angus" list="ranch-breed-list" />
-              <datalist id="ranch-breed-list">
-                {['Angus', 'Hereford', 'Simmental', 'Charolais', 'Limousin', 'Gelbvieh', 'Red Angus', 'Shorthorn', 'Black Baldy', 'Crossbred'].map(b => (
-                  <option key={b} value={b} />
-                ))}
-              </datalist>
-            </Field>
-            <Field label="Default administered by" helper="Pre-fills the 'administered by' field on health events">
-              <Input value={form.default_administered_by} onChange={set('default_administered_by')} placeholder="Your name or role" />
-            </Field>
-          </div>
-        </PanelSection>
-      </Panel>
-
-      <Panel title="AI BREEDING DEFAULTS" subtitle="Used by Chute Mode and AI session when not overridden">
-        <PanelSection>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Preg-check days after breeding" helper="Days to schedule a preg check after AI breeding">
-              <Input
-                type="number"
-                min="1"
-                step="1"
-                value={form.ai_preg_check_days_out}
-                onChange={set('ai_preg_check_days_out')}
-                placeholder="45"
-              />
-            </Field>
-            <Field label="AI tech fee per cow ($)" helper="Default technician fee charged per cow bred">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.ai_tech_fee_per_cow}
-                onChange={set('ai_tech_fee_per_cow')}
-                placeholder="280.00"
-              />
-            </Field>
-            <Field label="Default AI technician" helper="Pre-fills the technician name on breeding records">
-              <Input
-                value={form.default_ai_technician}
-                onChange={set('default_ai_technician')}
-                placeholder="Technician name"
-              />
-            </Field>
-            <Field
-              label="Treatment labour per head ($)"
-              helper="Charged to the animal's owner when the vet prescribes and you administer. Leave blank to charge nothing."
-            >
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.treatment_labor_per_head}
-                onChange={set('treatment_labor_per_head')}
-                placeholder="15.00"
-              />
-            </Field>
-          </div>
-        </PanelSection>
-      </Panel>
-
-      {error && (
-        <p className="text-sm px-3 py-2 rounded-[var(--radius-md)]"
-          style={{ color: 'var(--danger-fg)', backgroundColor: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
-          {error}
-        </p>
-      )}
-      {saved && (
-        <p className="text-sm px-3 py-2 rounded-[var(--radius-md)]"
-          style={{ color: 'var(--success-fg)', backgroundColor: 'var(--success-bg)', border: '1px solid var(--success-border)' }}>
-          Saved successfully
-        </p>
-      )}
-
-      <div className="flex justify-end">
-        <Button type="submit" intent="primary" loading={saving}>SAVE CHANGES</Button>
-      </div>
-    </form>
-  )
-}
-
-// ─── Account Tab ─────────────────────────────────────────────────────────────
 
 function AccountTab() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -1261,10 +968,9 @@ function GrazingTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'ranch' | 'account' | 'notifications' | 'users' | 'grazing' | 'data' | 'dashboard'
+type Tab = 'account' | 'notifications' | 'users' | 'grazing' | 'data' | 'dashboard'
 
 const TABS: TabItem[] = [
-  { value: 'ranch',         label: 'Ranch Profile' },
   { value: 'account',       label: 'My Account' },
   { value: 'notifications', label: 'Notifications' },
   { value: 'users',         label: 'Users & Access' },
@@ -1274,7 +980,7 @@ const TABS: TabItem[] = [
 ]
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>('ranch')
+  const [tab, setTab] = useState<Tab>('account')
   // Null until we know. Rendering the row optimistically would flash a door at
   // people who cannot open it.
   const [admin, setAdmin] = useState<{ canReachAdmin: boolean; role: string } | null>(null)
@@ -1317,7 +1023,6 @@ export default function SettingsPage() {
       )}
 
       <Tabs items={TABS} value={tab} onChange={v => setTab(v as Tab)} className="mb-6" />
-      {tab === 'ranch'         && <RanchTab />}
       {tab === 'account'       && <AccountTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'users'         && <UsersTab />}
