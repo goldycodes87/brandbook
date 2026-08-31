@@ -243,6 +243,48 @@ select:focus {
   animation: scan-line 2s ease-in-out infinite;
 }
 
+/* ── RancherAI voice ──────────────────────────────────────────────────────
+   The talk button breathes when it is waiting and beats faster when
+   something is being said. Done in CSS rather than with an animation
+   library: a pulse and five bars are not worth 40kB of JavaScript. */
+
+@keyframes ai-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.03); }
+}
+@utility animate-ai-breathe {
+  animation: ai-breathe 2.5s ease-in-out infinite;
+}
+@utility animate-ai-pulse {
+  animation: ai-breathe 1.4s ease-in-out infinite;
+}
+
+@keyframes ai-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50%      { transform: scaleY(1); }
+}
+@utility animate-ai-bar {
+  animation: ai-bar 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes ai-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@utility animate-ai-rise {
+  animation: ai-rise 0.22s ease-out both;
+}
+
+/* Somebody who gets motion sick should not have to watch a button throb
+   at them for the length of a phone call. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ai-breathe,
+  .animate-ai-pulse,
+  .animate-ai-bar,
+  .animate-ai-rise { animation: none; }
+}
+
 /* Tablet landscape: reduce bottom nav height */
 @media (orientation: landscape) and (max-width: 1023px) {
   :root { --bottomnav-h: 52px; }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, ChevronDown, Mic, PhoneOff } from 'lucide-react'
+import { Send, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiGet, apiPost } from '@/lib/fetch'
@@ -51,38 +51,44 @@ const TOOL_LABEL: Record<string, string> = {
   propose_treatment: 'drafted a treatment',
 }
 
-export function RancherChat() {
+export function RancherChat({
+  conversationId,
+  onConversationId,
+  /** Bumped by the shell after a call ends, to pull the spoken turns in. */
+  reloadKey = 0,
+}: {
+  conversationId: string | null
+  onConversationId: (id: string) => void
+  reloadKey?: number
+}) {
   const [turns, setTurns]   = useState<Turn[]>([])
   const [draft, setDraft]   = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError]   = useState('')
-  const [conversationId, setConversationId] = useState<string | null>(null)
   const [openTrace, setOpenTrace] = useState<number | null>(null)
 
-  const [callState, setCallState] = useState<'off' | 'connecting' | 'live'>('off')
-  const [voiceError, setVoiceError] = useState('')
   const [loaded, setLoaded] = useState(false)
 
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  // Typed loosely on purpose: the SDK is imported dynamically so the bundle
-  // does not carry it for people who only ever type.
-  const vapiRef = useRef<{ stop: () => void } | null>(null)
-
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns, sending])
-
-  // A live call outlives a re-render but must not outlive the page.
-  useEffect(() => () => { vapiRef.current?.stop(); vapiRef.current = null }, [])
 
   // Pick the thread back up. A conversation that vanishes when the app closes
   // is a search box, not a conversation — and on a phone the app closes every
   // time somebody takes a call.
+  //
+  // Runs again on reloadKey so what was said out loud shows up here without
+  // the two halves having to keep separate copies of the same conversation.
   useEffect(() => {
-    apiGet('/api/rancher-ai/conversation')
+    // With an id, that exact thread — picked from history, or the one a call
+    // just opened. Without one, whatever conversation is still current.
+    apiGet(conversationId
+      ? `/api/rancher-ai/conversation?id=${encodeURIComponent(conversationId)}`
+      : '/api/rancher-ai/conversation')
       .then(r => r.json())
       .then(j => {
         if (!j?.conversation) { setLoaded(true); return }
-        setConversationId(j.conversation.id)
+        onConversationId(j.conversation.id)
         setTurns((j.messages ?? []).map((m: { role: string; content: string; used?: Turn['used'] }) => ({
           role: m.role === 'user' ? 'user' : 'assistant',
           content: m.content,
@@ -94,7 +100,9 @@ export function RancherChat() {
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
-  }, [])
+    // onConversationId is the parent's setState, stable for the page's life.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadKey])
 
   const send = useCallback(async (text: string) => {
     const content = text.trim()
@@ -118,7 +126,7 @@ export function RancherChat() {
         return
       }
 
-      setConversationId(j.conversation_id ?? null)
+      if (j.conversation_id) onConversationId(j.conversation_id)
       setTurns(t => [...t, {
         role: 'assistant',
         content: j.reply ?? '',
@@ -131,7 +139,7 @@ export function RancherChat() {
       setSending(false)
       inputRef.current?.focus()
     }
-  }, [conversationId, sending])
+  }, [conversationId, sending, onConversationId])
 
   async function confirm(turnIndex: number, proposal: Proposal) {
     setError('')
@@ -153,85 +161,6 @@ export function RancherChat() {
 
   function drop(turnIndex: number) {
     setTurns(t => t.map((turn, i) => (i === turnIndex ? { ...turn, settled: 'dropped' } : turn)))
-  }
-
-  async function startCall() {
-    setVoiceError('')
-    const publicKey = process.env.NEXT_PUBLIC_VAPI_KEY
-    if (!publicKey) {
-      setVoiceError('Voice is not switched on yet — NEXT_PUBLIC_VAPI_KEY has not been set.')
-      return
-    }
-
-    setCallState('connecting')
-    try {
-      const res = await apiGet('/api/rancher-ai/voice-config')
-      const config = await res.json()
-      if (!res.ok) { setVoiceError(config.error ?? 'Could not start voice.'); setCallState('off'); return }
-
-      const { default: Vapi } = await import('@vapi-ai/web')
-      const vapi = new Vapi(publicKey)
-      vapiRef.current = vapi
-
-      vapi.on('call-start', () => setCallState('live'))
-      vapi.on('call-end', () => { setCallState('off'); vapiRef.current = null })
-      vapi.on('error', () => {
-        setVoiceError('The call dropped.')
-        setCallState('off')
-        vapiRef.current = null
-      })
-
-      // Spoken turns land in the same thread as typed ones, so a question
-      // asked at the chute can be followed up on at the desk.
-      vapi.on('message', (m: { type?: string; role?: string; transcriptType?: string; transcript?: string }) => {
-        if (m?.type === 'transcript' && m.transcriptType === 'final' && m.transcript) {
-          setTurns(t => [...t, {
-            role: m.role === 'assistant' ? 'assistant' : 'user',
-            content: m.transcript!,
-          }])
-        }
-      })
-
-      // A call needs a thread to write into before it starts talking — the
-      // webhook has no way to create one mid-sentence, and a proposal with
-      // nowhere to park is a proposal that can never be confirmed.
-      let threadId = conversationId
-      if (!threadId) {
-        const opened = await apiPost('/api/rancher-ai/conversation', { title: 'Voice call' })
-        const oj = await opened.json().catch(() => ({}))
-        threadId = oj.conversation_id ?? null
-        if (threadId) setConversationId(threadId)
-      }
-
-      vapi.start({
-        transcriber: config.transcriber,
-        model: {
-          provider: 'anthropic',
-          model: 'claude-opus-5',
-          messages: [{ role: 'system', content: config.systemPrompt }],
-          tools: config.tools,
-        },
-        voice: config.voice,
-        firstMessage: config.firstMessage,
-        // Read back by the webhook. Without these a call cannot save a record
-        // or attribute one to anybody.
-        metadata: {
-          conversation_id: threadId,
-          auth_user_id: config.authUserId,
-          speaking: config.speaking,
-        },
-      } as unknown as Parameters<typeof vapi.start>[0])
-    } catch {
-      setVoiceError('Could not start voice. Check the microphone permission.')
-      setCallState('off')
-      vapiRef.current = null
-    }
-  }
-
-  function endCall() {
-    vapiRef.current?.stop()
-    vapiRef.current = null
-    setCallState('off')
   }
 
   return (
@@ -350,18 +279,6 @@ export function RancherChat() {
           paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
         }}
       >
-        {voiceError && (
-          <div className="pb-2">
-            <ContextBanner tone="warning">{voiceError}</ContextBanner>
-          </div>
-        )}
-
-        {callState === 'live' && (
-          <div className="pb-2">
-            <ContextBanner tone="accent">Listening. Speak normally — you can cut it off mid-sentence.</ContextBanner>
-          </div>
-        )}
-
         <form
           onSubmit={e => { e.preventDefault(); send(draft) }}
           className="flex items-end gap-2"
@@ -385,17 +302,6 @@ export function RancherChat() {
               maxHeight: 120,
             }}
           />
-          {/* Talk when your hands are dirty, type when they are not. */}
-          {callState === 'off' ? (
-            <Button type="button" intent="secondary" onClick={startCall} aria-label="Talk to it">
-              <Mic size={16} />
-            </Button>
-          ) : (
-            <Button type="button" intent="ghost" onClick={endCall}
-                    loading={callState === 'connecting'} aria-label="End the call">
-              <PhoneOff size={16} />
-            </Button>
-          )}
           <Button type="submit" intent="primary" disabled={!draft.trim()} loading={sending}
                   aria-label="Send">
             <Send size={16} />

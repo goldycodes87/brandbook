@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { getAdminSession } from '@/lib/admin-auth'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { RancherChat } from '@/components/ai/RancherChat'
+import { RancherAI } from '@/components/ai/RancherAI'
 
 export default async function RancherAiPage() {
   // Operators only. RancherAI reads across the whole herd and every owner's
@@ -20,7 +20,7 @@ export default async function RancherAiPage() {
         title="ASK"
         subtitle="Your records, answered out of the records themselves."
       />
-      <RancherChat />
+      <RancherAI />
     </PageContainer>
   )
 }
