@@ -24,15 +24,17 @@ interface Person {
 }
 
 interface RoleOption { value: string; label: string }
+interface HerdOption { id: string; label: string }
 
 export function PeopleAndRoles() {
   const [people, setPeople]   = useState<Person[]>([])
   const [roles, setRoles]     = useState<RoleOption[]>([])
+  const [herds, setHerds]     = useState<HerdOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
   const [busy, setBusy]       = useState<string | null>(null)
 
-  const [form, setForm] = useState({ first_name: '', last_name: '', email: '', practice_name: '', role: 'co_admin' })
+  const [form, setForm] = useState({ first_name: '', last_name: '', email: '', practice_name: '', role: 'co_admin', owner_id: '' })
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
 
   // The revealed portal link, for one person at a time.
@@ -46,7 +48,7 @@ export function PeopleAndRoles() {
   useEffect(() => {
     apiGet('/api/admin/people')
       .then(r => r.json())
-      .then(j => { setPeople(j.data ?? []); setRoles(j.roles ?? []); setLoading(false) })
+      .then(j => { setPeople(j.data ?? []); setRoles(j.roles ?? []); setHerds(j.herds ?? []); setLoading(false) })
       .catch(() => { setError('Could not load people'); setLoading(false) })
   }, [])
 
@@ -57,6 +59,7 @@ export function PeopleAndRoles() {
     if (!res.ok) { setError(j.error ?? 'Could not load people'); return }
     setPeople(j.data ?? [])
     setRoles(j.roles ?? [])
+    setHerds(j.herds ?? [])
   }, [])
 
   async function invite(e: React.FormEvent) {
@@ -67,7 +70,7 @@ export function PeopleAndRoles() {
       const j = await res.json()
       if (!res.ok) { setError(j.error ?? 'Could not send that invite'); return }
       setInviteUrl(j.inviteUrl)
-      setForm({ first_name: '', last_name: '', email: '', practice_name: '', role: 'co_admin' })
+      setForm({ first_name: '', last_name: '', email: '', practice_name: '', role: 'co_admin', owner_id: '' })
       await load()
     } finally { setBusy(null) }
   }
@@ -224,8 +227,32 @@ export function PeopleAndRoles() {
                        placeholder="Platte Valley Large Animal" />
               </Field>
             )}
+
+            {/* An owner login has to name a herd — and more than one person can
+                be on the same one, which is how a partner in an LLC or a
+                husband and wife both get in. */}
+            {form.role === 'owner' && (
+              <Field
+                label="Whose cattle"
+                helper={herds.length
+                  ? 'They will see this herd and nothing else. Two people can share one herd.'
+                  : 'No herds yet — add one under Owners first.'}
+              >
+                <Select
+                  value={form.owner_id}
+                  onChange={e => setForm(f => ({ ...f, owner_id: e.target.value }))}
+                  disabled={herds.length === 0}
+                >
+                  <option value="">Pick a herd…</option>
+                  {herds.map(h => <option key={h.id} value={h.id}>{h.label}</option>)}
+                </Select>
+              </Field>
+            )}
             <div>
-              <Button type="submit" intent="primary" loading={busy === 'invite'}>SEND INVITE</Button>
+              <Button type="submit" intent="primary" loading={busy === 'invite'}
+                      disabled={form.role === 'owner' && !form.owner_id}>
+                SEND INVITE
+              </Button>
             </div>
           </form>
 

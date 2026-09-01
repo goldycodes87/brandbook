@@ -1,82 +1,123 @@
 import { Resend } from 'resend'
 
 /**
- * Every email the app sends, in one house style.
+ * Every email the app sends, in the onboarding's clothes.
  *
- * Written out as inline-styled HTML because that is what mail clients render:
- * Gmail strips <style> blocks, Outlook ignores flexbox, and a stylesheet is
- * the first thing to go. Tables and inline styles are not nostalgia here.
+ * The point is continuity: the email and the screen it opens should look like
+ * the same object. So the values here are lifted from globals.css rather than
+ * chosen again — #080808 ground, #111111 card, #ea580c accent, the hairline
+ * rule under the wordmark, the outlined uppercase role pill. Somebody clicking
+ * through should feel they arrived where they were already standing.
  *
- * The tone is a letter from the ranch, not a product announcement. Somebody
- * receiving this is being told their cattle records are somewhere new, and the
- * email that reads like marketing is the one that gets deleted or lands in
- * junk. No gradients, no hero image, one thing to press.
+ * Written as tables and inline styles because that is what mail clients
+ * render: Gmail strips <style> blocks, Outlook ignores flexbox, and a
+ * stylesheet is the first thing to go. Not nostalgia — the only thing that
+ * works.
+ *
+ * Dark by design, which email is bad at. Two mitigations: color-scheme is
+ * declared so clients that respect it stop trying to "help", and every surface
+ * carries both a bgcolor attribute and an inline background, because Outlook
+ * reads the attribute and ignores the style.
  */
 
-const BRAND = '#ea580c'
-const INK   = '#111111'
-const MUTED = '#6b7280'
-const RULE  = '#e5e7eb'
+// Straight from globals.css. If the app's palette moves, these move with it.
+const GROUND  = '#080808'  // --surface-0
+const CARD    = '#111111'  // --surface-1
+const ACCENT  = '#ea580c'  // --accent
+const TEXT    = '#f5f5f5'  // --text
+const MUTED   = '#6b7280'  // --text-muted
+const SECOND  = '#9ca3af'  // --text-secondary
+const HAIRLINE = '#242424' // --border, flattened: rgba on black is unreliable in mail
 
-function shell(opts: {
-  ranchName: string
-  preheader: string
-  body: string
-}) {
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>${opts.ranchName}</title></head>
-<body style="margin:0;padding:0;background:#f5f5f4;">
-  <!-- The line the inbox shows beside the subject. Left blank and the client
-       picks the first words of the body, which is rarely the useful part. -->
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0">${opts.preheader}</div>
+const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f4;padding:32px 16px">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-             style="max-width:520px;background:#ffffff;border:1px solid ${RULE};border-radius:10px">
-
-        <tr><td style="padding:24px 28px 0">
-          <div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:.16em;
-                      text-transform:uppercase;color:${BRAND};font-weight:700">${opts.ranchName}</div>
-          <div style="height:1px;background:${RULE};margin:16px 0 0"></div>
-        </td></tr>
-
-        <tr><td style="padding:22px 28px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',
-                       Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:${INK}">
-          ${opts.body}
-        </td></tr>
-
-        <tr><td style="padding:0 28px 24px">
-          <div style="height:1px;background:${RULE};margin-bottom:14px"></div>
-          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
-                      font-size:12px;line-height:1.6;color:${MUTED}">
-            Sent by ${opts.ranchName} through BrandBook, the record book they keep their herd in.
-          </div>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body></html>`
+/**
+ * The mark, drawn in HTML.
+ *
+ * The real BrandBookMark is an inline SVG component and Gmail strips inline
+ * SVG outright. A hosted PNG would need somewhere to host it and a URL that
+ * outlives this deploy, so the branding iron is drawn instead: a ring with a
+ * bar across it and a B beneath. Outlook squares off the border-radius and
+ * that is the whole of the degradation.
+ */
+function mark() {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr>
+    <td width="60" height="60" align="center" valign="middle"
+        style="width:60px;height:60px;border:2px solid ${ACCENT};border-radius:30px;
+               font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:700;
+               color:${ACCENT};line-height:60px">B</td>
+  </tr></table>`
 }
 
-/** One thing to press. A real anchor, because a styled div is not a link. */
+/** The 30px accent hairline the onboarding puts under its title. */
+function rule() {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:18px auto">
+    <tr><td width="30" height="1" bgcolor="${ACCENT}"
+            style="width:30px;height:1px;background:${ACCENT};opacity:.65;font-size:0;line-height:0">&nbsp;</td></tr>
+  </table>`
+}
+
+/** The outlined uppercase pill, same as the onboarding's role chip. */
+function pill(label: string) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto"><tr>
+    <td style="border:1px solid ${ACCENT};border-radius:999px;padding:7px 16px;font-family:${SANS};
+               font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+               color:${ACCENT};white-space:nowrap">${label}</td>
+  </tr></table>`
+}
+
 function button(href: string, label: string) {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0">
-    <tr><td style="background:${BRAND};border-radius:6px">
-      <a href="${href}" style="display:inline-block;padding:13px 30px;font-family:-apple-system,
-         BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;
-         letter-spacing:.06em;color:#ffffff;text-decoration:none">${label}</a>
+  return `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:26px auto 8px"><tr>
+    <td bgcolor="${ACCENT}" style="border-radius:8px;background:${ACCENT}">
+      <a href="${href}" style="display:inline-block;padding:15px 34px;font-family:${SANS};font-size:13px;
+         font-weight:700;letter-spacing:.1em;color:#ffffff;text-decoration:none">${label}</a>
     </td></tr></table>`
 }
 
-/** The same URL in plain text, because some clients will not follow the button. */
+/** The same URL in text, because some clients will not follow a styled anchor. */
 function fallback(href: string) {
-  return `<p style="margin:0;font-size:12px;line-height:1.6;color:${MUTED}">
-    If the button does nothing, paste this into your browser:<br>
-    <span style="color:${BRAND};word-break:break-all">${href}</span>
+  return `<p style="margin:20px 0 0;font-family:${SANS};font-size:11px;line-height:1.6;color:${MUTED};text-align:center">
+    Or paste this into your browser<br>
+    <span style="color:${SECOND};word-break:break-all">${href}</span>
   </p>`
+}
+
+function shell(opts: { ranchName: string; preheader: string; body: string }) {
+  return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<!-- Tells the clients that listen to stop inverting a design that is already dark. -->
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>${opts.ranchName}</title>
+</head>
+<body style="margin:0;padding:0;background:${GROUND};" bgcolor="${GROUND}">
+  <!-- The line the inbox shows beside the subject. Left out and the client
+       picks the first words of the body, which is rarely the useful part. -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${opts.preheader}</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${GROUND}"
+         style="background:${GROUND};padding:36px 16px">
+    <tr><td align="center">
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${CARD}"
+             style="max-width:480px;background:${CARD};border:1px solid ${HAIRLINE};border-radius:14px">
+        <tr><td style="padding:36px 32px 32px">
+          ${opts.body}
+        </td></tr>
+      </table>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px">
+        <tr><td style="padding:18px 8px 0;font-family:${SANS};font-size:11px;line-height:1.7;
+                       color:${MUTED};text-align:center">
+          Sent by ${opts.ranchName} through BrandBook — the book they keep the herd in.
+        </td></tr>
+      </table>
+
+    </td></tr>
+  </table>
+</body></html>`
 }
 
 async function send(to: string, subject: string, html: string) {
@@ -100,35 +141,49 @@ async function send(to: string, subject: string, html: string) {
 //
 // Said in the invite rather than discovered after signing in. Somebody deciding
 // whether to click a link about their cattle deserves to know what it opens.
-const ROLE_PITCH: Record<string, { title: string; line: string }> = {
+const ROLE_PITCH: Record<string, { pill: string; article: string; line: string }> = {
   owner: {
-    title: 'an Owner',
-    line: 'You will see your own cattle — weights, health, breeding and calves — along with your invoices and what each shared expense cost you. Your animals only, nobody else’s.',
+    pill: 'Owner',
+    article: 'an',
+    line: 'Your cattle — weights, health, breeding and calves — with your invoices and what each shared expense cost you. Your animals only, nobody else’s.',
   },
   vet: {
-    title: 'the Veterinarian',
-    line: 'You will see health and breeding history for every animal on the place, and be able to record treatments and prescriptions. You will not see anybody’s money.',
+    pill: 'Veterinarian',
+    article: 'a',
+    line: 'Health and breeding history for every animal on the place, and somewhere to record treatments and prescriptions. You will not see anybody’s money.',
   },
   cpa: {
-    title: 'the accountant',
-    line: 'You will see billing and the tax reports for the whole operation, read only. No animal records.',
+    pill: 'CPA',
+    article: 'the',
+    line: 'Billing and the tax reports for the whole operation, read only. No animal records.',
   },
   co_admin: {
-    title: 'Ranch Manager',
-    line: 'You will be able to run the operation day to day — cattle, health, breeding, grazing and billing. Everything except bulk data import.',
+    pill: 'Ranch Manager',
+    article: 'the',
+    line: 'The operation day to day — cattle, health, breeding, grazing and billing. Everything except the bulk data tools.',
   },
   admin: {
-    title: 'an Admin',
-    line: 'You will have the run of the place, including the settings and the data tools.',
+    pill: 'Admin',
+    article: 'an',
+    line: 'The run of the place, including the settings and the data tools.',
   },
 }
+
+const h1 = (text: string) =>
+  `<h1 style="margin:0;font-family:${SANS};font-size:21px;font-weight:600;letter-spacing:.01em;
+              color:${TEXT};text-align:center">${text}</h1>`
+
+const lead = (text: string) =>
+  `<p style="margin:10px 0 0;font-family:${SANS};font-size:13px;line-height:1.6;color:${MUTED};
+             text-align:center">${text}</p>`
 
 /**
  * The invitation.
  *
- * Names who is inviting, what the person is being invited AS, and what that
- * actually lets them see — then one link. No password to choose: the link is
- * how they get in, this time and every time.
+ * Deliberately the same words and the same furniture as the onboarding's first
+ * screen — mark, "Welcome to BrandBook", the hairline, who invited you, the
+ * role pill. Clicking the button should feel like the page continued rather
+ * than like arriving somewhere new.
  */
 export function inviteEmail(opts: {
   ranchName: string
@@ -137,23 +192,28 @@ export function inviteEmail(opts: {
   role: string
   url: string
 }) {
-  const pitch = ROLE_PITCH[opts.role] ?? ROLE_PITCH.co_admin
-  const greeting = opts.personName ? `${opts.personName},` : 'Hello,'
+  const r = ROLE_PITCH[opts.role] ?? ROLE_PITCH.co_admin
 
   return shell({
     ranchName: opts.ranchName,
-    preheader: `${opts.inviterName} has invited you to ${opts.ranchName}’s records as ${pitch.title}.`,
+    preheader: `${opts.inviterName} has invited you to ${opts.ranchName} as ${r.article} ${r.pill}.`,
     body: `
-      <p style="margin:0 0 14px">${greeting}</p>
-      <p style="margin:0 0 14px">
-        ${opts.inviterName} has invited you to ${opts.ranchName}’s records as
-        <strong>${pitch.title}</strong>.
+      ${mark()}
+      <div style="height:20px"></div>
+      ${h1('Welcome to BrandBook')}
+      ${lead('A modern cattle record keeping app.')}
+      ${rule()}
+      <p style="margin:0 0 16px;font-family:${SANS};font-size:14px;line-height:1.7;color:${SECOND};text-align:center">
+        You&rsquo;ve been invited by<br>
+        <strong style="color:${TEXT}">${opts.ranchName}</strong> as ${r.article}
       </p>
-      <p style="margin:0 0 14px">${pitch.line}</p>
+      ${pill(r.pill)}
+      <p style="margin:22px 0 0;font-family:${SANS};font-size:14px;line-height:1.7;color:${SECOND};text-align:center">
+        ${r.line}
+      </p>
       ${button(opts.url, 'SET UP MY ACCESS')}
-      <p style="margin:0 0 14px;font-size:13px;color:${MUTED}">
-        There is no password to choose. This link signs you in, and we will send you
-        a fresh one any time you need it.
+      <p style="margin:14px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${MUTED};text-align:center">
+        No password to choose. This link signs you in, and we will send a fresh one whenever you need it.
       </p>
       ${fallback(opts.url)}
     `,
@@ -169,12 +229,17 @@ export function portalLinkEmail(opts: { ranchName: string; personName: string; u
   const greeting = opts.personName ? `${opts.personName},` : 'Hello,'
   return shell({
     ranchName: opts.ranchName,
-    preheader: `Your link back into ${opts.ranchName}’s portal.`,
+    preheader: `Your link back into ${opts.ranchName}.`,
     body: `
-      <p style="margin:0 0 14px">${greeting}</p>
-      <p style="margin:0 0 14px">Here is your link back into the ${opts.ranchName} portal.</p>
+      ${mark()}
+      <div style="height:20px"></div>
+      ${h1('Your way back in')}
+      ${rule()}
+      <p style="margin:0;font-family:${SANS};font-size:14px;line-height:1.7;color:${SECOND};text-align:center">
+        ${greeting} here is your link back into the ${opts.ranchName} portal.
+      </p>
       ${button(opts.url, 'OPEN MY PORTAL')}
-      <p style="margin:0 0 14px;font-size:13px;color:${MUTED}">
+      <p style="margin:14px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${MUTED};text-align:center">
         ${opts.minutes
           ? `Good for ${opts.minutes} minutes, and it replaces any earlier link.`
           : 'Keep it to yourself — anybody with this link can see your cattle records.'}
@@ -195,15 +260,18 @@ export function operatorLinkEmail(opts: { ranchName: string; personName: string;
     ranchName: opts.ranchName,
     preheader: 'Sign in without your password, then set a new one.',
     body: `
-      <p style="margin:0 0 14px">${greeting}</p>
-      <p style="margin:0 0 14px">
-        Use this to sign in without your password. Once you are in, set a new one under
-        Settings, My Account.
+      ${mark()}
+      <div style="height:20px"></div>
+      ${h1('Sign in without your password')}
+      ${rule()}
+      <p style="margin:0;font-family:${SANS};font-size:14px;line-height:1.7;color:${SECOND};text-align:center">
+        ${greeting} use this once to get in. It lands you on Settings with the password
+        panel already open, so you can set a new one while you are there.
       </p>
       ${button(opts.url, 'SIGN ME IN')}
-      <p style="margin:0 0 14px;font-size:13px;color:${MUTED}">
+      <p style="margin:14px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${MUTED};text-align:center">
         Good for ${opts.minutes} minutes and it works once. If you did not ask for this,
-        nothing has changed on your account — but somebody typed your address, which is
+        nothing on your account has changed — but somebody typed your address, which is
         worth knowing.
       </p>
       ${fallback(opts.url)}
@@ -214,4 +282,3 @@ export function operatorLinkEmail(opts: { ranchName: string; personName: string;
 export async function sendOperatorLinkEmail(to: string, opts: Parameters<typeof operatorLinkEmail>[0]) {
   return send(to, `Sign in to ${opts.ranchName}`, operatorLinkEmail(opts))
 }
-

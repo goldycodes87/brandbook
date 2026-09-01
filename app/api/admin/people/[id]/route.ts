@@ -39,10 +39,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!ROLES.includes(body.role as PortalRole)) {
       return NextResponse.json({ error: 'Unknown role' }, { status: 400 })
     }
-    // An owner membership needs a herd behind it, which this room cannot
-    // attach — the table's own check would reject it anyway.
+    // Switching somebody INTO owner needs a herd to point at, which this
+    // endpoint is not given. Invite them as an owner instead — that form asks
+    // whose cattle. Switching a current owner to another role is fine.
     if (body.role === 'owner') {
-      return NextResponse.json({ error: 'Change owner access from the Owners room' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'To make somebody an owner, invite them as one — that form asks whose cattle they own.' },
+        { status: 400 },
+      )
     }
     update.role = body.role
   }

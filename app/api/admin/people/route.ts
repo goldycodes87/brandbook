@@ -25,23 +25,30 @@ const ROLE_LABEL: Record<PortalRole, string> = {
   vet:      'Veterinarian',
 }
 
-const INVITABLE: PortalRole[] = ['co_admin', 'cpa', 'vet', 'admin']
+const INVITABLE: PortalRole[] = ['owner', 'co_admin', 'cpa', 'vet', 'admin']
 
 export async function GET() {
   const s = await getAdminSession()
   if (!s?.canConfigure) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('portal_memberships')
-    .select(`
-      id, role, status, invited_at, accepted_at, onboarded_at, invite_token, owner_id,
-      portal_people ( id, first_name, last_name, preferred_name, email, phone, practice_name, auth_user_id ),
-      grazing_owners ( id, name, company_name, owner_name )
-    `)
-    .eq('ranch_id', s.ranchId ?? '')
-    .neq('status', 'revoked')
-    .order('invited_at', { ascending: true })
+  const [{ data, error }, { data: herdRows }] = await Promise.all([
+    supabase
+      .from('portal_memberships')
+      .select(`
+        id, role, status, invited_at, accepted_at, onboarded_at, invite_token, owner_id,
+        portal_people ( id, first_name, last_name, preferred_name, email, phone, practice_name, auth_user_id ),
+        grazing_owners ( id, name, company_name, owner_name )
+      `)
+      .eq('ranch_id', s.ranchId ?? '')
+      .neq('status', 'revoked')
+      .order('invited_at', { ascending: true }),
+    supabase
+      .from('grazing_owners')
+      .select('id, name, company_name, owner_name')
+      .eq('is_self', false)
+      .order('company_name'),
+  ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -81,8 +88,11 @@ export async function GET() {
       // send them.
       inviteToken: r.onboarded_at ? null : r.invite_token,
     })),
-    // Whether the ranch is even set up to have owners.
     roles: INVITABLE.map(r => ({ value: r, label: ROLE_LABEL[r] })),
+    // The herds an Owner invite can be attached to. Sent with the list so the
+    // form has them before anybody picks the role.
+    herds: ((herdRows ?? []) as Array<{ id: string; name: string | null; company_name: string | null; owner_name: string | null }>)
+      .map(h => ({ id: h.id, label: h.company_name || h.owner_name || h.name || 'Unnamed herd' })),
   })
 }
 
@@ -99,11 +109,26 @@ export async function POST(req: NextRequest) {
 
   if (!email)                    return NextResponse.json({ error: 'An email address is required' }, { status: 400 })
   if (!INVITABLE.includes(role)) return NextResponse.json({ error: 'Pick a role' }, { status: 400 })
-  // Owner memberships are created alongside a herd in the Owners room; one
-  // made here would have no owner_id and fail the table's own check.
-  if (role === 'owner')          return NextResponse.json({ error: 'Invite owners from the Owners room' }, { status: 400 })
 
   const supabase = createAdminClient()
+
+  // An owner membership has to name a herd — the table's own check refuses one
+  // without it, and a login with no herd behind it would show an empty portal.
+  //
+  // Two people on one herd is the normal case, not an edge one: an LLC has
+  // partners, a ranch has a husband and a wife. The membership is per person
+  // and points at the herd, so a second invite to the same owner_id is simply
+  // a second person seeing the same cattle.
+  const ownerId = typeof body.owner_id === 'string' ? body.owner_id.trim() : ''
+
+  if (role === 'owner') {
+    if (!ownerId) {
+      return NextResponse.json({ error: 'Pick which herd this person owns' }, { status: 400 })
+    }
+    const { data: herd } = await supabase
+      .from('grazing_owners').select('id').eq('id', ownerId).maybeSingle()
+    if (!herd) return NextResponse.json({ error: 'That herd no longer exists' }, { status: 400 })
+  }
 
   const { data: existing } = await supabase
     .from('portal_people').select('id').ilike('email', email).maybeSingle()
@@ -135,6 +160,7 @@ export async function POST(req: NextRequest) {
       person_id: personId,
       ranch_id:  s.ranchId,
       role,
+      owner_id:  role === 'owner' ? ownerId : null,
       status:    'invited',
       invite_token: token,
       invite_expires_at: expires.toISOString(),
