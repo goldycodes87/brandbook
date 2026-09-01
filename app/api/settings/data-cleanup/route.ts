@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { asAnimalSex } from '@/lib/db-enums'
 
 export async function GET() {
   const supabase = createAdminClient()
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
   for (const fix of fixes) {
     const { error } = await supabase
       .from('animals')
-      .update({ sex: fix.sex })
+      .update({ sex: asAnimalSex(fix.sex) })
       .eq('id', fix.id)
     if (!error) updated++
   }

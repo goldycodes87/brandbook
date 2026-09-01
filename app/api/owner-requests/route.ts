@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 
 export async function GET() {
   const supabase = createAdminClient()
@@ -60,7 +61,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
-  const update: Record<string, string> = { status: body.status }
+  const update: Update<'owner_requests'> = { status: body.status }
   if (body.rancher_notes !== undefined) update.rancher_notes = body.rancher_notes
 
   const { data, error } = await supabase

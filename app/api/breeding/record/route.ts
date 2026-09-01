@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { deriveReproStatus } from '@/lib/repro-status'
+import type { Insert } from '@/lib/supabase/admin'
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -197,7 +198,7 @@ export async function POST(req: NextRequest) {
     const { quarter, year } = quarterOf(event_date)
     const sirePart = sire_name_text ? ` — ${sire_name_text}` : ''
 
-    const rows: Record<string, unknown>[] = []
+    const rows: Insert<'lease_expenses'>[] = []
 
     if (resolvedAiCost != null && resolvedAiCost > 0) {
       rows.push({

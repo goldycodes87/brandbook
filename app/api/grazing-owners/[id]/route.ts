@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -21,10 +22,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const supabase = createAdminClient()
   const body = await req.json()
 
-  const clean: Record<string, unknown> = {}
+  const clean: Update<'grazing_owners'> = {}
   const allowed = ['name', 'company_name', 'owner_name', 'email', 'phone', 'address', 'city', 'state', 'zip', 'billing_address', 'billing_rate', 'billing_type', 'brand_photo_url', 'brand_drawing_url', 'default_breed', 'default_ear_tag_color', 'default_tag_prefix', 'notes']
   for (const k of allowed) {
-    if (k in body) clean[k] = body[k] === '' ? null : body[k]
+    if (k in body) (clean as Record<string, unknown>)[k] = body[k] === '' ? null : body[k]
   }
   if (clean.billing_rate != null) clean.billing_rate = Number(clean.billing_rate)
 

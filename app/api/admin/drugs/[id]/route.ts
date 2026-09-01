@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
+import type { Update } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -30,9 +31,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body = await req.json().catch(() => ({}))
   const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
 
-  const update: Record<string, unknown> = {}
+  const update: Update<'drug_library'> = {}
   for (const [column, coerce] of Object.entries(PATCH_FIELDS)) {
-    if (has(column)) update[column] = coerce(body[column])
+    if (has(column)) (update as Record<string, unknown>)[column] = coerce(body[column])
   }
 
   if (Object.keys(update).length === 0) {

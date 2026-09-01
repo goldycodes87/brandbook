@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 
 export async function GET(req: NextRequest) {
   const sp       = req.nextUrl.searchParams
@@ -73,7 +74,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
-  const update: Record<string, unknown> = {}
+  const update: Update<'reminders'> = {}
   if (is_dismissed !== undefined) {
     update.is_dismissed = Boolean(is_dismissed)
     update.dismissed_at = is_dismissed ? new Date().toISOString() : null

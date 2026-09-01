@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Insert } from '@/lib/supabase/admin'
+import { asAnimalSex } from '@/lib/db-enums'
 
 const VALID_SEX = ['bull', 'cow', 'heifer', 'steer', 'calf']
 
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient()
   const errors: string[] = []
-  const inserts: Record<string, unknown>[] = []
+  const inserts: Insert<'animals'>[] = []
 
   for (const row of rows) {
     if (!row.tag_number) { errors.push('Row missing tag_number'); continue }
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     inserts.push({
       tag_number:       String(row.tag_number),
       name:             row.name || null,
-      sex:              row.sex ? String(row.sex).toLowerCase() : null,
+      sex:              asAnimalSex(String(row.sex ?? '').toLowerCase()),
       dob:              row.dob || null,
       ear_tag_color:    row.ear_tag_color || null,
       breed:            row.breed || null,

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
 import type { PortalRole } from '@/lib/portal-auth'
+import type { Update } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -32,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (row.ranch_id !== s.ranchId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const update: Record<string, unknown> = {}
+  const update: Update<'portal_memberships'> = {}
 
   if (typeof body.role === 'string') {
     if (!ROLES.includes(body.role as PortalRole)) {

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 
 const ALLOWED = [
   'property_name', 'landowner_name', 'landowner_email', 'landowner_phone',
@@ -26,9 +27,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const supabase = createAdminClient()
   const body = await req.json()
 
-  const clean: Record<string, unknown> = {}
+  const clean: Update<'leases'> = {}
   for (const k of ALLOWED) {
-    if (k in body) clean[k] = body[k] === '' ? null : body[k]
+    if (k in body) (clean as Record<string, unknown>)[k] = body[k] === '' ? null : body[k]
   }
   if (clean.acreage != null) clean.acreage = Number(clean.acreage)
   if (clean.total_aum_capacity != null) clean.total_aum_capacity = Number(clean.total_aum_capacity)

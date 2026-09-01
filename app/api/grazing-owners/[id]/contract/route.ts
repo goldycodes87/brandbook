@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -88,9 +89,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     'death_loss_split_threshold_pct', 'sale_fee_auction_pct', 'sale_fee_private_flat',
     'billing_cycle', 'expense_share_method', 'expense_share_pct', 'rate_per_head_month', 'notes',
   ]
-  const updates: Record<string, unknown> = {}
+  const updates: Update<'grazing_contracts'> = {}
   for (const f of allowed) {
-    if (f in body) updates[f] = body[f] === '' ? null : body[f]
+    if (f in body) (updates as Record<string, unknown>)[f] = body[f] === '' ? null : body[f]
   }
 
   const { data, error } = await supabase

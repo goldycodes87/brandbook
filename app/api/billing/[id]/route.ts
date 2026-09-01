@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -29,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body     = await req.json()
   const supabase = createAdminClient()
 
-  const updates: Record<string, unknown> = {}
+  const updates: Update<'invoices'> = {}
   const allowed = [
     'status', 'notes', 'due_date', 'period_start', 'period_end',
     'line_items', 'expense_splits', 'paid_at', 'pdf_url', 'viewed_at',
@@ -37,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     'paid_amount', 'payment_method', 'payment_reference',
   ]
   for (const k of allowed) {
-    if (k in body) updates[k] = body[k]
+    if (k in body) (updates as Record<string, unknown>)[k] = body[k]
   }
 
   // Auto-set timestamps on status transitions

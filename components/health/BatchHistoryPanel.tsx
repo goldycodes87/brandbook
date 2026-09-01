@@ -32,7 +32,7 @@ export async function BatchHistoryPanel() {
               <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{fmtDate(b.event_date)}</span>
             </div>
             <p className="type-helper mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-              {b.group_label} · {b.animal_count ?? '?'} animals
+              {String(b.group_filter ?? b.group_type ?? "")} · {b.animal_count ?? '?'} animals
             </p>
             {b.withdrawal_days && (
               <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -60,7 +60,7 @@ export async function BatchHistoryPanel() {
             {batches.map(b => (
               <TR key={b.id}>
                 <TD>{fmtDate(b.event_date)}</TD>
-                <TD>{b.group_label ?? b.group_type}</TD>
+                <TD>{String(b.group_filter ?? b.group_type ?? "")}</TD>
                 <TD>
                   {b.drug_name ?? '—'}
                   {b.dose_amount ? ` ${b.dose_amount}${b.dose_unit ? ' ' + b.dose_unit : ''}` : ''}

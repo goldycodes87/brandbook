@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   if (profile.invite_accepted_at) return NextResponse.json({ valid: false, error: 'Invite already accepted' })
 
   // Check 7-day expiry
-  const created = new Date(profile.created_at)
+  const created = new Date(profile.created_at ?? Date.now())
   const ageMs = Date.now() - created.getTime()
   if (ageMs > 7 * 24 * 60 * 60 * 1000) return NextResponse.json({ valid: false, error: 'Invite has expired' })
 

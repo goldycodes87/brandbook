@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'owner_id required for this report type' }, { status: 400 })
   }
 
+  // Narrowed here rather than at each use: the guard above already refuses
+  // these report types without an owner, but TypeScript cannot see through
+  // an Array.includes to know it.
+  const ownerId = owner_id as string
+
   let title = ''
   const sections: ReportSection[] = []
 
@@ -45,7 +50,7 @@ export async function POST(req: NextRequest) {
       const { data: owner } = await supabase
         .from('grazing_owners')
         .select('id, name, owner_name, company_name')
-        .eq('id', owner_id)
+        .eq('id', ownerId)
         .single()
 
       const ownerName = owner?.company_name || owner?.owner_name || owner?.name || 'Owner'
@@ -55,7 +60,7 @@ export async function POST(req: NextRequest) {
       const { data: ownerAnimals } = await supabase
         .from('animals')
         .select('id, origin, purchase_price, ai_cost, semen_cost, embryo_cost, implant_fee')
-        .eq('owner_id', owner_id)
+        .eq('owner_id', ownerId)
       const animalIds = (ownerAnimals ?? []).map((a: any) => a.id)
       const animalMap = Object.fromEntries((ownerAnimals ?? []).map((a: any) => [a.id, a]))
 
@@ -97,7 +102,7 @@ export async function POST(req: NextRequest) {
       const { data: ownerExp } = await supabase
         .from('lease_expenses')
         .select('category_name, total_amount, category_id')
-        .eq('owner_id', owner_id)
+        .eq('owner_id', ownerId)
         .gte('expense_date', yearStart)
         .lte('expense_date', yearEnd)
       let animalExp: any[] = []
@@ -133,7 +138,7 @@ export async function POST(req: NextRequest) {
       // Grazing → 24b
       const { data: invs } = await supabase
         .from('invoices').select('total_amount')
-        .eq('owner_id', owner_id)
+        .eq('owner_id', ownerId)
         .gte('period_start', yearStart).lte('period_start', yearEnd)
       const grazingTotal = (invs ?? []).reduce((s: number, inv: any) => s + (inv.total_amount ?? 0), 0)
       if (grazingTotal > 0) {
@@ -189,11 +194,11 @@ export async function POST(req: NextRequest) {
     else if (type === 'pl') {
       const { data: owner } = await supabase
         .from('grazing_owners').select('id, name, owner_name, company_name')
-        .eq('id', owner_id).single()
+        .eq('id', ownerId).single()
       const ownerName = owner?.company_name || owner?.owner_name || owner?.name || 'Owner'
       title = `Financial P&L — ${ownerName} — ${year}`
 
-      const { data: ownerAnimals } = await supabase.from('animals').select('id').eq('owner_id', owner_id)
+      const { data: ownerAnimals } = await supabase.from('animals').select('id').eq('owner_id', ownerId)
       const animalIds = (ownerAnimals ?? []).map((a: any) => a.id)
 
       let salesTotal = 0
@@ -204,12 +209,12 @@ export async function POST(req: NextRequest) {
       }
 
       const { data: invs } = await supabase.from('invoices').select('total_amount, status')
-        .eq('owner_id', owner_id).gte('period_start', yearStart).lte('period_start', yearEnd)
+        .eq('owner_id', ownerId).gte('period_start', yearStart).lte('period_start', yearEnd)
       const grazingBilled = (invs ?? []).reduce((s: number, i: any) => s + (i.total_amount ?? 0), 0)
       const grazingPaid   = (invs ?? []).filter((i: any) => i.status === 'paid').reduce((s: number, i: any) => s + (i.total_amount ?? 0), 0)
 
       const { data: ownerExp } = await supabase.from('lease_expenses').select('category_name, total_amount')
-        .eq('owner_id', owner_id).gte('expense_date', yearStart).lte('expense_date', yearEnd)
+        .eq('owner_id', ownerId).gte('expense_date', yearStart).lte('expense_date', yearEnd)
       let animalExp: any[] = []
       if (animalIds.length > 0) {
         const { data: ae } = await supabase.from('lease_expenses').select('category_name, total_amount')
@@ -370,18 +375,18 @@ export async function POST(req: NextRequest) {
     else if (type === 'owner_summary') {
       const { data: owner } = await supabase.from('grazing_owners')
         .select('id, name, owner_name, company_name, email, phone')
-        .eq('id', owner_id).single()
+        .eq('id', ownerId).single()
       const ownerName = owner?.company_name || owner?.owner_name || owner?.name || 'Owner'
       title = `Owner Annual Summary — ${ownerName} — ${year}`
 
       // Current herd
       const { data: herd } = await supabase.from('animals')
         .select('id, tag_number, sex, breed, dob, status')
-        .eq('owner_id', owner_id).eq('status', 'active').order('tag_number')
+        .eq('owner_id', ownerId).eq('status', 'active').order('tag_number')
 
       // Calves born — need dam_ids first (separate query, no self-join)
       const { data: damRows } = await supabase.from('animals').select('id')
-        .eq('owner_id', owner_id).in('sex', ['cow', 'heifer'])
+        .eq('owner_id', ownerId).in('sex', ['cow', 'heifer'])
       const damIds = (damRows ?? []).map((r: any) => r.id)
       let calvesBorn: any[] = []
       if (damIds.length > 0) {
@@ -394,11 +399,11 @@ export async function POST(req: NextRequest) {
       // Deaths
       const { data: deaths } = await supabase.from('animals')
         .select('tag_number, disposition_date')
-        .eq('owner_id', owner_id).eq('status', 'deceased')
+        .eq('owner_id', ownerId).eq('status', 'deceased')
         .gte('disposition_date', yearStart).lte('disposition_date', yearEnd)
 
       // Sales through owner's animal IDs
-      const { data: ownerAnimalRows } = await supabase.from('animals').select('id').eq('owner_id', owner_id)
+      const { data: ownerAnimalRows } = await supabase.from('animals').select('id').eq('owner_id', ownerId)
       const ownerAnimalIds = (ownerAnimalRows ?? []).map((a: any) => a.id)
       let sales: any[] = []
       if (ownerAnimalIds.length > 0) {
@@ -412,7 +417,7 @@ export async function POST(req: NextRequest) {
       // Invoices
       const { data: invs } = await supabase.from('invoices')
         .select('invoice_number, period_start, period_end, total_amount, status')
-        .eq('owner_id', owner_id)
+        .eq('owner_id', ownerId)
         .gte('period_start', yearStart).lte('period_start', yearEnd)
         .order('period_start', { ascending: false })
 
@@ -476,7 +481,7 @@ export async function POST(req: NextRequest) {
     }
 
     const pdfBuffer = await generateReportPdfBuffer(title, sections)
-    const pdfKey = `reports/${type}/${owner_id ?? 'ranch'}-${year}.pdf`
+    const pdfKey = `reports/${type}/${ownerId ?? 'ranch'}-${year}.pdf`
     const pdfUrl = await uploadToR2(pdfKey, pdfBuffer, 'application/pdf')
 
     return NextResponse.json({ pdf_url: pdfUrl })

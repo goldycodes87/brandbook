@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   // Create auth user
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: profile.email,
+    email: profile.email ?? undefined,
     password,
     email_confirm: true,
   })

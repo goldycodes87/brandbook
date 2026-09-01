@@ -1,6 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildAllocationReport } from '@/lib/expense-allocation-report'
+import { asAnimalSex, asAnimalStatus } from '@/lib/db-enums'
 
 /**
  * What RancherAI can actually do.
@@ -185,12 +186,13 @@ const findAnimals: RancherTool = {
     let q = supabase
       .from('animals')
       .select('tag_number, name, sex, breed, dob, status, ear_tag_color, cull_flagged_at, cull_reason, owner_id')
-      .eq('status', str(input.status) || 'active')
+      .eq('status', asAnimalStatus(str(input.status)) ?? 'active')
       .order('tag_number')
       .limit(limit)
 
     if (ownerId)               q = q.eq('owner_id', ownerId)
-    if (str(input.sex))        q = q.eq('sex', str(input.sex).toLowerCase())
+    const wantedSex = asAnimalSex(str(input.sex).toLowerCase())
+    if (wantedSex)             q = q.eq('sex', wantedSex)
     if (input.on_cull_list)    q = q.not('cull_flagged_at', 'is', null)
     if (str(input.tag))        q = q.ilike('tag_number', `%${str(input.tag)}%`)
 

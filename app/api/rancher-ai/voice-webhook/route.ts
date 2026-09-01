@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TOOLS_BY_NAME, confirmLastProposal } from '@/lib/rancher-ai/tools'
 import { executeProposal } from '@/lib/rancher-ai/execute'
+import type { Json } from '@/lib/database.types'
 
 /**
  * Where Vapi reaches in during a call.
@@ -189,7 +190,7 @@ export async function POST(req: NextRequest) {
             conversation_id: conversationId,
             role: 'assistant',
             content: '',
-            tool_calls: [{ name: call.name, input: call.args, result }],
+            tool_calls: [{ name: call.name, input: call.args, result }] as unknown as Json,
             channel: 'voice',
           })
         }

@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPortalSession } from '@/lib/portal-auth'
+import type { Update } from '@/lib/supabase/admin'
+import type { Json } from '@/lib/database.types'
 
 /**
  * Onboarding reads and writes across three tables, and which one a field
@@ -66,7 +68,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
 
   // ── The person ────────────────────────────────────────────────────────
-  const person: Record<string, unknown> = {}
+  const person: Update<'portal_people'> = {}
   if (has('first_name'))     person.first_name     = str(body.first_name)
   if (has('last_name'))      person.last_name      = str(body.last_name)
   if (has('preferred_name')) person.preferred_name = str(body.preferred_name)
@@ -95,14 +97,14 @@ export async function POST(req: NextRequest) {
   if (has('notify')) {
     const { error } = await supabase
       .from('portal_memberships')
-      .update({ notify: body.notify ?? {} })
+      .update({ notify: (body.notify ?? {}) as Json })
       .eq('id', s.membershipId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   // ── The herd ──────────────────────────────────────────────────────────
   if (s.role === 'owner' && s.ownerId) {
-    const owner: Record<string, unknown> = {}
+    const owner: Update<'grazing_owners'> = {}
     if (has('company_name'))    owner.company_name = str(body.company_name)
     if (has('address'))         owner.address      = str(body.address)
     if (has('city'))            owner.city         = str(body.city)

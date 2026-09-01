@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { syncTreatmentLabor } from '@/lib/treatment-labor'
+import { asHealthEventType } from '@/lib/db-enums'
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
@@ -23,7 +24,8 @@ export async function GET(req: NextRequest) {
     .order('event_date', { ascending: false })
 
   if (animal_id)   query = query.eq('animal_id', animal_id)
-  if (event_type)  query = query.eq('event_type', event_type)
+  const healthType = asHealthEventType(event_type)
+  if (healthType) query = query.eq('event_type', healthType)
   if (date_from)   query = query.gte('event_date', date_from)
   if (date_to)     query = query.lte('event_date', date_to)
   if (in_withdrawal === 'true') {

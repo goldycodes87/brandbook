@@ -10,6 +10,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import { AnimalFilters } from '@/components/animals/AnimalFilters'
 import { AnimalSortableTable } from '@/components/animals/AnimalSortableTable'
 import type { AnimalListItem } from '@/components/animals/AnimalCard'
+import { asAnimalSex, asAnimalStatus } from '@/lib/db-enums'
 
 interface PageProps {
   searchParams: Promise<{ search?: string; status?: string; sex?: string; cull?: string; page?: string; sort?: string; dir?: string }>
@@ -43,8 +44,10 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
         .order(sortCol, { ascending, nullsFirst: false })
       if (!isJsSort) q = q.range(offset, offset + limit - 1)
       if (searchParams.search) q = q.or(`tag_number.ilike.%${searchParams.search}%,name.ilike.%${searchParams.search}%`)
-      if (searchParams.status) q = q.eq('status', searchParams.status)
-      if (searchParams.sex)    q = q.eq('sex', searchParams.sex)
+      const status = asAnimalStatus(searchParams.status)
+  if (status) q = q.eq('status', status)
+      const sex = asAnimalSex(searchParams.sex)
+  if (sex) q = q.eq('sex', sex)
       // The cull list is only ever animals still in the herd — once she is
       // sold she belongs to the sales record, not to a list of pending work.
       if (searchParams.cull === 'true') {
@@ -161,11 +164,15 @@ async function AnimalList({ searchParams }: { searchParams: Awaited<PageProps['s
 
 async function AnimalStats() {
   const supabase = createAdminClient()
-  const { data } = await supabase.from('animals').select('status', { count: 'exact', head: false })
+  // `sex` is selected as well as `status` now. The heifer count below asked
+  // whether an animal's STATUS was 'heifer' — it never can be — so the tile
+  // read zero however many heifers were standing in the pasture. The query
+  // was not returning the column it needed.
+  const { data } = await supabase.from('animals').select('status, sex', { count: 'exact', head: false })
 
   const total    = data?.length ?? 0
   const active   = data?.filter(a => a.status === 'active').length ?? 0
-  const heifers  = data?.filter(a => a.status === 'heifer').length ?? 0
+  const heifers  = data?.filter(a => a.sex === 'heifer').length ?? 0
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

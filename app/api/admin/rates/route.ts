@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
+import type { Update } from '@/lib/supabase/admin'
 
 /**
  * The two rates the ranch charges, kept apart from /api/settings/ranch.
@@ -44,19 +45,19 @@ export async function PATCH(req: NextRequest) {
   if (!s?.canConfigure) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
-  const update: Record<string, unknown> = {}
+  const update: Update<'ranch_settings'> = {}
 
   for (const f of RATE_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(body, f)) continue
     const raw = body[f]
     // Blank is a real answer here — it means "charge nothing for this" — so an
     // empty string becomes null rather than zero.
-    if (raw === '' || raw === null) { update[f] = null; continue }
+    if (raw === '' || raw === null) { (update as Record<string, unknown>)[f] = null; continue }
     const n = Number(raw)
     if (!Number.isFinite(n) || n < 0) {
       return NextResponse.json({ error: 'A rate has to be a number, or blank to charge nothing' }, { status: 400 })
     }
-    update[f] = n
+    ;(update as Record<string, unknown>)[f] = n
   }
 
   if (Object.keys(update).length === 0) {

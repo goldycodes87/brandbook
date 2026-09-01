@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 import {
   loadSplitGroupFor,
   rewriteSplitGroup,
@@ -92,9 +93,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
   }
 
-  const updates: Record<string, unknown> = {}
+  const updates: Update<'lease_expenses'> = {}
   for (const k of ALLOWED) {
-    if (k in body) updates[k] = body[k]
+    if (k in body) (updates as Record<string, unknown>)[k] = body[k]
   }
 
   if (Object.keys(updates).length === 0) {

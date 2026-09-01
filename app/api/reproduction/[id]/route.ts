@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -37,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     'days_bred', 'weaning_date', 'weaning_weight_lbs', 'notes',
   ] as const
 
-  const update: Record<string, unknown> = {}
+  const update: Update<'reproduction_events'> = {}
   for (const k of allowed) {
     if (k in body) update[k] = body[k] ?? null
   }

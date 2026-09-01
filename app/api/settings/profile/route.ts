@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifySessionValue } from '@/lib/session-cookie'
+import type { Update } from '@/lib/supabase/admin'
 
 function getUserId(req: NextRequest) {
   return verifySessionValue(req.cookies.get('brandbook_session')?.value)
@@ -27,7 +28,7 @@ export async function PATCH(req: NextRequest) {
 
   const supabase = createAdminClient()
   const body = await req.json()
-  const allowed: Record<string, unknown> = {}
+  const allowed: Update<'profiles'> = {}
   if ('name'       in body) allowed.name       = body.name
   if ('phone'      in body) allowed.phone      = body.phone
   if ('avatar_url' in body) allowed.avatar_url = body.avatar_url

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { asInvoiceStatus } from '@/lib/db-enums'
 
 export async function GET(req: NextRequest) {
   const sp       = req.nextUrl.searchParams
@@ -21,7 +22,8 @@ export async function GET(req: NextRequest) {
     .range(offset, offset + limit - 1)
 
   if (owner_id)                      query = query.eq('owner_id', owner_id)
-  if (status && status !== 'all')    query = query.eq('status', status)
+  const invoiceStatus = status && status !== 'all' ? asInvoiceStatus(status) : null
+  if (invoiceStatus) query = query.eq('status', invoiceStatus)
   if (date_from)                     query = query.gte('period_start', date_from)
   if (date_to)                       query = query.lte('period_end', date_to)
 
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
     line_items,
     expense_splits,
     total_amount,
-    status: 'draft',
+    status: 'draft' as const,
   }
 
   const { data, error } = await supabase

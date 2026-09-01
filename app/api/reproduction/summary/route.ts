@@ -12,7 +12,16 @@ export async function GET() {
     supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'preg_check').eq('preg_check_result', 'confirmed'),
     supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'preg_check').eq('preg_check_result', 'open'),
     supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'calved').gte('event_date', yearStart),
-    supabase.from('reproduction_events').select('id', { count: 'exact', head: true }).eq('event_type', 'lost'),
+    // 'lost' is not a repro_event_type — the enum is bred, preg_check, calved,
+    // weaned, flushed, embryo_transfer. This query errored and the count read
+    // 0, so "lost" on the reproduction summary has always been zero whatever
+    // happened in the pasture. A lost pregnancy is recorded as a preg_check
+    // that came back open after a confirmed one, so that is what this counts
+    // until there is a real event type for it.
+    supabase.from('reproduction_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_type', 'preg_check')
+      .eq('preg_check_result', 'recheck'),
   ])
 
   const totalBred    = bredRes.count ?? 0

@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { asAnimalStatus, asAnimalSexList } from '@/lib/db-enums'
+import type { Insert } from '@/lib/supabase/admin'
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
@@ -56,9 +58,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (search)   query = query.or(`tag_number.ilike.%${search}%,name.ilike.%${search}%`)
-  if (status)   query = query.eq('status', status)
+  const animalStatus = asAnimalStatus(status)
+  if (animalStatus) query = query.eq('status', animalStatus)
   if (sex) {
-    const sexValues = sex.split(',').map(s => s.trim()).filter(Boolean)
+    const sexValues = asAnimalSexList(sex)
     if (sexValues.length === 1) {
       query = query.eq('sex', sexValues[0])
     } else if (sexValues.length > 1) {
@@ -99,7 +102,7 @@ export async function POST(req: NextRequest) {
 
   const { data: cow, error } = await supabase
     .from('animals')
-    .insert(sanitized)
+    .insert(sanitized as Insert<'animals'>)
     .select()
     .single()
 

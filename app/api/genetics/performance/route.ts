@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
 
   // Fetch sire library entries for all unique sire_library_ids
   const libraryIds = [...new Set(Object.values(sireMap).map(s => s.sire_library_id).filter(Boolean))] as string[]
-  let libraryMap: Record<string, { bull_name: string; breed: string | null; naab_code: string | null; bull_type: string }> = {}
+  let libraryMap: Record<string, { bull_name: string; breed: string | null; naab_code: string | null; bull_type: string | null }> = {}
   if (libraryIds.length) {
     const { data: libs } = await supabase
       .from('sire_library')

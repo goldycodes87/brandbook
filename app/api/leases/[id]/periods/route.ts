@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Insert } from '@/lib/supabase/admin'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data, error } = await supabase
     .from('grazing_periods')
-    .insert(insertData)
+    .insert(insertData as Insert<'grazing_periods'>)
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

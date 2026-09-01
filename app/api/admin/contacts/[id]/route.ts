@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
+import type { Update } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -23,9 +24,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!s?.canConfigure) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
-  const update: Record<string, unknown> = {}
+  const update: Update<'ranch_contacts'> = {}
   for (const [column, coerce] of Object.entries(FIELDS)) {
-    if (Object.prototype.hasOwnProperty.call(body, column)) update[column] = coerce(body[column])
+    if (Object.prototype.hasOwnProperty.call(body, column)) (update as Record<string, unknown>)[column] = coerce(body[column])
   }
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Nothing to change' }, { status: 400 })

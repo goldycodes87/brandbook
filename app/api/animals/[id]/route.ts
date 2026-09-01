@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Update } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -272,9 +273,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
 
-  const updateData: Record<string, unknown> = {}
+  const updateData: Update<'animals'> = {}
   for (const [column, coerce] of Object.entries(PATCH_FIELDS)) {
-    if (has(column)) updateData[column] = coerce(body[column])
+    if (has(column)) (updateData as Record<string, unknown>)[column] = coerce(body[column])
   }
 
   // `breeds` is the source of truth for breed / breed_percentage whenever it

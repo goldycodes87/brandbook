@@ -10,10 +10,131 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
+      ai_conversations: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string
+          id: string
+          last_message_at: string
+          ranch_id: string | null
+          title: string | null
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          ranch_id?: string | null
+          title?: string | null
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          ranch_id?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversations_ranch_id_fkey"
+            columns: ["ranch_id"]
+            isOneToOne: false
+            referencedRelation: "ranch_settings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_memory: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string
+          fact: string
+          id: string
+          kind: string
+          ranch_id: string | null
+          source_conversation_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string
+          fact: string
+          id?: string
+          kind?: string
+          ranch_id?: string | null
+          source_conversation_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string
+          fact?: string
+          id?: string
+          kind?: string
+          ranch_id?: string | null
+          source_conversation_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_memory_ranch_id_fkey"
+            columns: ["ranch_id"]
+            isOneToOne: false
+            referencedRelation: "ranch_settings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_memory_source_conversation_id_fkey"
+            columns: ["source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_messages: {
+        Row: {
+          channel: string
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+          tool_calls: Json | null
+        }
+        Insert: {
+          channel?: string
+          content?: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+          tool_calls?: Json | null
+        }
+        Update: {
+          channel?: string
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          tool_calls?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_studs: {
         Row: {
           id: string
@@ -37,6 +158,53 @@ export type Database = {
           website?: string | null
         }
         Relationships: []
+      }
+      ai_writes: {
+        Row: {
+          action: string
+          auth_user_id: string | null
+          channel: string
+          conversation_id: string | null
+          created_at: string
+          id: string
+          row_id: string | null
+          summary: string
+          table_name: string | null
+          undone_at: string | null
+        }
+        Insert: {
+          action: string
+          auth_user_id?: string | null
+          channel?: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          row_id?: string | null
+          summary: string
+          table_name?: string | null
+          undone_at?: string | null
+        }
+        Update: {
+          action?: string
+          auth_user_id?: string | null
+          channel?: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          row_id?: string | null
+          summary?: string
+          table_name?: string | null
+          undone_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_writes_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       animals: {
         Row: {
@@ -976,8 +1144,10 @@ export type Database = {
           billing_rate: number | null
           billing_type: string | null
           brand_drawing_url: string | null
+          brand_image_url: string | null
           brand_photo: string | null
           brand_photo_url: string | null
+          brand_source: string | null
           city: string | null
           company_name: string | null
           created_at: string | null
@@ -985,6 +1155,7 @@ export type Database = {
           default_ear_tag_color: string | null
           default_tag_prefix: string | null
           email: string | null
+          goals: string[]
           id: string
           is_self: boolean
           name: string
@@ -1003,8 +1174,10 @@ export type Database = {
           billing_rate?: number | null
           billing_type?: string | null
           brand_drawing_url?: string | null
+          brand_image_url?: string | null
           brand_photo?: string | null
           brand_photo_url?: string | null
+          brand_source?: string | null
           city?: string | null
           company_name?: string | null
           created_at?: string | null
@@ -1012,6 +1185,7 @@ export type Database = {
           default_ear_tag_color?: string | null
           default_tag_prefix?: string | null
           email?: string | null
+          goals?: string[]
           id?: string
           is_self?: boolean
           name: string
@@ -1030,8 +1204,10 @@ export type Database = {
           billing_rate?: number | null
           billing_type?: string | null
           brand_drawing_url?: string | null
+          brand_image_url?: string | null
           brand_photo?: string | null
           brand_photo_url?: string | null
+          brand_source?: string | null
           city?: string | null
           company_name?: string | null
           created_at?: string | null
@@ -1039,6 +1215,7 @@ export type Database = {
           default_ear_tag_color?: string | null
           default_tag_prefix?: string | null
           email?: string | null
+          goals?: string[]
           id?: string
           is_self?: boolean
           name?: string
@@ -1300,6 +1477,8 @@ export type Database = {
       health_events: {
         Row: {
           administered_by: string | null
+          administered_by_person_id: string | null
+          administered_by_role: string | null
           animal_id: string
           bcs_score: number | null
           created_at: string | null
@@ -1309,12 +1488,19 @@ export type Database = {
           event_date: string
           event_type: Database["public"]["Enums"]["health_event_type"]
           id: string
+          labor_expense_id: string | null
           notes: string | null
+          prescribed_by_person_id: string | null
+          signature_url: string | null
+          signed_at: string | null
           withdrawal_clear_date: string | null
           withdrawal_days: number | null
+          withdrawal_source: string | null
         }
         Insert: {
           administered_by?: string | null
+          administered_by_person_id?: string | null
+          administered_by_role?: string | null
           animal_id: string
           bcs_score?: number | null
           created_at?: string | null
@@ -1324,12 +1510,19 @@ export type Database = {
           event_date: string
           event_type: Database["public"]["Enums"]["health_event_type"]
           id?: string
+          labor_expense_id?: string | null
           notes?: string | null
+          prescribed_by_person_id?: string | null
+          signature_url?: string | null
+          signed_at?: string | null
           withdrawal_clear_date?: string | null
           withdrawal_days?: number | null
+          withdrawal_source?: string | null
         }
         Update: {
           administered_by?: string | null
+          administered_by_person_id?: string | null
+          administered_by_role?: string | null
           animal_id?: string
           bcs_score?: number | null
           created_at?: string | null
@@ -1339,16 +1532,42 @@ export type Database = {
           event_date?: string
           event_type?: Database["public"]["Enums"]["health_event_type"]
           id?: string
+          labor_expense_id?: string | null
           notes?: string | null
+          prescribed_by_person_id?: string | null
+          signature_url?: string | null
+          signed_at?: string | null
           withdrawal_clear_date?: string | null
           withdrawal_days?: number | null
+          withdrawal_source?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "health_events_administered_by_person_id_fkey"
+            columns: ["administered_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "portal_people"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "health_events_animal_id_fkey"
             columns: ["animal_id"]
             isOneToOne: false
             referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_events_labor_expense_id_fkey"
+            columns: ["labor_expense_id"]
+            isOneToOne: false
+            referencedRelation: "lease_expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_events_prescribed_by_person_id_fkey"
+            columns: ["prescribed_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "portal_people"
             referencedColumns: ["id"]
           },
         ]
@@ -1396,6 +1615,101 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inbound_emails: {
+        Row: {
+          created_at: string
+          error: string | null
+          expires_on: string
+          from_address: string
+          id: string
+          message_id: string
+          raw_key: string | null
+          received_at: string
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          expires_on: string
+          from_address: string
+          id?: string
+          message_id: string
+          raw_key?: string | null
+          received_at: string
+          status?: string
+          subject?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          expires_on?: string
+          from_address?: string
+          id?: string
+          message_id?: string
+          raw_key?: string | null
+          received_at?: string
+          status?: string
+          subject?: string | null
+        }
+        Relationships: []
+      }
+      inbound_receipts: {
+        Row: {
+          content_type: string | null
+          created_at: string
+          email_id: string
+          filename: string | null
+          id: string
+          parse_error: string | null
+          parse_status: string
+          r2_key: string
+          receipt_date: string | null
+          receipt_total: number | null
+          reviewed_at: string | null
+          size_bytes: number | null
+          vendor: string | null
+        }
+        Insert: {
+          content_type?: string | null
+          created_at?: string
+          email_id: string
+          filename?: string | null
+          id?: string
+          parse_error?: string | null
+          parse_status?: string
+          r2_key: string
+          receipt_date?: string | null
+          receipt_total?: number | null
+          reviewed_at?: string | null
+          size_bytes?: number | null
+          vendor?: string | null
+        }
+        Update: {
+          content_type?: string | null
+          created_at?: string
+          email_id?: string
+          filename?: string | null
+          id?: string
+          parse_error?: string | null
+          parse_status?: string
+          r2_key?: string
+          receipt_date?: string | null
+          receipt_total?: number | null
+          reviewed_at?: string | null
+          size_bytes?: number | null
+          vendor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbound_receipts_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "inbound_emails"
             referencedColumns: ["id"]
           },
         ]
@@ -1963,6 +2277,133 @@ export type Database = {
           },
         ]
       }
+      portal_memberships: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          id: string
+          invite_expires_at: string | null
+          invite_token: string | null
+          invited_at: string
+          notify: Json
+          onboarded_at: string | null
+          owner_id: string | null
+          person_id: string
+          ranch_id: string
+          role: string
+          status: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          id?: string
+          invite_expires_at?: string | null
+          invite_token?: string | null
+          invited_at?: string
+          notify?: Json
+          onboarded_at?: string | null
+          owner_id?: string | null
+          person_id: string
+          ranch_id: string
+          role: string
+          status?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          id?: string
+          invite_expires_at?: string | null
+          invite_token?: string | null
+          invited_at?: string
+          notify?: Json
+          onboarded_at?: string | null
+          owner_id?: string | null
+          person_id?: string
+          ranch_id?: string
+          role?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_memberships_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_memberships_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "portal_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_memberships_ranch_id_fkey"
+            columns: ["ranch_id"]
+            isOneToOne: false
+            referencedRelation: "ranch_settings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_people: {
+        Row: {
+          auth_user_id: string | null
+          contact_email: boolean
+          contact_text: boolean
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          license_expires: string | null
+          license_number: string | null
+          license_state: string | null
+          phone: string | null
+          practice_name: string | null
+          preferred_name: string | null
+          signature_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          contact_email?: boolean
+          contact_text?: boolean
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          license_expires?: string | null
+          license_number?: string | null
+          license_state?: string | null
+          phone?: string | null
+          practice_name?: string | null
+          preferred_name?: string | null
+          signature_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          contact_email?: boolean
+          contact_text?: boolean
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          license_expires?: string | null
+          license_number?: string | null
+          license_state?: string | null
+          phone?: string | null
+          practice_name?: string | null
+          preferred_name?: string | null
+          signature_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       portal_tokens: {
         Row: {
           created_at: string | null
@@ -2038,6 +2479,56 @@ export type Database = {
         }
         Relationships: []
       }
+      ranch_contacts: {
+        Row: {
+          company: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          ranch_id: string | null
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          ranch_id?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          ranch_id?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ranch_contacts_ranch_id_fkey"
+            columns: ["ranch_id"]
+            isOneToOne: false
+            referencedRelation: "ranch_settings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ranch_settings: {
         Row: {
           address: string | null
@@ -2060,6 +2551,7 @@ export type Database = {
           ranch_name: string | null
           state: string | null
           timezone: string | null
+          treatment_labor_per_head: number | null
           updated_at: string | null
           zip: string | null
         }
@@ -2084,6 +2576,7 @@ export type Database = {
           ranch_name?: string | null
           state?: string | null
           timezone?: string | null
+          treatment_labor_per_head?: number | null
           updated_at?: string | null
           zip?: string | null
         }
@@ -2108,10 +2601,94 @@ export type Database = {
           ranch_name?: string | null
           state?: string | null
           timezone?: string | null
+          treatment_labor_per_head?: number | null
           updated_at?: string | null
           zip?: string | null
         }
         Relationships: []
+      }
+      receipt_line_items: {
+        Row: {
+          amount: number | null
+          created_at: string
+          created_expense_id: string | null
+          decided_at: string | null
+          decision: string
+          description: string | null
+          id: string
+          line_no: number
+          match_reason: string | null
+          match_score: number | null
+          matched_expense_id: string | null
+          matched_split_group_id: string | null
+          receipt_id: string
+          suggested_category_id: string | null
+          suggested_category_name: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          created_expense_id?: string | null
+          decided_at?: string | null
+          decision?: string
+          description?: string | null
+          id?: string
+          line_no?: number
+          match_reason?: string | null
+          match_score?: number | null
+          matched_expense_id?: string | null
+          matched_split_group_id?: string | null
+          receipt_id: string
+          suggested_category_id?: string | null
+          suggested_category_name?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          created_expense_id?: string | null
+          decided_at?: string | null
+          decision?: string
+          description?: string | null
+          id?: string
+          line_no?: number
+          match_reason?: string | null
+          match_score?: number | null
+          matched_expense_id?: string | null
+          matched_split_group_id?: string | null
+          receipt_id?: string
+          suggested_category_id?: string | null
+          suggested_category_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipt_line_items_created_expense_id_fkey"
+            columns: ["created_expense_id"]
+            isOneToOne: false
+            referencedRelation: "lease_expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_line_items_matched_expense_id_fkey"
+            columns: ["matched_expense_id"]
+            isOneToOne: false
+            referencedRelation: "lease_expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_line_items_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "inbound_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_line_items_suggested_category_id_fkey"
+            columns: ["suggested_category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reminders: {
         Row: {

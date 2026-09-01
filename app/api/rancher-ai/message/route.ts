@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
 import { runAgentTurn, buildSystemPrompt } from '@/lib/rancher-ai/agent'
 import { loadMemory, renderMemory, extractMemory } from '@/lib/rancher-ai/memory'
+import type { Json } from '@/lib/database.types'
 
 /**
  * One turn of a conversation with RancherAI.
@@ -131,7 +132,7 @@ export async function POST(req: NextRequest) {
       conversation_id: conversationId,
       role: 'assistant',
       content: turn.reply,
-      tool_calls: turn.toolCalls.length ? turn.toolCalls : null,
+      tool_calls: turn.toolCalls.length ? (turn.toolCalls as unknown as Json) : null,
       channel,
     }),
     supabase.from('ai_conversations')

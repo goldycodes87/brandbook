@@ -79,7 +79,7 @@ export async function executeProposal(opts: {
       total_amount: amount,
       expense_date: date as string,
       category_id:   (payload.category_id as string) ?? null,
-      category_name: str(payload.category_name),
+      category_name: str(payload.category_name) ?? 'Uncategorised',
       vendor:        str(payload.vendor),
       animal_id:     (payload.animal_id as string) ?? null,
       expense_type: payload.animal_id ? 'animal' : 'herd',

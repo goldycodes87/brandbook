@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { asReproEventType } from '@/lib/db-enums'
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr)
@@ -43,7 +44,8 @@ export async function GET(req: NextRequest) {
     const ids = animal_ids.split(',').map(s => s.trim()).filter(Boolean)
     if (ids.length > 0) query = query.in('animal_id', ids)
   }
-  if (event_type) query = query.eq('event_type', event_type)
+  const reproType = asReproEventType(event_type)
+  if (reproType) query = query.eq('event_type', reproType)
   if (date_from)  query = query.gte('event_date', date_from)
   if (date_to)    query = query.lte('event_date', date_to)
 
