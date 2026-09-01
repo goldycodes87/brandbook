@@ -6,13 +6,17 @@
 
 import type { AdminSession } from '@/lib/admin-auth'
 
-export interface AdminRoom {
+/** A room as a client component may receive it: data only, no behaviour. */
+export interface AdminRoomLink {
   href: string
   label: string
   icon: string
   /** One line, shown on the Overview's room list. */
   blurb: string
-  /** Who may open it. */
+}
+
+export interface AdminRoom extends AdminRoomLink {
+  /** Who may open it. Server-side only — see navRoomsFor below. */
   allows: (s: AdminSession) => boolean
 }
 
@@ -57,6 +61,23 @@ export const ADMIN_ROOMS: AdminRoom[] = [
 
 export function roomsFor(session: AdminSession): AdminRoom[] {
   return ADMIN_ROOMS.filter(r => r.allows(session))
+}
+
+/**
+ * The same rooms, stripped of `allows`, for the client-side nav.
+ *
+ * Handing the full room to a client component is what broke the whole admin
+ * section: React cannot serialize a function across the server/client
+ * boundary, so every /admin page threw "Functions cannot be passed directly to
+ * Client Components" and returned a 500 — but only once somebody was signed in
+ * far enough to reach the layout, which is why it looked like a missing page.
+ *
+ * The predicate has no business in the browser regardless. Access is decided
+ * on the server, in the layout and again per room; a copy in the client would
+ * be a suggestion.
+ */
+export function navRoomsFor(session: AdminSession): AdminRoomLink[] {
+  return roomsFor(session).map(({ href, label, icon, blurb }) => ({ href, label, icon, blurb }))
 }
 
 export function roomFor(pathname: string): AdminRoom | undefined {

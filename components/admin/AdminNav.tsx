@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { BrandBookMark } from '@/components/brand/BrandBookMark'
-import type { AdminRoom } from '@/lib/admin-nav'
+import type { AdminRoomLink } from '@/lib/admin-nav'
 
 /**
  * Sidebar on desktop, bottom bar on the phone — the same rooms either way.
@@ -12,7 +12,7 @@ import type { AdminRoom } from '@/lib/admin-nav'
  * client component deciding who sees Data would put that decision in the
  * browser, where it is a suggestion.
  */
-export function AdminNav({ rooms, name, role }: { rooms: AdminRoom[]; name: string; role: string }) {
+export function AdminNav({ rooms, name, role }: { rooms: AdminRoomLink[]; name: string; role: string }) {
   const pathname = usePathname()
   const isOn = (href: string) =>
     href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)

@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { getAdminSession } from '@/lib/admin-auth'
-import { roomsFor } from '@/lib/admin-nav'
+import { navRoomsFor } from '@/lib/admin-nav'
 import { AdminNav } from '@/components/admin/AdminNav'
 
 /**
@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session) redirect('/login')
   if (!session.canConfigure && !session.canSeeBilling) redirect('/dashboard')
 
-  const rooms = roomsFor(session)
+  const rooms = navRoomsFor(session)
 
   return (
     <div className="min-h-dvh" style={{ background: 'var(--surface-0)' }}>
