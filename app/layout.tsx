@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Barlow_Condensed, Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
+import { ServiceWorkerRegistrar } from '@/components/pwa/ServiceWorkerRegistrar'
 
 const barlowCondensed = Barlow_Condensed({
   variable: '--font-barlow-condensed',
@@ -30,8 +31,15 @@ export const viewport: Viewport = {
   colorScheme: 'dark',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Zoom stays available. It was locked at 1x, which stops somebody pinching
+  // in on a tag number in bright sun — the exact moment this app is used —
+  // and iOS ignores the lock in Safari anyway while honouring it in a home
+  // screen app, so it only ever punished the people who installed it.
+  maximumScale: 5,
+  userScalable: true,
+  // Lets the page paint into the notch corners; the safe-area utilities keep
+  // content out of them.
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -45,7 +53,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorkerRegistrar />
+      </body>
     </html>
   )
 }

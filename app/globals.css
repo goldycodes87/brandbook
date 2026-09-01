@@ -243,6 +243,35 @@ select:focus {
   animation: scan-line 2s ease-in-out infinite;
 }
 
+/* ── Safe areas ───────────────────────────────────────────────────────────
+   These three classes were used by the bottom nav and by every page through
+   PageContainer, and defined nowhere: Tailwind v4 has no config file here, so
+   an unknown utility emits nothing and fails silently. The app has been
+   painting under the iPhone home indicator this whole time while looking, in
+   the source, like it handled it.
+
+   env() falls back to 0px on anything without a notch, so these are inert on
+   a desktop and on Android. */
+
+@utility pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+@utility pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+/* The bottom tab bar: its own padding, plus the indicator underneath it. */
+@utility safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility min-h-screen-safe {
+  min-height: 100dvh;
+}
+/* Horizontal insets matter in landscape, where the notch eats a side. */
+@utility px-safe {
+  padding-left: max(env(safe-area-inset-left), 0px);
+  padding-right: max(env(safe-area-inset-right), 0px);
+}
+
 /* ── RancherAI voice ──────────────────────────────────────────────────────
    The talk button breathes when it is waiting and beats faster when
    something is being said. Done in CSS rather than with an animation

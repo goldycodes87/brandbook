@@ -1,31 +1,72 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Brand Book — Offline</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #0c0a09;
-      color: #d6d3d1;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      padding: 24px;
-    }
-    h1 { font-size: 1.5rem; font-weight: 700; color: #fafaf9; }
-    p { font-size: 0.95rem; color: #a8a29e; text-align: center; max-width: 280px; }
-    span { font-size: 2.5rem; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>No signal — BrandBook</title>
+<style>
+  :root {
+    --surface-0: #080808;
+    --surface-2: #181818;
+    --border: rgba(255,255,255,0.08);
+    --text: #f5f5f5;
+    --text-muted: #6b7280;
+    --accent: #ea580c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--surface-0);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(env(safe-area-inset-top), 24px) 24px max(env(safe-area-inset-bottom), 24px);
+    text-align: center;
+  }
+  main { max-width: 22rem; }
+  h1 {
+    font-size: 1.05rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0 0 0.75rem;
+  }
+  p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; margin: 0 0 1.5rem; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    font: inherit;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 0 1.5rem;
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .mark {
+    width: 44px; height: 44px;
+    margin: 0 auto 1.25rem;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+</style>
 </head>
 <body>
-  <span>🐄</span>
-  <h1>You're offline</h1>
-  <p>Check your connection and try again. Your data will sync when you're back online.</p>
+  <main>
+    <div class="mark" aria-hidden>📡</div>
+    <h1>No signal</h1>
+    <!-- Says which half is missing. "Your records are safe" is the sentence
+         somebody standing in a corral actually needs. -->
+    <p>
+      BrandBook can&rsquo;t reach the ranch records from here. Nothing has been lost —
+      anything you saved is on the server, and anything you were part-way through is
+      still in the app.
+    </p>
+    <button type="button" onclick="location.reload()">TRY AGAIN</button>
+  </main>
 </body>
 </html>

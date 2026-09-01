@@ -39,9 +39,16 @@ type LinkButtonProps = BaseButtonProps & {
   children: ReactNode;
 };
 
+/* Taller on a phone, the designed height from `sm` up.
+ *
+ * `md` reaches the full 44px thumb target — these are the buttons somebody is
+ * actually aiming at. `sm` only goes to 36px rather than 44: it is used in
+ * dense rows where every item carries an EDIT and a REMOVE, and 44px targets
+ * there would either overlap each other or push the row past a phone screen.
+ * A bigger miss than the one it fixes. */
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-[11px]",
-  md: "h-10 px-4 text-xs",
+  sm: "h-9 sm:h-8 px-3 text-[11px]",
+  md: "h-11 sm:h-10 px-4 text-xs",
   lg: "h-12 px-5 text-sm",
 };
 
@@ -186,9 +193,10 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   "aria-label": string;
 }
 
+/* An icon button has no text to aim at, so the square itself is the target. */
 const ICON_SIZE: Record<ButtonSize, string> = {
-  sm: "h-8 w-8",
-  md: "h-10 w-10",
+  sm: "h-9 w-9 sm:h-8 sm:w-8",
+  md: "h-11 w-11 sm:h-10 sm:w-10",
   lg: "h-12 w-12",
 };
 

@@ -94,10 +94,12 @@ export default function LoginPage() {
               SIGN IN
             </Button>
 
+            {/* 44px of height around 17px of text — the label stays small,
+                the thing you have to hit does not. */}
             <button
               type="button"
-              className="text-center transition-colors duration-150 type-helper hover:text-[var(--text-secondary)]"
-              style={{ color: 'var(--text-muted)' }}
+              className="flex items-center justify-center transition-colors duration-150 type-helper hover:text-[var(--text-secondary)]"
+              style={{ color: 'var(--text-muted)', minHeight: 44 }}
             >
               Forgot password?
             </button>

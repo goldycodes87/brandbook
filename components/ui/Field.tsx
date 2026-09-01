@@ -82,10 +82,22 @@ export function Field({
  *   focus         border-color var(--border-strong);
  *                 box-shadow: 0 0 0 3px var(--accent-soft) [3px brand-dim ring]
  *                 (Global focus styling lives in globals.css `input:focus`.)
+ *
+ * The spec's 40px/14px holds from `sm` up, where it was drawn. Below that it
+ * becomes 44px/16px, for two reasons that are not preferences:
+ *
+ *   - Safari zooms the whole page when you focus a field under 16px. Every
+ *     form in this app did that on every tap, and the way back out is a
+ *     pinch, one-handed, in a corral.
+ *   - 44px is the smallest thing a thumb reliably hits, and this gets used
+ *     with gloves on.
  */
 const CONTROL_BASE =
-  "w-full rounded-md px-3 text-[14px] transition-colors " +
+  "w-full rounded-md px-3 text-[16px] sm:text-[14px] transition-colors " +
   "disabled:opacity-50 disabled:cursor-not-allowed";
+
+/** 44px on a phone, the designed 40px from `sm` up. */
+const CONTROL_HEIGHT = "h-11 sm:h-10";
 
 interface BaseControlProps {
   invalid?: boolean;
@@ -102,7 +114,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   return (
     <input
       ref={ref}
-      className={`${CONTROL_BASE} h-10 ${className}`}
+      className={`${CONTROL_BASE} ${CONTROL_HEIGHT} ${className}`}
       style={{
         background: "var(--bg-input)",
         color: "var(--text)",
@@ -152,7 +164,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   return (
     <select
       ref={ref}
-      className={`${CONTROL_BASE} h-10 pr-8 appearance-none ${className}`}
+      className={`${CONTROL_BASE} ${CONTROL_HEIGHT} pr-8 appearance-none ${className}`}
       style={{
         /* Custom chevron — fill matches --text-muted (#6B7280 → URL-encoded
            %236B7280). Background sits on var(--bg-input) so the recessed
@@ -200,7 +212,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
           ref={ref}
           id={inputId}
           type="search"
-          className="w-full h-10 rounded-[4px] pl-9 pr-3 text-[13px] transition-colors"
+          className="w-full h-11 sm:h-10 rounded-[4px] pl-9 pr-3 text-[16px] sm:text-[13px] transition-colors"
           style={{
             background: "var(--bg-input)",
             color: "var(--text)",
