@@ -73,8 +73,12 @@ export async function GET() {
       herd:      r.grazing_owners?.company_name || r.grazing_owners?.owner_name || r.grazing_owners?.name || null,
       accepted:  r.accepted_at != null,
       onboarded: r.onboarded_at != null,
-      // The link itself is only useful while it is unaccepted.
-      inviteToken: r.accepted_at ? null : r.invite_token,
+      // Shown until somebody has actually FINISHED onboarding, not merely
+      // until accepted_at is set. Andy and Doug were marked accepted by the
+      // migration that seeded their memberships — neither has ever opened the
+      // app — so keying on accepted_at hid the one link an operator needed to
+      // send them.
+      inviteToken: r.onboarded_at ? null : r.invite_token,
     })),
     // Whether the ranch is even set up to have owners.
     roles: INVITABLE.map(r => ({ value: r, label: ROLE_LABEL[r] })),

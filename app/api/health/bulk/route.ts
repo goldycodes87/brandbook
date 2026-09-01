@@ -163,9 +163,15 @@ export async function POST(req: NextRequest) {
   const { data: batch, error: batchError } = await supabase
     .from('health_event_batches')
     .insert({
-      batch_date: date,
+      // Was batch_date and group_label, neither of which exists on this table.
+      // The insert failed every time, and because the failure is deliberately
+      // non-fatal below, nobody ever saw it: the health events saved, the
+      // batch record never did, and the batch history screen stayed empty
+      // through every chute day. Zero rows in the table bear that out.
+      event_date: date,
+      event_type,
       group_type,
-      group_label: group_label || group_type,
+      group_filter: group_label || group_type,
       animal_count: animalIds.length,
       drug_name: drug_name || null,
       dose_amount: dose_amount || null,
@@ -190,7 +196,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('health_event_batches')
     .select('*')
-    .order('batch_date', { ascending: false })
+    .order('event_date', { ascending: false })
     .limit(50)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const { data: invite, error } = await supabase
     .from('vet_invites')
     .select('*')
-    .eq('token', token)
+    .eq('invite_token', token)
     .maybeSingle()
 
   if (error || !invite) {

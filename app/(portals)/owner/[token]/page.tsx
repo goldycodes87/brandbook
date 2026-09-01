@@ -1233,7 +1233,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
       </div>
 
       {/* Bottom navigation */}
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20, display: 'flex', background: 'var(--surface-1)', borderTop: '1px solid var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20, display: 'flex', background: 'var(--surface-1)', borderTop: '1px solid var(--border)', paddingBottom: 'var(--safe-pb)' }}>
         {BOTTOM_TABS.map(t => (
           <button
             key={t.value}

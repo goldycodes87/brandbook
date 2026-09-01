@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { BrandBookMark } from '@/components/portal/BrandBookMark'
+import { BrandBookMark } from '@/components/brand/BrandBookMark'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 
 /**

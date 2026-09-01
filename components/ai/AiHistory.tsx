@@ -87,7 +87,7 @@ export function AiHistory({ onClose, onPick }: { onClose: () => void; onPick: (i
 
       <div
         className="flex-1 overflow-y-auto px-4 py-3"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+        style={{ paddingBottom: 'calc(var(--safe-pb) + 16px)' }}
       >
         {loading && <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>}
 

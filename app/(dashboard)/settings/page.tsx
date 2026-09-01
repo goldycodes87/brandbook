@@ -361,8 +361,15 @@ export default function SettingsPage() {
       {/* One login, one site. Anyone carrying an admin role gets the door to
           the operation's configuration here; everyone else never learns it
           exists. The section is gated server-side regardless. */}
+      {/* A plain anchor, not <Link>: this crosses from the (dashboard) route
+          group into (admin), which is a different layout tree. A client-side
+          navigation across that boundary asks the bundle already in memory for
+          a route it may not know — and in an installed PWA holding a build
+          from before /admin existed, that is a 404 on a page that plainly
+          exists on the server. Same reason CLAUDE.md says window.location.href
+          over router.push. A hard load always gets the current app. */}
       {admin?.canReachAdmin && (
-        <Link
+        <a
           href="/admin"
           className="flex items-center gap-3 px-4 py-3 rounded-lg mb-5"
           style={{ border: '1px solid var(--accent)', background: 'var(--surface-1)' }}
@@ -379,7 +386,7 @@ export default function SettingsPage() {
             </span>
           </span>
           <span style={{ color: 'var(--accent)' }}>→</span>
-        </Link>
+        </a>
       )}
 
       <Tabs items={TABS} value={tab} onChange={v => setTab(v as Tab)} className="mb-6" />

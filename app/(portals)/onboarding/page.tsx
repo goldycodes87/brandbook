@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
-import { BrandBookMark } from '@/components/portal/BrandBookMark'
+import { BrandBookMark } from '@/components/brand/BrandBookMark'
 import { apiGet, apiPost } from '@/lib/fetch'
 import {
   stepsForRole, HERD_GOALS, OWNER_NOTIFICATIONS, VET_NOTIFICATIONS,

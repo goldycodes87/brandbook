@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
 import { apiPost } from '@/lib/fetch'
+import { BrandBookMark } from '@/components/brand/BrandBookMark'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -35,6 +36,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Brand mark */}
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <BrandBookMark size={64} color="var(--accent)" />
+          </div>
           <div className="inline-flex items-end gap-0 leading-none mb-2">
             <span style={{ fontFamily: 'var(--font-display)', fontSize: '3rem', fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.01em' }}>
               BRAND

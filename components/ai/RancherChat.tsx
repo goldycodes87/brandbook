@@ -276,7 +276,7 @@ export function RancherChat({
         className="sticky bottom-0 pt-2"
         style={{
           background: 'var(--surface-0, var(--surface-1))',
-          paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
+          paddingBottom: 'calc(var(--safe-pb) + 8px)',
         }}
       >
         <form

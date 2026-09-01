@@ -14,7 +14,7 @@ export async function BatchHistoryPanel() {
   const { data } = await supabase
     .from('health_event_batches')
     .select('*')
-    .order('batch_date', { ascending: false })
+    .order('event_date', { ascending: false })
     .limit(20)
 
   const batches = data ?? []
@@ -29,14 +29,14 @@ export async function BatchHistoryPanel() {
           <div key={b.id} className="rounded-[var(--radius-md)] p-3" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between gap-2">
               <span className="type-data-sm font-semibold">{b.drug_name ?? '—'}</span>
-              <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{fmtDate(b.batch_date)}</span>
+              <span className="type-helper" style={{ color: 'var(--text-muted)' }}>{fmtDate(b.event_date)}</span>
             </div>
             <p className="type-helper mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               {b.group_label} · {b.animal_count ?? '?'} animals
             </p>
             {b.withdrawal_days && (
               <p className="type-helper mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Clear: {addDays(b.batch_date, b.withdrawal_days)}
+                Clear: {addDays(b.event_date, b.withdrawal_days)}
               </p>
             )}
           </div>
@@ -59,7 +59,7 @@ export async function BatchHistoryPanel() {
           <TBody>
             {batches.map(b => (
               <TR key={b.id}>
-                <TD>{fmtDate(b.batch_date)}</TD>
+                <TD>{fmtDate(b.event_date)}</TD>
                 <TD>{b.group_label ?? b.group_type}</TD>
                 <TD>
                   {b.drug_name ?? '—'}
@@ -67,8 +67,8 @@ export async function BatchHistoryPanel() {
                 </TD>
                 <TD>{b.animal_count ?? '—'}</TD>
                 <TD>
-                  {b.withdrawal_days && b.batch_date
-                    ? addDays(b.batch_date, b.withdrawal_days)
+                  {b.withdrawal_days && b.event_date
+                    ? addDays(b.event_date, b.withdrawal_days)
                     : '—'}
                 </TD>
                 <TD>{b.administered_by ?? '—'}</TD>

@@ -103,7 +103,10 @@ export function PeopleAndRoles() {
                 </div>
                 {p.inviteToken && (
                   <p className="type-helper mt-1.5 break-all" style={{ color: 'var(--text-muted)' }}>
-                    Invite link: <code>/welcome/{p.inviteToken}</code>
+                    Send them this:{' '}
+                    <code>
+                      {typeof window !== 'undefined' ? window.location.origin : ''}/welcome/{p.inviteToken}
+                    </code>
                   </p>
                 )}
               </div>

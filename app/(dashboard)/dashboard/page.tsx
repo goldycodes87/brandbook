@@ -15,6 +15,7 @@ import { WeightLogSheet } from '@/components/weights/WeightLogSheet'
 import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 import { RemindersWidget } from '@/components/dashboard/RemindersWidget'
+import { BrandBookMark } from '@/components/brand/BrandBookMark'
 
 function ChuteModeButton() {
   return (
@@ -61,7 +62,11 @@ async function fetchStatValue(supabase: any, key: string): Promise<number> {
   try {
     switch (key) {
       case 'total_animals': {
+        // Head on the ground, not rows in the table. A sold steer counted here
+        // makes the dashboard disagree with the herd, with RancherAI, and with
+        // what somebody sees out the window.
         const { count } = await supabase.from('animals').select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
         return count ?? 0
       }
       case 'active_bulls': {
@@ -89,8 +94,12 @@ async function fetchStatValue(supabase: any, key: string): Promise<number> {
         return count ?? 0
       }
       case 'confirmed_pregnant': {
+        // Was .eq('result', 'positive') — there is no `result` column and no
+        // 'positive' value, so this threw, got swallowed by the catch below,
+        // and read 0 on the dashboard all through calving planning. The column
+        // is preg_check_result and the value is 'confirmed'.
         const { count } = await supabase.from('reproduction_events').select('id', { count: 'exact', head: true })
-          .eq('event_type', 'preg_check').eq('result', 'positive')
+          .eq('event_type', 'preg_check').eq('preg_check_result', 'confirmed')
         return count ?? 0
       }
       case 'expected_calvings': {
@@ -101,9 +110,11 @@ async function fetchStatValue(supabase: any, key: string): Promise<number> {
         return count ?? 0
       }
       case 'calves_born': {
+        // Was birth_date, which does not exist on animals. The column is dob.
+        // Same silent zero as confirmed_pregnant above.
         const { count } = await supabase.from('animals').select('id', { count: 'exact', head: true })
-          .not('birth_date', 'is', null)
-          .gte('birth_date', yearStart)
+          .not('dob', 'is', null)
+          .gte('dob', yearStart)
         return count ?? 0
       }
       default: return 0
@@ -165,7 +176,15 @@ export default async function DashboardPage() {
 
   return (
     <PageContainer variant="narrow">
-      <PageHeader title="Dashboard" subtitle={subtitle} />
+      {/* The mark sits beside the greeting rather than above it: the dashboard
+          is somewhere you land every morning, and a full lockup would be a
+          splash screen you have to scroll past to see your herd. */}
+      <div className="flex items-center gap-3">
+        <BrandBookMark size={40} color="var(--accent)" />
+        <div className="min-w-0">
+          <PageHeader title="Dashboard" subtitle={subtitle} />
+        </div>
+      </div>
 
       <div className="mb-6">
         <ChuteModeButton />

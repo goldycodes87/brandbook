@@ -15,8 +15,8 @@ export async function GET() {
   const supabase = createAdminClient()
   const { data: invite, error } = await supabase
     .from('vet_invites')
-    .select('id, name, email, practice_name, license_number, accepted_at')
-    .eq('token', token)
+    .select('id, name, email, practice_name, accepted_at')
+    .eq('invite_token', token)
     .maybeSingle()
 
   if (error || !invite || !invite.accepted_at) {

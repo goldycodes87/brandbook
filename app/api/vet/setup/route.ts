@@ -6,7 +6,9 @@ import { cookies } from 'next/headers'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { token, name, practice_name, license_number } = body
+  // license_number is accepted from the form but not stored here — it belongs
+  // on portal_people, not on the invite.
+  const { token, name, practice_name } = body
 
   if (!token || !name) {
     return NextResponse.json({ error: 'token and name are required' }, { status: 400 })
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
   const { data: invite, error } = await supabase
     .from('vet_invites')
     .select('*')
-    .eq('token', token)
+    .eq('invite_token', token)
     .maybeSingle()
 
   if (error || !invite) {
@@ -30,10 +32,12 @@ export async function POST(req: NextRequest) {
   // Mark invite as accepted
   await supabase
     .from('vet_invites')
+    // license_number is not a column on vet_invites — it lives on
+    // portal_people, where a vet's licence belongs now. Writing it here made
+    // the whole update fail, so the invite was never marked accepted.
     .update({
       name,
       practice_name: practice_name || null,
-      license_number: license_number || null,
       accepted_at: new Date().toISOString(),
     })
     .eq('id', invite.id)

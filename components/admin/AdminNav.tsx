@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BrandBookMark } from '@/components/portal/BrandBookMark'
+import { BrandBookMark } from '@/components/brand/BrandBookMark'
 import type { AdminRoom } from '@/lib/admin-nav'
 
 /**
@@ -58,9 +58,12 @@ export function AdminNav({ rooms, name, role }: { rooms: AdminRoom[]; name: stri
 
         <div className="px-5 py-5 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)' }}>
           <span className="type-helper truncate" style={{ color: 'var(--text-muted)' }}>{name}</span>
-          <Link href="/dashboard" className="type-helper" style={{ color: 'var(--accent)' }}>
+          {/* Plain anchor: leaving the (admin) group for (dashboard) is a
+              different layout tree, and a hard load is the only navigation
+              guaranteed to be running the current build. */}
+          <a href="/dashboard" className="type-helper" style={{ color: 'var(--accent)' }}>
             ← Back to the ranch
-          </Link>
+          </a>
         </div>
       </aside>
 
