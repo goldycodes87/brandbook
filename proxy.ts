@@ -8,6 +8,9 @@ const PUBLIC = [
   // show comes from /api/portal/*, which is gated on the portal cookie, so
   // reaching the page without one shows nothing.
   "/welcome/", "/onboarding",
+  // Asking for a fresh link. Whoever needs this page has, by definition, no
+  // way to prove who they are yet.
+  "/portal/signin",
   "/offline", "/_next/", "/favicon",
   "/icon", "/manifest", "/apple",
 ];
@@ -23,6 +26,9 @@ const PUBLIC_API = [
   // Redeeming a magic link — the token in the body IS the credential, so this
   // one cannot require the cookie it is about to set.
   "/api/portal/accept",
+  // "Send me my link again" — the person asking is by definition not signed
+  // in, and the route answers identically whether or not the address exists.
+  "/api/portal/request-link",
   "/api/portals/owner/verify",
   "/api/portals/owner/session",
   "/api/vet/verify",

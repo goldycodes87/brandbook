@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Mail, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -10,8 +10,14 @@ import { AddOwnerSheet, type GrazingOwner } from '@/components/settings/AddOwner
 import { apiGet } from '@/lib/fetch'
 
 // Moved from Settings → Custom Grazing. Same endpoints, same sheet: only the
-// expense categories stayed behind, because they belong with Billing & Rates
-// and that room is being moved last.
+// expense categories stayed behind, because they belong with Billing & Rates.
+//
+// An owner here is a business relationship — the herd, the contract, the
+// terms a bill is built from. It is NOT a login, and there is deliberately no
+// invite button: this room used to have one that emailed a link straight to
+// the old read-only portal, skipping onboarding entirely, so which of two
+// buttons you happened to press decided what the owner saw. Portal access
+// lives in People & Roles now, in one place.
 
 const EAR_TAG_COLORS = [
   { name: 'Yellow',  hex: '#F5C518' },
@@ -44,8 +50,6 @@ export function OwnersRoom() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing]     = useState<GrazingOwner | null>(null)
   const [deleteError, setDeleteError] = useState('')
-  const [inviting, setInviting]   = useState<string | null>(null)
-  const [inviteMsg, setInviteMsg] = useState<{ id: string; msg: string } | null>(null)
 
   const load = useCallback(async () => {
     const [ownersData, contractsData] = await Promise.all([
@@ -78,20 +82,6 @@ export function OwnersRoom() {
     }).catch(() => setLoading(false))
   }, [])
 
-  const handleSendInvite = async (ownerId: string) => {
-    setInviting(ownerId); setInviteMsg(null)
-    try {
-      const res  = await fetch(`/api/billing/owners/${ownerId}/invite`, { method: 'POST' })
-      const json = await res.json()
-      setInviteMsg({ id: ownerId, msg: res.ok ? 'Invite sent!' : (json.error ?? 'Send failed') })
-    } catch {
-      setInviteMsg({ id: ownerId, msg: 'Connection error' })
-    } finally {
-      setInviting(null)
-      setTimeout(() => setInviteMsg(null), 3000)
-    }
-  }
-
   if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
 
   return (
@@ -123,8 +113,6 @@ export function OwnersRoom() {
         <div className="flex flex-col gap-3">
           {owners.map(owner => {
             const tagColor = EAR_TAG_COLORS.find(c => c.name === owner.default_ear_tag_color)
-            const isThisInviting = inviting === owner.id
-            const thisMsg = inviteMsg?.id === owner.id ? inviteMsg.msg : null
             return (
               <div
                 key={owner.id}
@@ -175,24 +163,9 @@ export function OwnersRoom() {
                         </div>
                       )
                     })()}
-                    {thisMsg && (
-                      <p className="type-helper" style={{ color: thisMsg === 'Invite sent!' ? 'var(--success-fg)' : 'var(--danger-fg)' }}>
-                        {thisMsg}
-                      </p>
-                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  {owner.email && (
-                    <Button
-                      intent="ghost" size="sm"
-                      loading={isThisInviting}
-                      onClick={() => handleSendInvite(owner.id)}
-                      leading={<Mail size={13} />}
-                    >
-                      PORTAL INVITE
-                    </Button>
-                  )}
                   <Button
                     intent="ghost" size="sm"
                     onClick={() => { setEditing(owner); setSheetOpen(true) }}

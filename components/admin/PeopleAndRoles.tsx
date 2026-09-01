@@ -35,6 +35,11 @@ export function PeopleAndRoles() {
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', practice_name: '', role: 'co_admin' })
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
 
+  // The revealed portal link, for one person at a time.
+  const [link, setLink]     = useState<{ id: string; url: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [sent, setSent]     = useState<string | null>(null)
+
   // The first read is written out in the effect rather than routed through
   // `load` below: a setState the linter can trace back into an effect body is
   // the cascading-render pattern it exists to catch, even behind a promise.
@@ -77,6 +82,39 @@ export function PeopleAndRoles() {
     } finally { setBusy(null) }
   }
 
+  async function showLink(id: string) {
+    if (link?.id === id) { setLink(null); return }
+    setBusy(`link-${id}`); setError(''); setSent(null); setCopied(false)
+    try {
+      const res = await apiGet(`/api/admin/people/${id}/portal-link`)
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(j.error ?? 'Could not get that link'); return }
+      setLink({ id, url: j.url })
+    } finally { setBusy(null) }
+  }
+
+  async function emailLink(id: string) {
+    setBusy(`send-${id}`); setError('')
+    try {
+      const res = await apiPost(`/api/admin/people/${id}/portal-link`, {})
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(j.error ?? 'That did not send'); return }
+      setSent(id)
+    } finally { setBusy(null) }
+  }
+
+  async function copy(url: string) {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard is blocked on insecure origins and in some in-app browsers.
+      // The link is on screen either way, which is the fallback.
+      setError('Could not copy — select the link above instead.')
+    }
+  }
+
   if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
 
   return (
@@ -101,13 +139,34 @@ export function PeopleAndRoles() {
                   {p.accepted && !p.onboarded && <Badge variant="warning">Setup unfinished</Badge>}
                   {p.onboarded     && <Badge variant="success">Set up</Badge>}
                 </div>
-                {p.inviteToken && (
-                  <p className="type-helper mt-1.5 break-all" style={{ color: 'var(--text-muted)' }}>
-                    Send them this:{' '}
-                    <code>
-                      {typeof window !== 'undefined' ? window.location.origin : ''}/welcome/{p.inviteToken}
+                {/* Revealed on demand rather than printed beside every name:
+                    the link IS the credential, and a screen full of them is a
+                    screen you would not want anyone reading over your
+                    shoulder. */}
+                {link?.id === p.id && (
+                  <div className="mt-2 flex flex-col gap-2">
+                    <code className="type-helper break-all px-2 py-1.5 rounded"
+                          style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', color: 'var(--text)' }}>
+                      {link.url}
                     </code>
-                  </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button intent="ghost" size="sm" onClick={() => copy(link.url)}>
+                        {copied ? 'COPIED' : 'COPY'}
+                      </Button>
+                      {p.email && (
+                        <Button intent="ghost" size="sm" loading={busy === `send-${p.id}`}
+                                onClick={() => emailLink(p.id)}>
+                          EMAIL IT TO THEM
+                        </Button>
+                      )}
+                      <Button intent="ghost" size="sm" onClick={() => setLink(null)}>HIDE</Button>
+                    </div>
+                    {sent === p.id && (
+                      <p className="type-helper" style={{ color: 'var(--success-fg)' }}>
+                        Sent to {p.email}.
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -124,6 +183,10 @@ export function PeopleAndRoles() {
                     {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </Select>
                 )}
+                <Button intent="ghost" size="sm" loading={busy === `link-${p.id}`}
+                        onClick={() => showLink(p.id)}>
+                  PORTAL LINK
+                </Button>
                 <Button intent="ghost" size="sm" loading={busy === p.id}
                         onClick={() => change(p.id, { status: 'revoked' })}>
                   REVOKE

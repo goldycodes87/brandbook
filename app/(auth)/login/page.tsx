@@ -98,15 +98,27 @@ export default function LoginPage() {
               SIGN IN
             </Button>
 
-            {/* 44px of height around 17px of text — the label stays small,
-                the thing you have to hit does not. */}
-            <button
-              type="button"
-              className="flex items-center justify-center transition-colors duration-150 type-helper hover:text-[var(--text-secondary)]"
+            {/* This said "Forgot password?" and did nothing at all — no
+                handler, no route behind it. Saying plainly where to go beats a
+                button that looks like a way out and is not one; a real reset
+                flow is still to build.
+
+                44px of height around small text: the label stays small, the
+                thing you have to hit does not. */}
+            <p
+              className="flex items-center justify-center text-center type-helper"
               style={{ color: 'var(--text-muted)', minHeight: 44 }}
             >
-              Forgot password?
-            </button>
+              Forgot your password? Ask your ranch admin to reset it.
+            </p>
+
+            <a
+              href="/portal/signin"
+              className="flex items-center justify-center text-center type-helper"
+              style={{ color: 'var(--accent)', minHeight: 44 }}
+            >
+              Cattle owner or vet? Get your sign-in link →
+            </a>
           </form>
         </div>
       </div>
