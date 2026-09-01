@@ -14,6 +14,7 @@ import type { TabItem } from '@/components/ui/Tabs'
 import Link from 'next/link'
 import { Check, Tag, AlertTriangle, FileText, MapPin, Calendar } from 'lucide-react'
 import { apiGet, apiPatch } from '@/lib/fetch'
+import { PasswordPanel } from '@/components/settings/PasswordPanel'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,11 @@ function AccountTab() {
       <div className="flex justify-end">
         <Button type="submit" intent="primary" loading={saving}>SAVE CHANGES</Button>
       </div>
+
+      {/* Outside the profile form on purpose: a password save must not ride
+          along with a name change, and pressing Enter in a password field
+          must not submit the form above it. */}
+      <PasswordPanel />
     </form>
   )
 }

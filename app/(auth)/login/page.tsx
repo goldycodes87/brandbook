@@ -11,6 +11,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
+  const [linkState, setLinkState] = useState<'idle' | 'sending' | 'sent'>('idle')
+
+  /** Email a one-time sign-in link to whatever is in the email box. */
+  const requestLink = async () => {
+    if (!email.trim()) { setError('Put your email in first, then press this.'); return }
+    setError('')
+    setLinkState('sending')
+    try {
+      await apiPost('/api/auth/request-link', { email })
+    } catch {
+      // The message below is the same either way on purpose — see the route.
+    }
+    setLinkState('sent')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,19 +112,25 @@ export default function LoginPage() {
               SIGN IN
             </Button>
 
-            {/* This said "Forgot password?" and did nothing at all — no
-                handler, no route behind it. Saying plainly where to go beats a
-                button that looks like a way out and is not one; a real reset
-                flow is still to build.
+            {/* This was a button with no handler and no route behind it. It
+                now emails a one-time link that signs you in without the
+                password, which is the only way back for the only admin.
 
                 44px of height around small text: the label stays small, the
                 thing you have to hit does not. */}
-            <p
-              className="flex items-center justify-center text-center type-helper"
-              style={{ color: 'var(--text-muted)', minHeight: 44 }}
+            <button
+              type="button"
+              onClick={requestLink}
+              disabled={linkState === 'sending'}
+              className="flex items-center justify-center text-center transition-colors duration-150 type-helper hover:text-[var(--text-secondary)]"
+              style={{ color: linkState === 'sent' ? 'var(--success-fg)' : 'var(--text-muted)', minHeight: 44 }}
             >
-              Forgot your password? Ask your ranch admin to reset it.
-            </p>
+              {linkState === 'sent'
+                ? 'If that address can sign in here, the link is on its way'
+                : linkState === 'sending'
+                  ? 'Sending…'
+                  : 'Forgot your password? Email me a sign-in link'}
+            </button>
 
             <a
               href="/portal/signin"

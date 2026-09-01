@@ -11,6 +11,9 @@ const PUBLIC = [
   // Asking for a fresh link. Whoever needs this page has, by definition, no
   // way to prove who they are yet.
   "/portal/signin",
+  // Spending an operator sign-in link. The token in the path is the whole
+  // credential, so this cannot require the cookie it is about to set.
+  "/signin/",
   "/offline", "/_next/", "/favicon",
   "/icon", "/manifest", "/apple",
 ];
@@ -29,6 +32,9 @@ const PUBLIC_API = [
   // "Send me my link again" — the person asking is by definition not signed
   // in, and the route answers identically whether or not the address exists.
   "/api/portal/request-link",
+  // Operator recovery: asking for a link, and spending it.
+  "/api/auth/request-link",
+  "/api/auth/redeem-link",
   "/api/portals/owner/verify",
   "/api/portals/owner/session",
   "/api/vet/verify",

@@ -2,9 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { Resend } from 'resend'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
+import { sendPortalLinkEmail } from '@/lib/emails'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -82,27 +82,13 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .from('ranch_settings').select('ranch_name').limit(1).maybeSingle()
   const ranchName = (ranchRow as { ranch_name: string | null } | null)?.ranch_name?.trim() || 'the ranch'
 
-  const from = process.env.RESEND_FROM_EMAIL || `BrandBook <noreply@brandbook.app>`
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  const { error } = await resend.emails.send({
-    from,
-    to: result.email,
-    subject: `Your ${ranchName} portal link`,
-    // Plain and short on purpose: an access link that reads like marketing is
-    // the one people delete, and the one that trips a spam filter.
-    html: `<!DOCTYPE html><html><body style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111;line-height:1.6">
-  <p>${result.name},</p>
-  <p>Here is your link to the ${ranchName} portal. It signs you in — there is no password to remember.</p>
-  <p><a href="${result.url}" style="color:#ea580c">${result.url}</a></p>
-  <p style="color:#666;font-size:13px">Keep it to yourself: anybody with this link can see your cattle records.</p>
-</body></html>`,
+  const sent = await sendPortalLinkEmail(result.email, {
+    ranchName,
+    personName: result.name === 'there' ? '' : result.name,
+    url: result.url,
   })
 
-  if (error) {
-    const message = (error as { message?: string }).message ?? 'That email did not send'
-    return NextResponse.json({ error: message }, { status: 502 })
-  }
+  if (!sent.ok) return NextResponse.json({ error: sent.error }, { status: 502 })
 
   return NextResponse.json({ ok: true, sentTo: result.email })
 }

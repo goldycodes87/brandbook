@@ -481,6 +481,33 @@ export type Database = {
           },
         ]
       }
+      auth_signin_tokens: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          expires_at: string
+          requested_for: string | null
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          expires_at: string
+          requested_for?: string | null
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          expires_at?: string
+          requested_for?: string | null
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       beef_inventory: {
         Row: {
           animal_id: string | null

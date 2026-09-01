@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAdminSession } from '@/lib/admin-auth'
 import type { PortalRole } from '@/lib/portal-auth'
+import { sendInviteEmail } from '@/lib/emails'
 
 /**
  * Everyone with a way in, and what each one can reach.
@@ -146,13 +147,28 @@ export async function POST(req: NextRequest) {
 
   const m = membership as { id: string; invite_token: string }
   const base = process.env.NEXT_PUBLIC_APP_URL || 'https://brandbook-zeta-eight.vercel.app'
+  const inviteUrl = `${base}/welcome/${m.invite_token}`
+
+  const { data: ranchRow } = await supabase
+    .from('ranch_settings').select('ranch_name').limit(1).maybeSingle()
+
+  const sendResult = await sendInviteEmail(email, {
+    ranchName:   (ranchRow as { ranch_name: string | null } | null)?.ranch_name?.trim() || 'The ranch',
+    inviterName: s.name,
+    personName:  typeof body.first_name === 'string' ? body.first_name.trim() : '',
+    role,
+    url: inviteUrl,
+  })
 
   return NextResponse.json({
     ok: true,
     membershipId: m.id,
-    // Returned rather than only emailed: email delivery is the part most
-    // likely to fail silently, and an operator who can read the link out loud
-    // is never blocked by it.
-    inviteUrl: `${base}/welcome/${m.invite_token}`,
+    // The link comes back whether or not the email went. Delivery is the part
+    // most likely to fail quietly — a wrong key, an unverified domain, a spam
+    // filter — and an operator who can read the link down the phone is never
+    // stuck waiting on it.
+    inviteUrl,
+    emailed: sendResult.ok,
+    emailError: sendResult.ok ? undefined : sendResult.error,
   }, { status: 201 })
 }
