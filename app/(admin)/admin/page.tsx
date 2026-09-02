@@ -7,6 +7,7 @@ import { roomsFor } from '@/lib/admin-nav'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
+import { ConfigCheck } from '@/components/admin/ConfigCheck'
 
 /**
  * Opens with the state of the operation rather than a form.
@@ -110,6 +111,14 @@ export default async function AdminOverviewPage() {
               {!done && <span className="type-helper" style={{ color: 'var(--accent)' }}>Set up →</span>}
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* What this deployment actually has. Above the room list because a
+          missing key is the reason a room will not work when you open it. */}
+      {session.canConfigure && (
+        <div className="mb-6">
+          <ConfigCheck />
         </div>
       )}
 

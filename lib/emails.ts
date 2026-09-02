@@ -120,13 +120,28 @@ function shell(opts: { ranchName: string; preheader: string; body: string }) {
 </body></html>`
 }
 
+/**
+ * Who these come from.
+ *
+ * RESEND_FROM_EMAIL is the invoicing address — billing@ is right on an invoice
+ * and wrong on "Grant has invited you", which reads like a bill. Set
+ * RESEND_FROM_PEOPLE to something like hello@ and invites, portal links and
+ * sign-in links use it instead. Unset, everything falls back to the one
+ * address, which still works.
+ */
+function sender() {
+  return process.env.RESEND_FROM_PEOPLE
+      || process.env.RESEND_FROM_EMAIL
+      || 'BrandBook <noreply@brandbook.app>'
+}
+
 async function send(to: string, subject: string, html: string) {
   const key = process.env.RESEND_API_KEY
   if (!key) return { ok: false as const, error: 'Email is not configured' }
 
   const resend = new Resend(key)
   const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || 'BrandBook <noreply@brandbook.app>',
+    from: sender(),
     to,
     subject,
     html,
