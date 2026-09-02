@@ -18,6 +18,7 @@ import {
   Settings,
   MessageSquare,
   Sparkles,
+  Receipt,
   MoreHorizontal,
   X,
   LogOut,
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { href: '/sales',        label: 'Sales',        icon: ShoppingCart },
   { href: '/grazing',      label: 'Grazing',      icon: MapPin },
   { href: '/leases',       label: 'Leases',       icon: FileText },
+  { href: '/expenses/review', label: 'Receipts',  icon: Receipt },
   { href: '/billing',      label: 'Billing',      icon: CreditCard },
   { href: '/reports',      label: 'Reports',      icon: FileBarChart },
   { href: '/inventory',    label: 'Inventory',    icon: Package },
@@ -104,6 +106,7 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen]     = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [receiptCount, setReceiptCount] = useState(0)
 
   useEffect(() => {
     apiGet('/api/messages/unread-count')
@@ -117,6 +120,19 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
         .catch(() => {})
     }, 60_000)
     return () => clearInterval(interval)
+  }, [])
+
+  // Receipts waiting to be looked at. Same cadence as messages: a receipt is
+  // forwarded from a feed store and reviewed at a desk hours later, and this
+  // number is the only thing bridging the two.
+  useEffect(() => {
+    const read = () => apiGet('/api/expenses/review/count')
+      .then(r => r.json())
+      .then(d => setReceiptCount(d.count ?? 0))
+      .catch(() => {})
+    read()
+    const t = setInterval(read, 60_000)
+    return () => clearInterval(t)
   }, [])
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
@@ -141,7 +157,9 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
               key={item.href}
               {...item}
               active={isActive(item.href)}
-              badge={item.href === '/messages' ? (unreadCount || undefined) : undefined}
+              badge={item.href === '/messages' ? (unreadCount || undefined)
+                   : item.href === '/expenses/review' ? (receiptCount || undefined)
+                   : undefined}
             />
           ))}
         </nav>
@@ -222,7 +240,9 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
                   {...item}
                   active={isActive(item.href)}
                   onClick={() => setMoreOpen(false)}
-                  badge={item.href === '/messages' ? (unreadCount || undefined) : undefined}
+                  badge={item.href === '/messages' ? (unreadCount || undefined)
+                   : item.href === '/expenses/review' ? (receiptCount || undefined)
+                   : undefined}
                 />
               ))}
             </nav>

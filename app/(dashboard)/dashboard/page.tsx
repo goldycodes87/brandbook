@@ -15,6 +15,7 @@ import { WeightLogSheet } from '@/components/weights/WeightLogSheet'
 import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 import { RemindersWidget } from '@/components/dashboard/RemindersWidget'
+import { ReceiptsWaiting } from '@/components/dashboard/ReceiptsWaiting'
 import { BrandBookMark } from '@/components/brand/BrandBookMark'
 
 function ChuteModeButton() {
@@ -189,6 +190,11 @@ export default async function DashboardPage() {
       <div className="mb-6">
         <ChuteModeButton />
       </div>
+
+      {/* Renders nothing when the queue is empty. */}
+      <Suspense fallback={null}>
+        <ReceiptsWaiting />
+      </Suspense>
 
       <Suspense fallback={
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
