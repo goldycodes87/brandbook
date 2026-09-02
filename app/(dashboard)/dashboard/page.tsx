@@ -3,7 +3,7 @@ export const revalidate = 0
 
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Tag, AlertTriangle, FileText, MapPin, Calendar, DollarSign } from 'lucide-react'
+import { Tag, AlertTriangle, FileText, MapPin, Calendar } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { StatCard } from '@/components/ui/StatCard'
@@ -20,12 +20,16 @@ import { RanchMasthead } from '@/components/dashboard/RanchMasthead'
 import { BrandWatermark } from '@/components/dashboard/BrandWatermark'
 import { HeroTiles } from '@/components/dashboard/HeroTiles'
 
-const DEFAULT_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'unbilled']
+// No "unbilled" tile here, deliberately. `invoice_id IS NULL` does not mean
+// unbilled in this schema: generate-quarterly stamps invoice_id only on
+// owner_specific and animal_specific rows, and tracks shared rows through
+// expense_allocations instead. So a SUM over uninvoiced lease_expenses counts
+// every hay and mineral row that Andy and Doug have already been invoiced AND
+// paid for. A real receivable has to come from the allocation engine
+// (lib/expense-allocation-data.ts), not an aggregate.
+const DEFAULT_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'active_leases']
 
-const STAT_META: Record<
-  string,
-  { label: string; href: string; icon: React.ReactNode; money?: boolean }
-> = {
+const STAT_META: Record<string, { label: string; href: string; icon: React.ReactNode }> = {
   total_animals:      { label: 'Total Animals',      href: '/animals',          icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
   active_bulls:       { label: 'Active Bulls',       href: '/animals?sex=bull', icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
   cows_heifers:       { label: 'Cows & Heifers',     href: '/animals',          icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
@@ -36,7 +40,6 @@ const STAT_META: Record<
   confirmed_pregnant: { label: 'Confirmed Pregnant', href: '/reproduction',     icon: <Calendar size={16} style={{ color: 'var(--accent)' }} /> },
   expected_calvings:  { label: 'Calvings (30 days)', href: '/reproduction',     icon: <Calendar size={16} style={{ color: 'var(--accent)' }} /> },
   calves_born:        { label: 'Calves Born',        href: '/animals',          icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
-  unbilled:           { label: 'Unbilled',           href: '/billing',          icon: <DollarSign size={16} style={{ color: 'var(--accent)' }} />, money: true },
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,22 +106,10 @@ async function fetchStatValue(supabase: any, key: string): Promise<number> {
           .gte('dob', yearStart)
         return count ?? 0
       }
-      case 'unbilled': {
-        // Work done for owners that has not made it onto an invoice yet. It is
-        // reliably the largest number on the place and it was on no screen you
-        // pass on the way to anything else.
-        const { data } = await supabase.from('lease_expenses').select('total_amount').is('invoice_id', null)
-        const rows = (data ?? []) as Array<{ total_amount: number | string | null }>
-        return rows.reduce((sum, r) => sum + (Number(r.total_amount) || 0), 0)
-      }
       default: return 0
     }
   } catch { return 0 }
 }
-
-const USD = new Intl.NumberFormat('en-US', {
-  style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-})
 
 async function DashboardStats() {
   const supabase = createAdminClient()
@@ -143,12 +134,7 @@ async function DashboardStats() {
         if (!meta) return null
         return (
           <Link key={key} href={meta.href} className="block">
-            <StatCard
-              label={meta.label}
-              value={meta.money ? USD.format(values[i]) : values[i]}
-              valueColor={meta.money && values[i] > 0 ? 'var(--gold-fg)' : undefined}
-              aside={meta.icon}
-            />
+            <StatCard label={meta.label} value={values[i]} aside={meta.icon} />
           </Link>
         )
       })}
