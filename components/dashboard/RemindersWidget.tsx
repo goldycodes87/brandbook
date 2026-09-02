@@ -71,7 +71,12 @@ export function RemindersWidget() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await apiGet('/api/reminders?upcoming=true&days=30')
+      // Was days=30, which is a fine window for a ranch mid-season and no
+      // window at all outside one. Grant's next dated work is calving eight
+      // months out, so the dashboard's only calendar rendered nothing for
+      // most of the year — the horizon, not the data, was the problem. Look
+      // a full season ahead and cap what's shown instead.
+      const r = await apiGet('/api/reminders?upcoming=true&days=400')
       const d = await r.json()
       setReminders(d.data ?? [])
     } finally { setLoading(false) }
@@ -92,10 +97,17 @@ export function RemindersWidget() {
 
   if (loading || reminders.length === 0) return null
 
+  // Twelve cows calving across two days is a wall of identical rows. Show the
+  // nearest few and count the rest — the dashboard says what's next, the
+  // reproduction page holds the list.
+  const VISIBLE = 4
+  const shown   = reminders.slice(0, VISIBLE)
+  const hidden  = reminders.length - shown.length
+
   return (
-    <Panel title="UPCOMING" subtitle={`${reminders.length} reminder${reminders.length !== 1 ? 's' : ''}`} className="mb-6">
+    <Panel title="COMING UP" subtitle={`${reminders.length} reminder${reminders.length !== 1 ? 's' : ''}`} className="mb-6">
       <div className="flex flex-col divide-y" style={{ '--tw-divide-opacity': 1 } as React.CSSProperties}>
-        {reminders.map(r => {
+        {shown.map(r => {
           const icon    = REMINDER_ICON[r.reminder_type ?? ''] ?? '📋'
           const animal  = r.animal
           return (
@@ -121,6 +133,17 @@ export function RemindersWidget() {
           )
         })}
       </div>
+
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => router.push('/reproduction')}
+          className="w-full text-left pt-3 mt-1 type-helper"
+          style={{ borderTop: '1px solid var(--border-subtle)', color: 'var(--accent)' }}
+        >
+          {hidden} more →
+        </button>
+      )}
 
       {pregSheet?.animal && (
         // The bred event's dates travel with the reminder. Without them a

@@ -212,7 +212,10 @@ function NotificationsTab() {
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
-const DEFAULT_DASHBOARD_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'active_leases']
+// Keep in step with DEFAULT_STATS in app/(dashboard)/dashboard/page.tsx — the
+// two lists have drifted before, which shows up as a stat you can pick here
+// that the dashboard renders as nothing.
+const DEFAULT_DASHBOARD_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'unbilled']
 const MAX_STATS = 4
 
 const AVAILABLE_STATS = [
@@ -226,6 +229,7 @@ const AVAILABLE_STATS = [
   { key: 'confirmed_pregnant', label: 'Confirmed Pregnant',  Icon: Calendar },
   { key: 'expected_calvings',  label: 'Calvings (30 days)',  Icon: Calendar },
   { key: 'calves_born',        label: 'Calves Born',         Icon: Tag },
+  { key: 'unbilled',           label: 'Unbilled',            Icon: FileText },
 ]
 
 function DashboardTab() {

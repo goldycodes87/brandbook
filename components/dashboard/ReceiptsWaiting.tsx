@@ -30,10 +30,16 @@ export async function ReceiptsWaiting() {
   const names = [...new Set(rows.map(r => r.vendor).filter(Boolean))].slice(0, 2)
 
   return (
+    /* Spacing is the dashboard's attention stack to decide, not this card's —
+       it sits in a gap-ed column beside MessagesCard. */
     <Link
       href="/expenses/review"
-      className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] mb-6"
-      style={{ border: '1px solid var(--accent-border)', background: 'var(--accent-soft)' }}
+      className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)]"
+      style={{
+        border: '1px solid var(--accent-border)',
+        background: 'var(--accent-soft)',
+        boxShadow: 'var(--lift)',
+      }}
     >
       <span style={{ fontSize: 18 }} aria-hidden>🧾</span>
       <span className="flex-1 min-w-0">

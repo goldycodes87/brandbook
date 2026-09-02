@@ -16,21 +16,35 @@
   --gold-bg:           rgba(202,138,4,0.12);
   --gold-border:       rgba(202,138,4,0.20);
 
-  --surface-0: #080808;
-  --surface-1: #111111;
-  --surface-2: #181818;
-  --surface-3: #1e1e1e;
+  /* Warm near-blacks — black with dust in it, not screen grey. The orange
+     accent sits at home on a warm ground instead of vibrating against a
+     cool one. Shifted here rather than per-component so inner pages stay
+     the same material as the dashboard. */
+  --surface-0: #0a0908;
+  --surface-1: #141210;
+  --surface-2: #1c1917;
+  --surface-3: #24201d;
 
-  --bg-input:       #141414;
-  --bg-input-focus: #1a1a1a;
+  --bg-input:       #17140f;
+  --bg-input-focus: #1d1916;
 
-  --border-subtle: rgba(255,255,255,0.05);
-  --border:        rgba(255,255,255,0.08);
-  --border-strong: rgba(255,255,255,0.14);
+  --border-subtle: rgba(255,240,225,0.055);
+  --border:        rgba(255,240,225,0.085);
+  --border-strong: rgba(255,240,225,0.150);
 
-  --text:           #f5f5f5;
-  --text-secondary: #9ca3af;
-  --text-muted:     #6b7280;
+  /* The one non-orange colour in the system. Used as a hairline under the
+     ranch name and nowhere else — it does its work by being rare. */
+  --brass:      #b08d57;
+  --brass-rule: linear-gradient(90deg, var(--brass), rgba(176,141,87,0.12) 60%, transparent);
+
+  /* Top-edge highlight. A flat panel reads as a template; one that catches
+     a little light along its top edge reads as an object. */
+  --lift:  inset 0 1px 0 rgba(255,255,255,0.045), 0 1px 3px rgba(0,0,0,0.5);
+  --ember: #f97316;
+
+  --text:           #f7f4f0;
+  --text-secondary: #a8a29b;
+  --text-muted:     #7a736a;
   --text-disabled:  #374151;
   --text-on-accent: #ffffff;
 

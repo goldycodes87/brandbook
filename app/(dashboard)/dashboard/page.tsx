@@ -3,10 +3,9 @@ export const revalidate = 0
 
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Tag, AlertTriangle, FileText, MapPin, Calendar } from 'lucide-react'
+import { Tag, AlertTriangle, FileText, MapPin, Calendar, DollarSign } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageContainer } from '@/components/ui/PageContainer'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
 import { Panel } from '@/components/ui/Panel'
 import { Toolbar } from '@/components/ui/Toolbar'
@@ -16,42 +15,28 @@ import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 import { RemindersWidget } from '@/components/dashboard/RemindersWidget'
 import { ReceiptsWaiting } from '@/components/dashboard/ReceiptsWaiting'
-import { BrandBookMark } from '@/components/brand/BrandBookMark'
+import { MessagesCard } from '@/components/dashboard/MessagesCard'
+import { RanchMasthead } from '@/components/dashboard/RanchMasthead'
+import { BrandWatermark } from '@/components/dashboard/BrandWatermark'
+import { HeroTiles } from '@/components/dashboard/HeroTiles'
 
-function ChuteModeButton() {
-  return (
-    <Link href="/chute" className="block w-full">
-      <div
-        className="w-full flex items-center justify-center gap-3 rounded-2xl font-bold transition-opacity hover:opacity-90 active:scale-[0.99]"
-        style={{
-          background: 'linear-gradient(135deg, var(--accent) 0%, #c2410c 100%)',
-          color: 'white',
-          minHeight: 72,
-          fontSize: '1.25rem',
-          fontFamily: 'var(--font-display)',
-          letterSpacing: '0.08em',
-          boxShadow: '0 4px 20px rgba(234,88,12,0.35)',
-        }}
-      >
-        🐄 CHUTE MODE
-      </div>
-    </Link>
-  )
-}
+const DEFAULT_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'unbilled']
 
-const DEFAULT_STATS = ['total_animals', 'cows_heifers', 'calves_born', 'active_leases']
-
-const STAT_META: Record<string, { label: string; href: string; icon: React.ReactNode }> = {
-  total_animals:      { label: 'Total Animals',      href: '/animals',        icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
+const STAT_META: Record<
+  string,
+  { label: string; href: string; icon: React.ReactNode; money?: boolean }
+> = {
+  total_animals:      { label: 'Total Animals',      href: '/animals',          icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
   active_bulls:       { label: 'Active Bulls',       href: '/animals?sex=bull', icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
-  cows_heifers:       { label: 'Cows & Heifers',     href: '/animals',        icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
-  calves:             { label: 'Calves',             href: '/animals',        icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
-  in_withdrawal:      { label: 'In Withdrawal',      href: '/health',         icon: <AlertTriangle size={16} style={{ color: 'var(--accent)' }} /> },
-  open_invoices:      { label: 'Open Invoices',      href: '/billing',        icon: <FileText size={16} style={{ color: 'var(--accent)' }} /> },
-  active_leases:      { label: 'Active Leases',      href: '/leases',         icon: <MapPin size={16} style={{ color: 'var(--accent)' }} /> },
-  confirmed_pregnant: { label: 'Confirmed Pregnant', href: '/reproduction',   icon: <Calendar size={16} style={{ color: 'var(--accent)' }} /> },
-  expected_calvings:  { label: 'Calvings (30 days)', href: '/reproduction',   icon: <Calendar size={16} style={{ color: 'var(--accent)' }} /> },
-  calves_born:        { label: 'Calves Born',        href: '/animals',        icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
+  cows_heifers:       { label: 'Cows & Heifers',     href: '/animals',          icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
+  calves:             { label: 'Calves',             href: '/animals',          icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
+  in_withdrawal:      { label: 'In Withdrawal',      href: '/health',           icon: <AlertTriangle size={16} style={{ color: 'var(--accent)' }} /> },
+  open_invoices:      { label: 'Open Invoices',      href: '/billing',          icon: <FileText size={16} style={{ color: 'var(--accent)' }} /> },
+  active_leases:      { label: 'Active Leases',      href: '/leases',           icon: <MapPin size={16} style={{ color: 'var(--accent)' }} /> },
+  confirmed_pregnant: { label: 'Confirmed Pregnant', href: '/reproduction',     icon: <Calendar size={16} style={{ color: 'var(--accent)' }} /> },
+  expected_calvings:  { label: 'Calvings (30 days)', href: '/reproduction',     icon: <Calendar size={16} style={{ color: 'var(--accent)' }} /> },
+  calves_born:        { label: 'Calves Born',        href: '/animals',          icon: <Tag size={16} style={{ color: 'var(--accent)' }} /> },
+  unbilled:           { label: 'Unbilled',           href: '/billing',          icon: <DollarSign size={16} style={{ color: 'var(--accent)' }} />, money: true },
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -118,10 +103,22 @@ async function fetchStatValue(supabase: any, key: string): Promise<number> {
           .gte('dob', yearStart)
         return count ?? 0
       }
+      case 'unbilled': {
+        // Work done for owners that has not made it onto an invoice yet. It is
+        // reliably the largest number on the place and it was on no screen you
+        // pass on the way to anything else.
+        const { data } = await supabase.from('lease_expenses').select('total_amount').is('invoice_id', null)
+        const rows = (data ?? []) as Array<{ total_amount: number | string | null }>
+        return rows.reduce((sum, r) => sum + (Number(r.total_amount) || 0), 0)
+      }
       default: return 0
     }
   } catch { return 0 }
 }
+
+const USD = new Intl.NumberFormat('en-US', {
+  style: 'currency', currency: 'USD', maximumFractionDigits: 0,
+})
 
 async function DashboardStats() {
   const supabase = createAdminClient()
@@ -140,13 +137,18 @@ async function DashboardStats() {
   )
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 sm:mb-6">
       {selectedStats.map((key, i) => {
         const meta = STAT_META[key]
         if (!meta) return null
         return (
           <Link key={key} href={meta.href} className="block">
-            <StatCard label={meta.label} value={values[i]} aside={meta.icon} />
+            <StatCard
+              label={meta.label}
+              value={meta.money ? USD.format(values[i]) : values[i]}
+              valueColor={meta.money && values[i] > 0 ? 'var(--gold-fg)' : undefined}
+              aside={meta.icon}
+            />
           </Link>
         )
       })}
@@ -158,73 +160,78 @@ export default async function DashboardPage() {
   const supabase = createAdminClient()
   const { data: ranchSettings } = await supabase
     .from('ranch_settings')
-    .select('owner_name, timezone')
+    .select('ranch_name, owner_name, logo_url, brand_photo_url, timezone')
     .maybeSingle()
-
-  const timezone  = ranchSettings?.timezone ?? 'America/Denver'
-  const ownerName = ranchSettings?.owner_name ?? ''
-
-  const now  = new Date()
-  const hour = new Date(now.toLocaleString('en-US', { timeZone: timezone })).getHours()
-  const greeting =
-    hour >= 5 && hour < 12  ? 'Good morning'   :
-    hour >= 12 && hour < 17 ? 'Good afternoon' :
-    'Good evening'
-
-  const subtitle = ownerName
-    ? `${greeting}, ${ownerName}`
-    : `${greeting} — Welcome to Brand Book`
 
   return (
     <PageContainer variant="narrow">
-      {/* The mark sits beside the greeting rather than above it: the dashboard
-          is somewhere you land every morning, and a full lockup would be a
-          splash screen you have to scroll past to see your herd. */}
-      <div className="flex items-center gap-3">
-        <BrandBookMark size={40} color="var(--accent)" />
-        <div className="min-w-0">
-          <PageHeader title="Dashboard" subtitle={subtitle} />
+      {/* The watermark is positioned against this wrapper, not the viewport,
+          so it travels with the content column instead of sliding around as
+          the sidebar appears and disappears. */}
+      <div className="relative overflow-hidden">
+        <BrandWatermark
+          brandUrl={ranchSettings?.brand_photo_url ?? null}
+          logoUrl={ranchSettings?.logo_url ?? null}
+        />
+
+        <div className="relative">
+          <RanchMasthead
+            ranchName={ranchSettings?.ranch_name ?? null}
+            ownerName={ranchSettings?.owner_name ?? null}
+            logoUrl={ranchSettings?.logo_url ?? null}
+            timezone={ranchSettings?.timezone ?? 'America/Denver'}
+          />
+
+          {/* Ask and Chute Mode — the only two things here you press with a
+              glove on. Everything below is read. */}
+          <HeroTiles />
+
+          {/* What is waiting on you. Receipts renders only when the queue is
+              non-empty; Messages stays put so there is a door to it. */}
+          <div className="flex flex-col gap-2.5 mb-5 sm:mb-6">
+            <Suspense fallback={null}>
+              <ReceiptsWaiting />
+            </Suspense>
+            <Suspense fallback={null}>
+              <MessagesCard />
+            </Suspense>
+          </div>
+
+          <Suspense fallback={
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 sm:mb-6">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-20 rounded-[var(--radius-lg)] animate-pulse" style={{ backgroundColor: 'var(--surface-2)' }} />
+              ))}
+            </div>
+          }>
+            <DashboardStats />
+          </Suspense>
+
+          <Toolbar
+            className="mb-5 sm:mb-6"
+            leading={
+              <>
+                <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
+                <ButtonLink href="/health" intent="secondary" size="sm">LOG HEALTH EVENT</ButtonLink>
+                <BulkHealthEventSheet />
+                <WeightLogSheet />
+              </>
+            }
+          />
+
+          <Suspense fallback={null}>
+            <RemindersWidget />
+          </Suspense>
+
+          {/* A history, not a decision — it belongs where you sit down to
+              review, not on a phone at the chute. */}
+          <div className="hidden lg:block">
+            <Panel title="RECENT ACTIVITY">
+              <ActivityFeed />
+            </Panel>
+          </div>
         </div>
       </div>
-
-      <div className="mb-6">
-        <ChuteModeButton />
-      </div>
-
-      {/* Renders nothing when the queue is empty. */}
-      <Suspense fallback={null}>
-        <ReceiptsWaiting />
-      </Suspense>
-
-      <Suspense fallback={
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 rounded-[var(--radius-lg)] animate-pulse" style={{ backgroundColor: 'var(--surface-2)' }} />
-          ))}
-        </div>
-      }>
-        <DashboardStats />
-      </Suspense>
-
-      <Toolbar
-        className="mb-6"
-        leading={
-          <>
-            <ButtonLink href="/animals/new" intent="primary" size="sm">+ ADD ANIMAL</ButtonLink>
-            <ButtonLink href="/health" intent="secondary" size="sm">LOG HEALTH EVENT</ButtonLink>
-            <BulkHealthEventSheet />
-            <WeightLogSheet />
-          </>
-        }
-      />
-
-      <Suspense fallback={null}>
-        <RemindersWidget />
-      </Suspense>
-
-      <Panel title="RECENT ACTIVITY">
-        <ActivityFeed />
-      </Panel>
     </PageContainer>
   )
 }
