@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -8,32 +8,56 @@ import {
   MapPin, DollarSign, Dna, TrendingUp,
   ShoppingCart, Package, Settings,
   MoreHorizontal, X, LogOut, Bell, FileBarChart,
+  Sparkles, Receipt, Leaf,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { apiFetch } from '@/lib/fetch'
+import { apiFetch, apiGet } from '@/lib/fetch'
 import { QuickExpenseButton } from '@/components/expenses/QuickExpenseButton'
 
-const NAV_ITEMS = [
-  { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/animals',      label: 'Animals',      icon: Tag },
-  { href: '/health',       label: 'Health',       icon: Heart },
-  { href: '/reproduction', label: 'Reproduction', icon: Baby },
-  { href: '/leases',       label: 'Leases',       icon: MapPin },
-  { href: '/billing',      label: 'Billing',      icon: DollarSign },
-  { href: '/genetics',     label: 'Genetics',     icon: Dna },
-  { href: '/performance',  label: 'Performance',  icon: TrendingUp },
-  { href: '/sales',        label: 'Sales',        icon: ShoppingCart },
-  { href: '/inventory',    label: 'Inventory',    icon: Package },
-  { href: '/reports',      label: 'Reports',      icon: FileBarChart },
+// Grouped by what you are doing, not alphabetically. Somebody looking for a
+// receipt is thinking about money, not about the letter R.
+const NAV_GROUPS = [
+  { title: null, items: [
+    { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
+    { href: '/ai',           label: 'Ask',          icon: Sparkles },
+  ] },
+  { title: 'The herd', items: [
+    { href: '/animals',      label: 'Animals',      icon: Tag },
+    { href: '/health',       label: 'Health',       icon: Heart },
+    { href: '/reproduction', label: 'Reproduction', icon: Baby },
+    { href: '/genetics',     label: 'Genetics',     icon: Dna },
+  ] },
+  { title: 'The land', items: [
+    { href: '/grazing',      label: 'Grazing',      icon: Leaf },
+    { href: '/leases',       label: 'Leases',       icon: MapPin },
+  ] },
+  { title: 'Money', items: [
+    { href: '/expenses/review', label: 'Receipts',  icon: Receipt },
+    { href: '/billing',      label: 'Billing',      icon: DollarSign },
+    { href: '/sales',        label: 'Sales',        icon: ShoppingCart },
+  ] },
+  { title: 'Looking back', items: [
+    { href: '/performance',  label: 'Performance',  icon: TrendingUp },
+    { href: '/inventory',    label: 'Inventory',    icon: Package },
+    { href: '/reports',      label: 'Reports',      icon: FileBarChart },
+  ] },
 ]
+
+const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items)
 
 const SETTINGS_ITEM = { href: '/settings', label: 'Settings', icon: Settings }
 
-const BOTTOM_TABS = [
-  NAV_ITEMS[0], // Dashboard
-  NAV_ITEMS[1], // Animals
-  NAV_ITEMS[2], // Health
-]
+/**
+ * The three tabs on a phone, named rather than indexed.
+ *
+ * This used to be NAV_ITEMS[0..2] with comments saying Dashboard, Animals,
+ * Health — so regrouping the sidebar silently changed what sits under your
+ * thumb, and the comments went on claiming otherwise. Naming them means the
+ * sidebar can be reordered freely and this stays put.
+ */
+const BOTTOM_TAB_HREFS = ['/dashboard', '/animals', '/health']
+const BOTTOM_TABS = BOTTOM_TAB_HREFS
+  .map(href => NAV_ITEMS.find(i => i.href === href))
+  .filter((i): i is (typeof NAV_ITEMS)[number] => Boolean(i))
 
 const ROUTE_TITLES: Record<string, string> = Object.fromEntries(
   [...NAV_ITEMS, SETTINGS_ITEM].map(n => [n.href, n.label])
@@ -44,10 +68,10 @@ async function handleLogout() {
   window.location.href = '/login'
 }
 
-function NavLink({ href, label, icon: Icon, active, onClick }: {
+function NavLink({ href, label, icon: Icon, active, onClick, badge }: {
   href: string; label: string
   icon: React.ComponentType<{ size?: number; className?: string }>
-  active: boolean; onClick?: () => void
+  active: boolean; onClick?: () => void; badge?: number
 }) {
   return (
     <Link
@@ -60,7 +84,15 @@ function NavLink({ href, label, icon: Icon, active, onClick }: {
       className="flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-lg)] transition-colors duration-150 hover:text-[var(--text)] hover:bg-[var(--surface-2)]"
     >
       <Icon size={18} />
-      <span className="type-nav-item">{label}</span>
+      <span className="type-nav-item flex-1">{label}</span>
+      {badge ? (
+        <span
+          style={{ background: 'var(--accent)', color: '#fff' }}
+          className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold"
+        >
+          {badge}
+        </span>
+      ) : null}
     </Link>
   )
 }
@@ -144,6 +176,18 @@ function Topbar({ title }: { title: string }) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
+  const [receipts, setReceipts] = useState(0)
+
+  // Receipts waiting to be looked at. A receipt forwarded from a feed store
+  // on Monday has to come and find you on Wednesday; a number in the nav is
+  // what does that.
+  useEffect(() => {
+    const read = () => apiGet('/api/expenses/review/count')
+      .then(r => r.json()).then(d => setReceipts(d.count ?? 0)).catch(() => {})
+    read()
+    const t = setInterval(read, 60_000)
+    return () => clearInterval(t)
+  }, [])
 
   if (pathname.startsWith('/chute')) return <>{children}</>
 
@@ -171,9 +215,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map(item => (
-            <NavLink key={item.href} {...item} active={isActive(item.href)} />
+        <nav className="flex-1 px-3 py-3 overflow-y-auto">
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={group.title ?? 'top'} className={gi === 0 ? 'space-y-0.5' : 'mt-5 space-y-0.5'}>
+              {group.title && (
+                <p className="type-section-label px-3 pb-1.5" style={{ color: 'var(--text-disabled)' }}>
+                  {group.title}
+                </p>
+              )}
+              {group.items.map(item => (
+                <NavLink
+                  key={item.href}
+                  {...item}
+                  active={isActive(item.href)}
+                  badge={item.href === '/expenses/review' ? (receipts || undefined) : undefined}
+                />
+              ))}
+            </div>
           ))}
         </nav>
 
