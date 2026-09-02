@@ -1807,7 +1807,9 @@ export type Database = {
           created_at: string | null
           due_date: string | null
           email_sent_at: string | null
+          expense_quarter: number | null
           expense_splits: Json | null
+          expense_year: number | null
           id: string
           invoice_number: string | null
           invoice_quarter: number | null
@@ -1836,7 +1838,9 @@ export type Database = {
           created_at?: string | null
           due_date?: string | null
           email_sent_at?: string | null
+          expense_quarter?: number | null
           expense_splits?: Json | null
+          expense_year?: number | null
           id?: string
           invoice_number?: string | null
           invoice_quarter?: number | null
@@ -1865,7 +1869,9 @@ export type Database = {
           created_at?: string | null
           due_date?: string | null
           email_sent_at?: string | null
+          expense_quarter?: number | null
           expense_splits?: Json | null
+          expense_year?: number | null
           id?: string
           invoice_number?: string | null
           invoice_quarter?: number | null
@@ -3570,6 +3576,61 @@ export type Database = {
         Args: { p_delta: number; p_inventory_id: string }
         Returns: number
       }
+      create_quarterly_invoice: {
+        Args: {
+          p_allocations: Json
+          p_billed_expense_ids: string[]
+          p_due_date?: string
+          p_expense_quarter: number
+          p_expense_year: number
+          p_invoice_number: string
+          p_invoice_quarter: number
+          p_invoice_sequence: number
+          p_line_items: Json
+          p_notes: string
+          p_owner_id: string
+          p_period_end: string
+          p_period_start: string
+          p_total: number
+        }
+        Returns: {
+          approved_at: string | null
+          created_at: string | null
+          due_date: string | null
+          email_sent_at: string | null
+          expense_quarter: number | null
+          expense_splits: Json | null
+          expense_year: number | null
+          id: string
+          invoice_number: string | null
+          invoice_quarter: number | null
+          invoice_sequence: number | null
+          line_items: Json | null
+          notes: string | null
+          owner_id: string
+          paid_amount: number | null
+          paid_at: string | null
+          payment_link: string | null
+          payment_link_created_at: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          pdf_url: string | null
+          period_end: string | null
+          period_start: string | null
+          sent_at: string | null
+          square_payment_link: string | null
+          status: Database["public"]["Enums"]["invoice_status"] | null
+          stripe_invoice_id: string | null
+          total_amount: number | null
+          viewed_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       replace_expense_split: {
         Args: { p_group_id: string; p_rows: Json }
         Returns: {
@@ -3624,7 +3685,7 @@ export type Database = {
         | "vet_visit"
         | "illness"
         | "bcs_log"
-      invoice_status: "draft" | "sent" | "paid" | "approved"
+      invoice_status: "draft" | "sent" | "paid" | "approved" | "void"
       repro_event_type:
         | "bred"
         | "preg_check"
@@ -3648,12 +3709,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3677,11 +3738,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3702,11 +3763,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3727,11 +3788,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3744,11 +3805,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3770,7 +3831,7 @@ export const Constants = {
         "illness",
         "bcs_log",
       ],
-      invoice_status: ["draft", "sent", "paid", "approved"],
+      invoice_status: ["draft", "sent", "paid", "approved", "void"],
       repro_event_type: [
         "bred",
         "preg_check",

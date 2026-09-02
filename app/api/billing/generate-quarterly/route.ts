@@ -196,14 +196,21 @@ export async function POST(req: NextRequest) {
   const expenseCount = ownerAllocations.length
 
   // ── Step 8: Get invoice number ───────────────────────────────────────────────
-  const { count: existingCount } = await supabase
+  //
+  // Highest sequence so far, not how many rows exist. count(*) + 1 reuses a
+  // number the moment an invoice is voided or deleted, and invoice_number is
+  // uniquely indexed, so the next generate would fail with a raw 500.
+  const { data: lastSeq } = await supabase
     .from('invoices')
-    .select('id', { count: 'exact', head: true })
+    .select('invoice_sequence')
     .eq('invoice_quarter', billing_quarter)
     .gte('created_at', `20${String(billing_year).padStart(2, '0')}-01-01`)
     .lte('created_at', `20${String(billing_year).padStart(2, '0')}-12-31`)
+    .order('invoice_sequence', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle()
 
-  const sequence      = (existingCount ?? 0) + 1
+  const sequence      = ((lastSeq as { invoice_sequence: number | null } | null)?.invoice_sequence ?? 0) + 1
   const yy            = String(billing_year).padStart(2, '0')
   const qq            = String(billing_quarter).padStart(2, '0')
   const seq           = String(sequence).padStart(3, '0')
@@ -223,72 +230,90 @@ export async function POST(req: NextRequest) {
     herd_pct:          Math.round(ownerHerdPct * 1000) / 10,
   }
 
-  if (dry_run) {
-    return NextResponse.json({ preview })
-  }
-
-  // ── Step 9: Create the invoice ──────────────────────────────────────────────
-  const { data: invoice, error: invErr } = await supabase
+  // ── Step 9: Has this owner already been billed for this expense quarter? ────
+  //
+  // The unique index invoices_one_per_owner_expense_quarter is the guarantee.
+  // This lookup exists to turn its 23505 into a sentence a person can act on,
+  // and to warn in a dry run before anybody presses the button.
+  const expYY = expense_year % 100
+  const { data: alreadyBilledRows } = await supabase
     .from('invoices')
-    .insert({
-      owner_id,
-      invoice_number:   invoiceNumber,
-      invoice_quarter:  billing_quarter,
-      invoice_sequence: sequence,
-      period_start:     bStart,
-      period_end:       bEnd,
-      due_date:         due_date || null,
-      line_items:       lineItems,
-      total_amount:     total,
-      status:           'draft',
-      notes: `Q${billing_quarter} ${2000 + billing_year} grazing + Q${expense_quarter} ${2000 + expense_year} expenses`,
-    })
-    .select()
-    .single()
+    .select('invoice_number, status, total_amount, created_at')
+    .eq('owner_id', owner_id)
+    .eq('expense_quarter', expense_quarter)
+    .eq('expense_year', expYY)
+    .neq('status', 'void')
+    .limit(1)
 
-  if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
+  const alreadyBilled = (alreadyBilledRows ?? [])[0] ?? null
 
-  // ── Step 10: Freeze this owner's shares ─────────────────────────────────────
-  //
-  // Only this owner's rows are written. Everyone else's share stays pending and
-  // keeps recomputing from live herd-days — storing it now would freeze a
-  // number that changes the moment an animal moves.
-  //
-  // Non-fatal: a failure here costs the invoiced/paid badge, not the invoice.
-  let allocationsWritten = 0
-  if (ownerAllocations.length > 0) {
-    const { error: allocErr, count } = await supabase
-      .from('expense_allocations')
-      .upsert(
-        ownerAllocations.map(a => ({
-          expense_id:  a.expense_id,
-          owner_id:    a.owner_id,
-          amount:      a.amount,
-          share_note:  a.share_note,
-          invoice_id:  invoice.id,
-          computed_at: new Date().toISOString(),
-        })),
-        { onConflict: 'expense_id,owner_id', count: 'exact' },
-      )
-    if (allocErr) console.error('[generate-quarterly] failed to write allocations:', allocErr.message)
-    else allocationsWritten = count ?? ownerAllocations.length
+  if (dry_run) {
+    return NextResponse.json({ preview: { ...preview, already_billed: alreadyBilled } })
   }
 
-  // Single-owner rows also carry invoice_id directly, so an expense list can
-  // show its status without joining through allocations.
-  let expensesLinked = 0
-  if (billedExpenseIds.size > 0) {
-    const ids = [...billedExpenseIds]
-    const { error: linkErr } = await supabase
-      .from('lease_expenses')
-      .update({ invoice_id: invoice.id })
-      .in('id', ids)
-    if (linkErr) console.error('[generate-quarterly] failed to stamp invoice_id:', linkErr.message)
-    else expensesLinked = ids.length
+  if (alreadyBilled) {
+    return NextResponse.json(
+      {
+        error:
+          `${ownerName} was already invoiced for Q${expense_quarter} ${2000 + expYY} expenses ` +
+          `on invoice ${alreadyBilled.invoice_number} (${alreadyBilled.status}). ` +
+          `Void that invoice if it needs reissuing.`,
+        existing_invoice: alreadyBilled,
+      },
+      { status: 409 },
+    )
+  }
+
+  // ── Step 10: Create the invoice, its allocations and the stamps atomically ──
+  //
+  // One transaction inside Postgres. These used to be three separate writes
+  // with the last two non-fatal, which is how the June 2026 invoices ended up
+  // with no record of which expenses they covered — the invoice was real, the
+  // evidence was not. Now either all three land or none do.
+  //
+  // Only this owner's shares are frozen. Everyone else's stays pending and
+  // keeps recomputing from live herd-days; storing it now would freeze a
+  // number that changes the moment an animal moves.
+  const { data: invoice, error: invErr } = await supabase.rpc('create_quarterly_invoice', {
+    p_owner_id:           owner_id,
+    p_invoice_number:     invoiceNumber,
+    p_invoice_quarter:    billing_quarter,
+    p_invoice_sequence:   sequence,
+    p_period_start:       bStart,
+    p_period_end:         bEnd,
+    ...(due_date ? { p_due_date: due_date } : {}),
+    p_line_items:         lineItems,
+    p_total:              total,
+    p_notes:              `Q${billing_quarter} ${2000 + billing_year} grazing + Q${expense_quarter} ${2000 + expYY} expenses`,
+    p_expense_quarter:    expense_quarter,
+    p_expense_year:       expYY,
+    p_allocations:        ownerAllocations.map(a => ({
+      expense_id: a.expense_id,
+      owner_id:   a.owner_id,
+      amount:     a.amount,
+      share_note: a.share_note,
+    })),
+    p_billed_expense_ids: [...billedExpenseIds],
+  })
+
+  if (invErr) {
+    // Lost the race between the check above and the insert.
+    if (invErr.code === '23505' && invErr.message.includes('invoices_one_per_owner_expense_quarter')) {
+      return NextResponse.json(
+        { error: `${ownerName} already has a live invoice for Q${expense_quarter} ${2000 + expYY} expenses.` },
+        { status: 409 },
+      )
+    }
+    return NextResponse.json({ error: invErr.message }, { status: 500 })
   }
 
   return NextResponse.json(
-    { invoice, preview, expenses_linked: expensesLinked, allocations_written: allocationsWritten },
+    {
+      invoice,
+      preview,
+      expenses_linked:     billedExpenseIds.size,
+      allocations_written: ownerAllocations.length,
+    },
     { status: 201 },
   )
 }
