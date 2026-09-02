@@ -709,6 +709,106 @@ function SellSheet({ animals, onClose, onSuccess }: { animals: Animal[]; onClose
 
 // ─── Generic Bottom Sheet ───────────────────────────────────────────────────
 
+/**
+ * Asking for a partner or a spouse to be let in.
+ *
+ * The ranch decides — this only puts the name in front of them. Said plainly
+ * on the sheet, because an owner who thinks they have just granted access will
+ * not follow up when nothing happens.
+ */
+function AccessSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [name, setName]   = useState('')
+  const [email, setEmail] = useState('')
+  const [why, setWhy]     = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  const ready = name.trim().length > 0 && email.includes('@')
+
+  const submit = async () => {
+    if (!ready) return
+    setSubmitting(true); setError('')
+    try {
+      const res = await fetch('/api/portals/owner/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request_type: 'access',
+          access_name: name,
+          access_email: email,
+          notes: why,
+        }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(j.error ?? 'That did not send'); return }
+      onSuccess()
+    } catch {
+      setError('No connection — nothing was sent.')
+    } finally { setSubmitting(false) }
+  }
+
+  const label: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase',
+    color: 'var(--text-muted)', display: 'block', marginBottom: 6,
+  }
+  const input: React.CSSProperties = {
+    width: '100%', minHeight: 44, padding: '11px 12px', borderRadius: 10,
+    background: 'var(--bg-input, var(--surface-2))', border: '1px solid var(--border)',
+    color: 'var(--text)', fontSize: 16,
+  }
+
+  return (
+    <BottomSheet title="ASK FOR ACCESS" onClose={onClose}>
+      <div style={{ padding: '16px 20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', margin: 0 }}>
+          Someone else who should see your cattle — a partner, your spouse, whoever helps you
+          run things. They will see exactly what you see, and nothing belonging to anybody else.
+        </p>
+
+        <div>
+          <label style={label}>Their name</label>
+          <input style={input} value={name} onChange={e => setName(e.target.value)} placeholder="Pat Goldberg" />
+        </div>
+
+        <div>
+          <label style={label}>Their email</label>
+          <input style={input} type="email" inputMode="email" value={email}
+                 onChange={e => setEmail(e.target.value)} placeholder="pat@example.com" />
+        </div>
+
+        <div>
+          <label style={label}>Anything the ranch should know</label>
+          <textarea style={{ ...input, minHeight: 84, resize: 'vertical' }} value={why}
+                    onChange={e => setWhy(e.target.value)}
+                    placeholder="My partner in the LLC." />
+        </div>
+
+        {error && (
+          <p style={{ fontSize: 13, color: 'var(--danger-fg)', margin: 0 }}>{error}</p>
+        )}
+
+        <p style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-muted)', margin: 0 }}>
+          The ranch approves this. Nothing is sent to them until it does.
+        </p>
+
+        <button
+          onClick={submit}
+          disabled={!ready || submitting}
+          style={{
+            padding: '15px 12px', borderRadius: 12, border: 'none',
+            background: ready ? 'var(--accent)' : 'var(--surface-2)',
+            color: ready ? '#fff' : 'var(--text-muted)',
+            fontWeight: 700, fontSize: 13, letterSpacing: '.06em',
+            cursor: ready ? 'pointer' : 'default', minHeight: 48,
+          }}
+        >
+          {submitting ? 'SENDING…' : 'ASK THE RANCH'}
+        </button>
+      </div>
+    </BottomSheet>
+  )
+}
+
 function BottomSheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.55)' }}
@@ -763,6 +863,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   // Sheets
   const [buyOpen, setBuyOpen]     = useState(false)
   const [sellOpen, setSellOpen]   = useState(false)
+  const [accessOpen, setAccessOpen] = useState(false)
 
   // Annual report
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -1116,6 +1217,13 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
               </button>
             </div>
 
+            {/* Full width, below the two cattle actions: this is about people,
+                not livestock, and lumping it in with buy and sell would read
+                as a third way to trade. */}
+            <button onClick={() => setAccessOpen(true)} style={{ padding: '14px 12px', borderRadius: 14, background: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, fontSize: 13, letterSpacing: '0.04em', border: '1px solid var(--border)', cursor: 'pointer', textAlign: 'center' }}>
+              ASK FOR ACCESS FOR SOMEONE
+            </button>
+
             {/* My Invoices */}
             <MoreSection title="MY INVOICES">
               {invoices.length === 0 ? (
@@ -1270,6 +1378,12 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
           animals={animals}
           onClose={() => setSellOpen(false)}
           onSuccess={() => { setSellOpen(false); loadRequests() }}
+        />
+      )}
+      {accessOpen && (
+        <AccessSheet
+          onClose={() => setAccessOpen(false)}
+          onSuccess={() => { setAccessOpen(false); loadRequests() }}
         />
       )}
 

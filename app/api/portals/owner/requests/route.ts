@@ -11,7 +11,7 @@ export async function GET() {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('owner_requests')
-    .select('id, request_type, status, quantity, animal_type, budget_min, budget_max, breed, timeframe, animal_id, sell_reason, sell_timeline, funds_disposition, funds_other_notes, notes, rancher_notes, created_at')
+    .select('id, request_type, status, quantity, animal_type, budget_min, budget_max, breed, timeframe, animal_id, sell_reason, sell_timeline, funds_disposition, funds_other_notes, notes, rancher_notes, access_name, access_email, created_at')
     .eq('owner_id', session.id)
     .order('created_at', { ascending: false })
 
@@ -27,13 +27,23 @@ export async function POST(req: NextRequest) {
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
 
   const { request_type } = body
-  if (!['buy', 'sell'].includes(request_type)) {
-    return NextResponse.json({ error: 'request_type must be buy or sell' }, { status: 400 })
+  if (!['buy', 'sell', 'access'].includes(request_type)) {
+    return NextResponse.json({ error: 'request_type must be buy, sell or access' }, { status: 400 })
   }
 
   if (request_type === 'buy') {
     if (!body.quantity || !body.animal_type || !body.timeframe) {
       return NextResponse.json({ error: 'quantity, animal_type, and timeframe are required for buy requests' }, { status: 400 })
+    }
+  }
+
+  // Asking for a partner, a spouse or a manager to be let in. This grants
+  // nothing — it puts the name in front of the ranch, who decide.
+  if (request_type === 'access') {
+    const name  = typeof body.access_name === 'string' ? body.access_name.trim() : ''
+    const email = typeof body.access_email === 'string' ? body.access_email.trim().toLowerCase() : ''
+    if (!name || !email.includes('@')) {
+      return NextResponse.json({ error: 'A name and an email address are both needed' }, { status: 400 })
     }
   }
 
@@ -62,6 +72,8 @@ export async function POST(req: NextRequest) {
       funds_disposition: body.funds_disposition ?? null,
       funds_other_notes: body.funds_other_notes ?? null,
       notes: body.notes ?? null,
+      access_name:  typeof body.access_name === 'string' ? body.access_name.trim() || null : null,
+      access_email: typeof body.access_email === 'string' ? body.access_email.trim().toLowerCase() || null : null,
     })
     .select('id, request_type, status, created_at')
     .single()

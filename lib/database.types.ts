@@ -2228,6 +2228,8 @@ export type Database = {
       }
       owner_requests: {
         Row: {
+          access_email: string | null
+          access_name: string | null
           animal_id: string | null
           animal_type: string | null
           breed: string | null
@@ -2242,12 +2244,15 @@ export type Database = {
           quantity: number | null
           rancher_notes: string | null
           request_type: string
+          resolved_membership_id: string | null
           sell_reason: string | null
           sell_timeline: string | null
           status: string
           timeframe: string | null
         }
         Insert: {
+          access_email?: string | null
+          access_name?: string | null
           animal_id?: string | null
           animal_type?: string | null
           breed?: string | null
@@ -2262,12 +2267,15 @@ export type Database = {
           quantity?: number | null
           rancher_notes?: string | null
           request_type: string
+          resolved_membership_id?: string | null
           sell_reason?: string | null
           sell_timeline?: string | null
           status?: string
           timeframe?: string | null
         }
         Update: {
+          access_email?: string | null
+          access_name?: string | null
           animal_id?: string | null
           animal_type?: string | null
           breed?: string | null
@@ -2282,6 +2290,7 @@ export type Database = {
           quantity?: number | null
           rancher_notes?: string | null
           request_type?: string
+          resolved_membership_id?: string | null
           sell_reason?: string | null
           sell_timeline?: string | null
           status?: string
@@ -2300,6 +2309,13 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "grazing_owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_requests_resolved_membership_id_fkey"
+            columns: ["resolved_membership_id"]
+            isOneToOne: false
+            referencedRelation: "portal_memberships"
             referencedColumns: ["id"]
           },
         ]

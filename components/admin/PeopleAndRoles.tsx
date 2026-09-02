@@ -25,11 +25,16 @@ interface Person {
 
 interface RoleOption { value: string; label: string }
 interface HerdOption { id: string; label: string }
+interface AccessRequest {
+  id: string; herd: string; name: string | null; email: string | null
+  notes: string | null; askedAt: string
+}
 
 export function PeopleAndRoles() {
   const [people, setPeople]   = useState<Person[]>([])
   const [roles, setRoles]     = useState<RoleOption[]>([])
   const [herds, setHerds]     = useState<HerdOption[]>([])
+  const [asks, setAsks]       = useState<AccessRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
   const [busy, setBusy]       = useState<string | null>(null)
@@ -46,9 +51,15 @@ export function PeopleAndRoles() {
   // `load` below: a setState the linter can trace back into an effect body is
   // the cascading-render pattern it exists to catch, even behind a promise.
   useEffect(() => {
-    apiGet('/api/admin/people')
-      .then(r => r.json())
-      .then(j => { setPeople(j.data ?? []); setRoles(j.roles ?? []); setHerds(j.herds ?? []); setLoading(false) })
+    Promise.all([
+      apiGet('/api/admin/people').then(r => r.json()),
+      apiGet('/api/admin/access-requests').then(r => r.json()).catch(() => ({ data: [] })),
+    ])
+      .then(([j, a]) => {
+        setPeople(j.data ?? []); setRoles(j.roles ?? []); setHerds(j.herds ?? [])
+        setAsks(a.data ?? [])
+        setLoading(false)
+      })
       .catch(() => { setError('Could not load people'); setLoading(false) })
   }, [])
 
@@ -60,6 +71,8 @@ export function PeopleAndRoles() {
     setPeople(j.data ?? [])
     setRoles(j.roles ?? [])
     setHerds(j.herds ?? [])
+    const a = await apiGet('/api/admin/access-requests').then(r => r.json()).catch(() => ({ data: [] }))
+    setAsks(a.data ?? [])
   }, [])
 
   async function invite(e: React.FormEvent) {
@@ -118,11 +131,65 @@ export function PeopleAndRoles() {
     }
   }
 
+  async function decide(id: string, decision: 'approve' | 'decline') {
+    setBusy(`ask-${id}`); setError('')
+    try {
+      const res = await apiPost('/api/admin/access-requests', { id, decision })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(j.error ?? 'That did not go through'); return }
+      if (decision === 'approve' && j.emailed === false) {
+        setInviteUrl(j.inviteUrl)
+        setError(`Invited, but the email did not send: ${j.emailError ?? 'unknown'}. Send them the link below.`)
+      }
+      await load()
+    } finally { setBusy(null) }
+  }
+
   if (loading) return <p className="type-body" style={{ color: 'var(--text-muted)' }}>Loading…</p>
 
   return (
     <div className="flex flex-col gap-6 pb-8">
       {error && <ContextBanner tone="danger">{error}</ContextBanner>}
+
+      {/* First, because somebody is waiting on it. An owner asked for a
+          partner or a spouse to be let in; approving creates the membership
+          against that owner's herd and sends the invite in one press. */}
+      {asks.length > 0 && (
+        <Panel
+          title="ASKED FOR ACCESS"
+          subtitle={`${asks.length} waiting on you`}
+        >
+          {asks.map(a => (
+            <PanelSection key={a.id}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                    {a.name || a.email}
+                  </p>
+                  <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                    {a.email} · for <strong style={{ color: 'var(--text-secondary)' }}>{a.herd}</strong>
+                  </p>
+                  {a.notes && (
+                    <p className="type-helper mt-1" style={{ color: 'var(--text-secondary)' }}>
+                      &ldquo;{a.notes}&rdquo;
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button intent="primary" size="sm" loading={busy === `ask-${a.id}`}
+                          onClick={() => decide(a.id, 'approve')}>
+                    APPROVE &amp; INVITE
+                  </Button>
+                  <Button intent="ghost" size="sm" loading={busy === `ask-${a.id}`}
+                          onClick={() => decide(a.id, 'decline')}>
+                    DECLINE
+                  </Button>
+                </div>
+              </div>
+            </PanelSection>
+          ))}
+        </Panel>
+      )}
 
       <Panel title="WHO HAS ACCESS" subtitle={`${people.length} ${people.length === 1 ? 'person' : 'people'}`}>
         {people.map(p => (
