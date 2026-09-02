@@ -1,35 +1,44 @@
 import Image from 'next/image'
-import { BrandBookMark } from '@/components/brand/BrandBookMark'
+import { BRAND_ON_DARK } from '@/components/brand/BrandWatermark'
 
 /**
- * The ranch plate — mark, name, brass rule, greeting.
+ * The ranch plate — brand, logo, brass rule, greeting.
  *
- * This is the first thing on the dashboard because the dashboard is somewhere
- * you land every morning, and you should know whose outfit this is inside half
- * a second. The BrandBook mark only stands in when a ranch has not uploaded a
- * logo yet: on a ranch that has one, the product's identity has no business
- * being the largest thing on the owner's own home screen.
+ * The two images are not interchangeable and are not shown the same way:
  *
- * Values are passed in rather than fetched here so the page reads
- * ranch_settings once and shares the row with <BrandWatermark>.
+ *   BRAND — the registered iron mark. Goes INSIDE the ring, because a ring is
+ *   what a brand is stamped in. Square-ish, high contrast, survives being
+ *   small. Shown only when one exists; an empty ring is worse than no ring.
+ *
+ *   LOGO — the business's wordmark. Goes OUTSIDE, at its own shape and its own
+ *   proportions. Legacy's is 265x152 and carries the ranch name inside the
+ *   artwork, so cropping it into a 76px circle destroyed both the name and the
+ *   picture — which is exactly what it looked like.
+ *
+ * Because a logo of that kind already says the ranch name, the text name steps
+ * aside when one is present and survives as the image's alt text. Ranches with
+ * no logo keep the name set in display type.
  */
 export function RanchMasthead({
   ranchName,
   ownerName,
   logoUrl,
+  brandUrl,
   timezone,
 }: {
   ranchName: string | null
   ownerName: string | null
   logoUrl: string | null
+  brandUrl: string | null
   timezone: string
 }) {
   // Both names carry trailing spaces in the live row. Trim at the edge so a
-  // stray keystroke during onboarding doesn't become a visible gap in 2.25rem
-  // display type.
+  // stray keystroke during onboarding doesn't become a visible gap in display
+  // type. Empty string is what a skipped upload leaves, so test for content.
   const ranch = (ranchName ?? '').trim()
   const owner = (ownerName ?? '').trim()
   const logo  = (logoUrl   ?? '').trim()
+  const brand = (brandUrl  ?? '').trim()
 
   const hour = new Date(
     new Date().toLocaleString('en-US', { timeZone: timezone }),
@@ -44,44 +53,56 @@ export function RanchMasthead({
   })
 
   return (
-    <header className="flex items-center gap-3 sm:gap-4 mb-5 sm:mb-7">
-      <div
-        className="relative flex-shrink-0 rounded-full overflow-hidden grid place-content-center w-14 h-14 sm:w-[76px] sm:h-[76px]"
-        style={{
-          border: '2px solid var(--accent)',
-          boxShadow: '0 0 0 1px rgba(234,88,12,0.18), 0 0 26px rgba(234,88,12,0.16)',
-          background: 'var(--surface-1)',
-        }}
-      >
-        {logo ? (
-          <Image
-            src={logo}
-            alt={ranch ? `${ranch} logo` : 'Ranch logo'}
-            fill
-            sizes="76px"
-            className="object-cover"
-            priority
-          />
-        ) : (
-          <BrandBookMark size={38} color="var(--accent)" />
-        )}
-      </div>
-
-      <div className="min-w-0">
-        <h1
-          className="truncate"
+    <header className="flex items-center gap-4 sm:gap-5 mb-5 sm:mb-7">
+      {brand && (
+        <div
+          className="relative flex-shrink-0 rounded-full overflow-hidden w-14 h-14 sm:w-[72px] sm:h-[72px]"
           style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 700,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            lineHeight: 1,
-            color: 'var(--text)',
-            fontSize: 'clamp(1.375rem, 5.5vw, 2.25rem)',
+            border: '2px solid var(--accent)',
+            boxShadow: '0 0 0 1px rgba(234,88,12,0.18), 0 0 26px rgba(234,88,12,0.16)',
+            background: 'var(--surface-1)',
           }}
         >
-          {ranch || 'Brand Book'}
-        </h1>
+          <Image
+            src={brand}
+            alt={ranch ? `${ranch} brand` : 'Ranch brand'}
+            fill
+            sizes="72px"
+            className="object-contain p-2"
+            style={BRAND_ON_DARK}
+            priority
+          />
+        </div>
+      )}
+
+      <div className="min-w-0">
+        {logo ? (
+          <h1 className="m-0">
+            <Image
+              src={logo}
+              alt={ranch || 'Ranch logo'}
+              width={265}
+              height={152}
+              priority
+              className="w-auto h-12 sm:h-[68px] object-contain object-left"
+            />
+          </h1>
+        ) : (
+          <h1
+            className="truncate m-0"
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              lineHeight: 1,
+              color: 'var(--text)',
+              fontSize: 'clamp(1.375rem, 5.5vw, 2.25rem)',
+            }}
+          >
+            {ranch || 'Brand Book'}
+          </h1>
+        )}
 
         <div
           className="h-px my-2"

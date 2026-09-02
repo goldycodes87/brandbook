@@ -17,7 +17,7 @@ import { RemindersWidget } from '@/components/dashboard/RemindersWidget'
 import { ReceiptsWaiting } from '@/components/dashboard/ReceiptsWaiting'
 import { MessagesCard } from '@/components/dashboard/MessagesCard'
 import { RanchMasthead } from '@/components/dashboard/RanchMasthead'
-import { BrandWatermark } from '@/components/dashboard/BrandWatermark'
+import { BrandWatermark } from '@/components/brand/BrandWatermark'
 import { HeroTiles } from '@/components/dashboard/HeroTiles'
 
 // No "unbilled" tile here, deliberately. `invoice_id IS NULL` does not mean
@@ -155,16 +155,14 @@ export default async function DashboardPage() {
           so it travels with the content column instead of sliding around as
           the sidebar appears and disappears. */}
       <div className="relative overflow-hidden">
-        <BrandWatermark
-          brandUrl={ranchSettings?.brand_photo_url ?? null}
-          logoUrl={ranchSettings?.logo_url ?? null}
-        />
+        <BrandWatermark src={ranchSettings?.brand_photo_url} />
 
         <div className="relative">
           <RanchMasthead
             ranchName={ranchSettings?.ranch_name ?? null}
             ownerName={ranchSettings?.owner_name ?? null}
             logoUrl={ranchSettings?.logo_url ?? null}
+            brandUrl={ranchSettings?.brand_photo_url ?? null}
             timezone={ranchSettings?.timezone ?? 'America/Denver'}
           />
 

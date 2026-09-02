@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, use, useCallback } from 'react'
 import { fmtDate, fmtMoney, fmtTs, calcAge } from '@/lib/format'
+import { BrandWatermark } from '@/components/brand/BrandWatermark'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -843,6 +844,8 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
 
   const [valid, setValid]         = useState<boolean | null>(null)
   const [owner, setOwner]         = useState<OwnerInfo | null>(null)
+  /** The owner's own registered brand, watermarked behind their portal. */
+  const [brandUrl, setBrandUrl]   = useState<string | null>(null)
   const [animals, setAnimals]     = useState<Animal[]>([])
   const [invoices, setInvoices]   = useState<Invoice[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
@@ -913,14 +916,16 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
         setOwner(d.owner)
         setValid(true)
 
-        const [animRes, invRes, settleRes] = await Promise.all([
+        const [animRes, invRes, settleRes, meRes] = await Promise.all([
           fetch('/api/portals/owner/animals').then(r => r.json()),
           fetch('/api/portals/owner/invoices').then(r => r.json()),
           fetch('/api/portals/owner/settlement').then(r => r.json()),
+          fetch('/api/portals/owner/me').then(r => r.json()),
         ])
         setAnimals(animRes.data ?? [])
         setInvoices(invRes.data ?? [])
         setSettlements(settleRes.data ?? [])
+        setBrandUrl(meRes.brand_url ?? null)
         setLoading(false)
 
         // Load current quarter allocations for portfolio hero
@@ -1026,7 +1031,10 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   // ─── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: '100dvh', backgroundColor: 'var(--surface-0)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100dvh', backgroundColor: 'var(--surface-0)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+      {/* The owner's own brand, same treatment the ranch gets on its dashboard.
+          Renders nothing until they have uploaded one. */}
+      <BrandWatermark src={brandUrl} />
 
       {/* Sticky top header */}
       <header style={{ position: 'sticky', top: 0, zIndex: 20, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--surface-1)', borderBottom: '1px solid var(--border)' }}>
@@ -1040,8 +1048,9 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
         </div>
       </header>
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}>
+      {/* Scrollable content. Positioned so it paints above the watermark —
+          a normal-flow block would sit under the absolutely-positioned mark. */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 80, position: 'relative', zIndex: 1 }}>
 
         {/* ── PORTFOLIO TAB ───────────────────────────────── */}
         {tab === 'portfolio' && (
