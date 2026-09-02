@@ -11,7 +11,7 @@
 // an owner and Grant are always looking at the same arithmetic.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { loadQuarterAllocations, quarterRange, type ExpenseMeta } from '@/lib/expense-allocation-data'
+import { loadQuarterAllocations, quarterRange, getSelfOwnerId, type ExpenseMeta } from '@/lib/expense-allocation-data'
 import type { Allocation, ExpenseKind, OwnerKey } from '@/lib/expense-allocation'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -230,5 +230,85 @@ export async function buildAllocationReport(
       amount:      round2(u.amount),
       reason:      u.reason,
     })),
+  }
+}
+
+// ─── Receivable ─────────────────────────────────────────────────────────────
+
+export interface PendingReceivable {
+  /** Owed by outside owners and not yet on any invoice. */
+  total: number
+  byQuarter: Array<{ year: number; quarter: number; pending: number }>
+  /** Quarters older than the window below, if any were skipped. */
+  quartersConsidered: number
+}
+
+/**
+ * What outside owners owe that nobody has invoiced yet.
+ *
+ * THE one implementation. Every screen showing an unbilled figure calls this,
+ * because the alternative has already been tried: the dashboard and the admin
+ * overview each ran `sum(total_amount) where invoice_id is null` over
+ * lease_expenses, and both were wrong in the same three ways.
+ *
+ *   1. invoice_id is only ever stamped on owner_specific and animal_specific
+ *      rows. Shared costs — hay, mineral, a branding day — are tracked through
+ *      expense_allocations, so they read as uninvoiced forever. That query
+ *      counted money Andy and Doug had already paid.
+ *   2. It spanned every quarter at once while billing runs per quarter.
+ *   3. It included the is_self owner, which is the ranch's own pocket and can
+ *      never be a receivable.
+ *
+ * Pending is computed from live herd-days rather than stored, so this is the
+ * same arithmetic an invoice would use if it were cut right now.
+ */
+export async function pendingReceivable(
+  supabase: DB,
+  opts: { maxQuarters?: number } = {},
+): Promise<PendingReceivable> {
+  const maxQuarters = opts.maxQuarters ?? 8
+
+  const [{ data: periodRows }, selfOwnerId] = await Promise.all([
+    supabase.from('lease_expenses').select('year, quarter'),
+    getSelfOwnerId(supabase),
+  ])
+
+  const periods = [
+    ...new Set(
+      ((periodRows ?? []) as Array<{ year: number | null; quarter: number | null }>)
+        .filter(r => r.year != null && r.quarter != null)
+        .map(r => `${r.year}:${r.quarter}`),
+    ),
+  ]
+    .map(k => {
+      const [y, q] = k.split(':').map(Number)
+      return { year: y, quarter: q }
+    })
+    // Newest first, so a long history is trimmed from the far end rather than
+    // silently dropping the quarter about to be billed.
+    .sort((a, b) => b.year - a.year || b.quarter - a.quarter)
+
+  const considered = periods.slice(0, maxQuarters)
+
+  const reports = await Promise.all(
+    considered.map(p => buildAllocationReport(supabase, { quarter: p.quarter, year: p.year })),
+  )
+
+  const byQuarter = reports.map((r, i) => ({
+    year:    considered[i].year,
+    quarter: considered[i].quarter,
+    // The ranch's own share is not owed to anyone. Ranch-owned animals resolve
+    // to the is_self owner, and to a null key when no is_self row exists.
+    pending: round2(
+      r.owners
+        .filter(o => o.owner_id !== null && o.owner_id !== selfOwnerId)
+        .reduce((s, o) => s + o.pending, 0),
+    ),
+  }))
+
+  return {
+    total:              round2(byQuarter.reduce((s, q) => s + q.pending, 0)),
+    byQuarter:          byQuarter.filter(q => q.pending !== 0),
+    quartersConsidered: considered.length,
   }
 }

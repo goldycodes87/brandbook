@@ -8,6 +8,7 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
 import { ConfigCheck } from '@/components/admin/ConfigCheck'
+import { pendingReceivable } from '@/lib/expense-allocation-report'
 
 /**
  * Opens with the state of the operation rather than a form.
@@ -18,25 +19,28 @@ import { ConfigCheck } from '@/components/admin/ConfigCheck'
 async function overview() {
   const supabase = createAdminClient()
 
-  const [head, owners, pendingReceipts, people, unbilled] = await Promise.all([
+  const [head, owners, pendingReceipts, people, receivable] = await Promise.all([
     supabase.from('animals').select('id', { count: 'exact', head: true }).eq('status', 'active'),
     supabase.from('grazing_owners').select('id', { count: 'exact', head: true }).eq('is_self', false),
-    supabase.from('inbound_receipts').select('id', { count: 'exact', head: true }).is('reviewed_at', null),
+    // Same filter as the nav badge and the dashboard card: a receipt that
+    // failed to parse is not sitting in the review queue, and counting it here
+    // made admin disagree with every other screen that shows this number.
+    supabase.from('inbound_receipts').select('id', { count: 'exact', head: true })
+      .is('reviewed_at', null).eq('parse_status', 'parsed'),
     supabase.from('portal_memberships').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-    // Expense shares nobody has invoiced yet. An allocation with no invoice_id
-    // is money owed that has not been asked for.
-    supabase.from('lease_expenses').select('total_amount').is('invoice_id', null),
+    // Was sum(total_amount) where invoice_id is null — which counted hay and
+    // mineral Andy and Doug had already paid for, because shared rows never
+    // take an invoice_id. See pendingReceivable for the full account.
+    pendingReceivable(supabase),
   ])
-
-  const unbilledTotal = ((unbilled.data ?? []) as Array<{ total_amount: number }>)
-    .reduce((s, r) => s + (Number(r.total_amount) || 0), 0)
 
   return {
     head:            head.count ?? 0,
     owners:          owners.count ?? 0,
     pendingReceipts: pendingReceipts.count ?? 0,
     people:          people.count ?? 0,
-    unbilledTotal,
+    unbilledTotal:   receivable.total,
+    unbilledQuarters: receivable.byQuarter,
   }
 }
 
@@ -87,8 +91,20 @@ export default async function AdminOverviewPage() {
         <StatCard label="HEAD ON THE PLACE" value={o.head} />
         <StatCard label="OWNERS" value={o.owners} meta="not counting your own" />
         {session.canSeeBilling && (
-          <StatCard label="UNBILLED EXPENSES" value={money(o.unbilledTotal)}
-            valueColor="var(--gold-fg, #d97706)" meta="not yet on an invoice" />
+          // Straight through to the allocation view it is computed from, so
+          // the number can always be taken apart rather than just believed.
+          <Link href="/billing/allocations" className="block">
+            <StatCard
+              label="UNBILLED TO OWNERS"
+              value={money(o.unbilledTotal)}
+              valueColor={o.unbilledTotal > 0 ? 'var(--gold-fg, #d97706)' : undefined}
+              meta={
+                o.unbilledQuarters.length > 0
+                  ? `owed, not yet invoiced · ${o.unbilledQuarters.map(q => `Q${q.quarter} 20${q.year}`).join(', ')}`
+                  : 'everything invoiced'
+              }
+            />
+          </Link>
         )}
         <StatCard label="RECEIPTS TO REVIEW" value={o.pendingReceipts}
           valueColor={o.pendingReceipts > 0 ? 'var(--gold-fg, #d97706)' : undefined} />
