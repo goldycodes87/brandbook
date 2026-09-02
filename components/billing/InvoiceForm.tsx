@@ -45,6 +45,15 @@ interface ExpenseSplit {
   split_type: 'percent' | 'flat'
   percent: string
   owner_amount: string
+  /**
+   * The lease_expenses row this split came from, when it came from one.
+   *
+   * A split used to be a copy of an expense with no way back to it, so an
+   * invoice built here billed money the quarterly run would bill again in
+   * October. Carrying the id lets the server record the allocation and stamp
+   * the row. Rows typed by hand — hauling, a repair — have no id and need none.
+   */
+  expense_id?: string
 }
 
 interface HerdSummary {
@@ -116,6 +125,7 @@ export function InvoiceForm({ mode, initialData, onSuccess, onCancel }: InvoiceF
       split_type:   (e.split_type as 'percent' | 'flat') ?? 'flat',
       percent:      String(e.percent ?? ''),
       owner_amount: String(e.owner_amount ?? ''),
+      ...(e.expense_id ? { expense_id: String(e.expense_id) } : {}),
     }))
   )
 
@@ -195,6 +205,7 @@ export function InvoiceForm({ mode, initialData, onSuccess, onCancel }: InvoiceF
       // Apply suggested expense splits
       if (json.suggested_expenses?.length > 0) {
         setExpenses(json.suggested_expenses.map((e: {
+          expense_id?: string
           category_name: string; description: string; total_amount: number; owner_amount: number
         }) => ({
           category:     e.category_name,
@@ -203,6 +214,7 @@ export function InvoiceForm({ mode, initialData, onSuccess, onCancel }: InvoiceF
           split_type:   'percent' as const,
           percent:      String(json.herd_summary?.owner_pct ?? ''),
           owner_amount: String(e.owner_amount),
+          ...(e.expense_id ? { expense_id: e.expense_id } : {}),
         })))
       }
 
@@ -275,6 +287,10 @@ export function InvoiceForm({ mode, initialData, onSuccess, onCancel }: InvoiceF
           split_type:   e.split_type,
           percent:      toNum(e.percent),
           owner_amount: toNum(e.owner_amount),
+          // Present only for splits pulled from a real expense row. The server
+          // uses it to record the allocation, which is what stops the quarterly
+          // run billing the same money again.
+          ...(e.expense_id ? { expense_id: e.expense_id } : {}),
         })),
       }
 

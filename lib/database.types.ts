@@ -3576,6 +3576,61 @@ export type Database = {
         Args: { p_delta: number; p_inventory_id: string }
         Returns: number
       }
+      assert_expenses_not_already_billed: {
+        Args: { p_allocations: Json; p_owner_id: string }
+        Returns: undefined
+      }
+      create_manual_invoice: {
+        Args: {
+          p_allocations?: Json
+          p_billed_expense_ids?: string[]
+          p_due_date?: string
+          p_expense_splits?: Json
+          p_line_items: Json
+          p_notes?: string
+          p_owner_id: string
+          p_period_end?: string
+          p_period_start?: string
+          p_total: number
+        }
+        Returns: {
+          approved_at: string | null
+          created_at: string | null
+          due_date: string | null
+          email_sent_at: string | null
+          expense_quarter: number | null
+          expense_splits: Json | null
+          expense_year: number | null
+          id: string
+          invoice_number: string | null
+          invoice_quarter: number | null
+          invoice_sequence: number | null
+          line_items: Json | null
+          notes: string | null
+          owner_id: string
+          paid_amount: number | null
+          paid_at: string | null
+          payment_link: string | null
+          payment_link_created_at: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          pdf_url: string | null
+          period_end: string | null
+          period_start: string | null
+          sent_at: string | null
+          square_payment_link: string | null
+          status: Database["public"]["Enums"]["invoice_status"] | null
+          stripe_invoice_id: string | null
+          total_amount: number | null
+          viewed_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_quarterly_invoice: {
         Args: {
           p_allocations: Json

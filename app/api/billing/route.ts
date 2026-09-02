@@ -39,35 +39,54 @@ export async function POST(req: NextRequest) {
   const { owner_id, period_start, period_end, due_date, notes, line_items = [], expense_splits = [] } = body
   if (!owner_id) return NextResponse.json({ error: 'owner_id required' }, { status: 400 })
 
-  const lineTotal    = (line_items    as Array<{ amount: number }>).reduce((s, i) => s + (Number(i.amount) || 0), 0)
-  const expenseTotal = (expense_splits as Array<{ owner_amount: number }>).reduce((s, e) => s + (Number(e.owner_amount) || 0), 0)
+  const splits = expense_splits as Array<{
+    owner_amount: number
+    /** lease_expenses.id when this split came from a real expense row. */
+    expense_id?: string | null
+    description?: string | null
+    category_name?: string | null
+  }>
+
+  const lineTotal    = (line_items as Array<{ amount: number }>).reduce((s, i) => s + (Number(i.amount) || 0), 0)
+  const expenseTotal = splits.reduce((s, e) => s + (Number(e.owner_amount) || 0), 0)
   const total_amount = lineTotal + expenseTotal
 
-  const now   = new Date()
-  const year  = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const rand  = String(Math.floor(1000 + Math.random() * 9000))
-  const invoice_number = `INV-${year}${month}-${rand}`
+  // Splits that came from a real lease_expenses row have to be recorded as
+  // allocations, or the quarterly run bills the same money again in October.
+  // Free-form lines — hauling, a repair — carry no expense_id and need none.
+  const allocations = splits
+    .filter(e => e.expense_id)
+    .map(e => ({
+      expense_id: e.expense_id as string,
+      owner_id,
+      amount:     Number(e.owner_amount) || 0,
+      share_note: e.description ?? e.category_name ?? null,
+    }))
 
-  const row = {
-    owner_id,
-    invoice_number,
-    period_start:   period_start  || null,
-    period_end:     period_end    || null,
-    due_date:       due_date      || null,
-    notes:          notes         || null,
-    line_items,
-    expense_splits,
-    total_amount,
-    status: 'draft' as const,
+  const { data, error } = await supabase.rpc('create_manual_invoice', {
+    p_owner_id:       owner_id,
+    p_line_items:     line_items,
+    p_total:          total_amount,
+    p_expense_splits: splits,
+    ...(period_start ? { p_period_start: period_start } : {}),
+    ...(period_end   ? { p_period_end:   period_end   } : {}),
+    ...(due_date     ? { p_due_date:     due_date     } : {}),
+    ...(notes        ? { p_notes:        notes        } : {}),
+    ...(allocations.length > 0
+      ? {
+          p_allocations:        allocations,
+          p_billed_expense_ids: allocations.map(a => a.expense_id),
+        }
+      : {}),
+  })
+
+  if (error) {
+    // The guard fired: one of these expenses is already on a live invoice.
+    if (error.code === '23505') {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const { data, error } = await supabase
-    .from('invoices')
-    .insert(row)
-    .select('*, owner:grazing_owners(id, name, company_name, owner_name, email)')
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data }, { status: 201 })
 }

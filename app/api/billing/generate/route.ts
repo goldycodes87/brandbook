@@ -206,6 +206,10 @@ export async function POST(req: NextRequest) {
     split_value: number
     owner_amount: number
     expense_date: string | null
+    /* The lease_expenses row this came from. Without it the invoice copies the
+       expense by value and nothing records that it was billed, so the quarterly
+       run bills the same money again at quarter end. */
+    expense_id: string
   }> = []
 
   if (ownerPct > 0) {
@@ -218,10 +222,11 @@ export async function POST(req: NextRequest) {
       .order('expense_date')
 
     for (const exp of (leaseExpenses ?? []) as unknown as Array<{
-      category_name: string; description: string | null; total_amount: number; expense_date: string | null
+      id: string; category_name: string; description: string | null; total_amount: number; expense_date: string | null
     }>) {
       const ownerAmount = Math.round(exp.total_amount * (ownerPct / 100) * 100) / 100
       expenseSplits.push({
+        expense_id:    exp.id,
         category_name: exp.category_name,
         description:   exp.description ?? exp.category_name,
         total_amount:  exp.total_amount,

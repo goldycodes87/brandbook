@@ -133,7 +133,43 @@ export async function POST(req: NextRequest) {
     windowEnd:   eEnd,
   })
 
-  const ownerAllocations = allocations.filter(a => a.owner_id === owner_id && a.amount !== 0)
+  const ownerAllocationsAll = allocations.filter(a => a.owner_id === owner_id && a.amount !== 0)
+
+  // Drop anything this owner has already been charged for on a live invoice —
+  // a hauling bill sent early as a one-off, say. The database refuses it either
+  // way; filtering here means one early charge trims a line off this invoice
+  // instead of blocking the whole quarter.
+  const billedElsewhere = new Map<string, string>()
+  if (ownerAllocationsAll.length > 0) {
+    const { data: priorRows } = await supabase
+      .from('expense_allocations')
+      .select('expense_id, invoices(invoice_number, status)')
+      .eq('owner_id', owner_id)
+      .in('expense_id', ownerAllocationsAll.map(a => a.expense_id))
+
+    const prior = (priorRows ?? []) as unknown as Array<{
+      expense_id: string
+      invoices: { invoice_number: string | null; status: string | null } | null
+    }>
+
+    for (const row of prior) {
+      if (row.invoices && row.invoices.status !== 'void') {
+        billedElsewhere.set(row.expense_id, row.invoices.invoice_number ?? 'an earlier invoice')
+      }
+    }
+  }
+
+  const ownerAllocations   = ownerAllocationsAll.filter(a => !billedElsewhere.has(a.expense_id))
+  const excludedAsBilled   = ownerAllocationsAll
+    .filter(a => billedElsewhere.has(a.expense_id))
+    .map(a => ({
+      expense_id:  a.expense_id,
+      amount:      a.amount,
+      description: expenses.get(a.expense_id)?.description
+                ?? expenses.get(a.expense_id)?.category_name
+                ?? 'Expense',
+      on_invoice:  billedElsewhere.get(a.expense_id)!,
+    }))
 
   const ownerHerdDays = herdDays.byOwner.get(owner_id) ?? 0
   const ownerHerdPct  = herdDays.total > 0 ? ownerHerdDays / herdDays.total : 0
@@ -228,6 +264,9 @@ export async function POST(req: NextRequest) {
     sex_breakdown:     sexBreakdown,
     pair_calves:       billingPairCalves.length,
     herd_pct:          Math.round(ownerHerdPct * 1000) / 10,
+    // Shown so a trimmed invoice reads as deliberate rather than as a
+    // number that quietly came up short.
+    excluded_already_billed: excludedAsBilled,
   }
 
   // ── Step 9: Has this owner already been billed for this expense quarter? ────
