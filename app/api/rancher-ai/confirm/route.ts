@@ -26,6 +26,10 @@ export async function POST(req: NextRequest) {
     conversationId,
     authUserId: session.authUserId,
     actorName: session.name,
+    // Forwarded so an action that calls back into the app's own API — drafting
+    // an invoice, say — travels with this person's authority and through the
+    // same gate their button press would, rather than any bypass of its own.
+    cookieHeader: req.headers.get('cookie'),
   })
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })

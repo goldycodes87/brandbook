@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildAllocationReport } from '@/lib/expense-allocation-report'
 import { asAnimalSex, asAnimalStatus } from '@/lib/db-enums'
+import { WRITE_ACTIONS, toolSpecFor } from '@/lib/rancher-ai/write-actions'
 
 /**
  * What RancherAI can actually do.
@@ -38,6 +39,8 @@ export interface ToolContext {
   authUserId: string
   /** Today, in the ranch's timezone, as YYYY-MM-DD. Passed in so the tools stay pure of the clock. */
   today: string
+  /** Display name for the person asking — reaches the change log as the actor. */
+  actorName: string
 }
 
 type DB = ReturnType<typeof createAdminClient>
@@ -614,229 +617,37 @@ const searchSires: RancherTool = {
 
 // ─── Write tools ──────────────────────────────────────────────────────────────
 //
-// PROPOSE_ONLY: these do not write. Each validates what was asked, resolves the
-// names into real ids, and hands back a proposal for the rancher to confirm.
-// The confirmed proposal is what actually gets executed, by the caller.
+// Generated, not written. Every capability RancherAI has to change something
+// is declared once in lib/rancher-ai/write-actions.ts; the specs below and the
+// executor in execute.ts are both built from that same list, so a tool's
+// schema and the code that honours it cannot drift apart. They used to be two
+// hand-written halves, and the second half was where a check went missing.
+//
+// PROPOSE_ONLY: none of these write. Each validates what was asked, resolves
+// the names into real ids, and hands back a proposal for the rancher to
+// confirm. The confirmed proposal is what actually gets executed, by the
+// caller.
 //
 // That split is deliberate and it is the whole safety story. Voice makes it
 // non-negotiable: a misheard "twelve" for "twenty" has to be visible before it
 // becomes a treatment record, and a treatment record sets a withdrawal date
 // that decides whether an animal can be sold.
 
-const proposeReminder: RancherTool = {
-  spec: {
-    name: 'propose_reminder',
-    description:
-      'Set up a reminder. Returns a proposal the rancher confirms before it is saved. ' +
-      "Use for 'remind me to pull the bulls on August 15', 'remind me to recheck #42 in two weeks'.",
-    input_schema: {
-      type: 'object',
-      properties: {
-        title:    { type: 'string', description: 'What to be reminded of, in the rancher\'s own words.' },
-        due_date: { type: 'string', description: 'YYYY-MM-DD. Work out relative dates like "in two weeks" yourself from today.' },
-        tag:      { type: 'string', description: 'Attach it to an animal by tag number. Optional.' },
-        notes:    { type: 'string' },
-      },
-      required: ['title', 'due_date'],
-    },
-  },
-  async run(input) {
-    const supabase = createAdminClient()
-    const due = str(input.due_date)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return { error: `"${due}" is not a date I can use. Needs to be YYYY-MM-DD.` }
-
-    let animalId: string | null = null
-    let animalLabel: string | null = null
-    if (str(input.tag)) {
-      const { data } = await supabase.from('animals')
-        .select('id, tag_number, name').ilike('tag_number', str(input.tag).replace(/^#/, '')).maybeSingle()
-      const a = data as { id: string; tag_number: string; name: string | null } | null
-      if (!a) return { error: `No animal with tag ${str(input.tag)}.` }
-      animalId = a.id
-      animalLabel = `#${a.tag_number}${a.name ? ` (${a.name})` : ''}`
-    }
-
-    return {
-      proposal: {
-        action: 'create_reminder',
-        summary: `Remind you on ${due}: ${str(input.title)}${animalLabel ? ` — ${animalLabel}` : ''}`,
-        payload: {
-          title: str(input.title),
-          due_date: due,
-          animal_id: animalId,
-          notes: str(input.notes) || null,
-          reminder_type: 'manual',
-        },
-      },
-      needs_confirmation: true,
-    }
-  },
-}
-
-const proposeExpense: RancherTool = {
-  spec: {
-    name: 'propose_expense',
-    description:
-      'Record an expense. Returns a proposal the rancher confirms before it is saved. ' +
-      "Use for 'log 40 bales of hay, $2,400 from Miller Ranch'. " +
-      'If the expense is shared across the herd it will be split across owners when it is saved.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        description: { type: 'string' },
-        amount:      { type: 'number', description: 'Total dollars, before any split.' },
-        category:    { type: 'string', description: 'Matched against the ranch\'s expense categories.' },
-        expense_date:{ type: 'string', description: 'YYYY-MM-DD. Defaults to today.' },
-        vendor:      { type: 'string' },
-        tag:         { type: 'string', description: 'If it belongs to one animal rather than the herd.' },
-      },
-      required: ['description', 'amount'],
-    },
-  },
+const proposeTools: RancherTool[] = WRITE_ACTIONS.map(action => ({
+  spec: toolSpecFor(action),
   async run(input, ctx) {
-    const supabase = createAdminClient()
-    const amount = num(input.amount)
-    if (amount === null || amount <= 0) return { error: 'An expense needs a dollar amount greater than zero.' }
-
-    const date = str(input.expense_date) || ctx.today
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: `"${date}" is not a date I can use.` }
-
-    const { data: cats } = await supabase.from('expense_categories').select('id, name').eq('is_active', true)
-    const categories = (cats ?? []) as Array<{ id: string; name: string }>
-    const wanted = str(input.category).toLowerCase()
-    const cat = wanted
-      ? categories.find(c => c.name.toLowerCase() === wanted) ?? categories.find(c => c.name.toLowerCase().includes(wanted))
-      : null
-
-    if (wanted && !cat) {
-      return { error: `No expense category matches "${str(input.category)}".`, categories: categories.map(c => c.name) }
-    }
-
-    let animalId: string | null = null
-    let animalLabel: string | null = null
-    if (str(input.tag)) {
-      const { data } = await supabase.from('animals')
-        .select('id, tag_number, name').ilike('tag_number', str(input.tag).replace(/^#/, '')).maybeSingle()
-      const a = data as { id: string; tag_number: string; name: string | null } | null
-      if (!a) return { error: `No animal with tag ${str(input.tag)}.` }
-      animalId = a.id
-      animalLabel = `#${a.tag_number}${a.name ? ` (${a.name})` : ''}`
-    }
-
+    const prepared = await action.prepare(input, {
+      authUserId: ctx.authUserId,
+      today:      ctx.today,
+      actorName:  ctx.actorName,
+    })
+    if ('error' in prepared) return { error: prepared.error }
     return {
-      proposal: {
-        action: 'create_expense',
-        summary:
-          `${money(amount)} — ${str(input.description)}` +
-          `${cat ? ` (${cat.name})` : ''}${str(input.vendor) ? ` from ${str(input.vendor)}` : ''} on ${date}` +
-          `${animalLabel ? `, charged to ${animalLabel}` : ', split across the herd'}`,
-        payload: {
-          description: str(input.description),
-          total_amount: amount,
-          category_id: cat?.id ?? null,
-          category_name: cat?.name ?? null,
-          expense_date: date,
-          vendor: str(input.vendor) || null,
-          animal_id: animalId,
-        },
-      },
+      proposal: { action: action.name, summary: prepared.summary, payload: prepared.payload },
       needs_confirmation: true,
-      // Said out loud, because "it will be split" is a claim about somebody's bill.
-      note: animalId
-        ? 'This lands on one animal, so it goes to that animal\'s owner alone.'
-        : 'With no animal attached this is a herd expense, split by head-days across every owner who had cattle here that period.',
     }
   },
-}
-
-const proposeTreatment: RancherTool = {
-  spec: {
-    name: 'propose_treatment',
-    description:
-      'Record a treatment on an animal. Returns a proposal the rancher confirms before it is saved. ' +
-      "Use for 'gave #42 Draxxin today'. The withdrawal comes off the drug library, not from the rancher.",
-    input_schema: {
-      type: 'object',
-      properties: {
-        tag:        { type: 'string', description: 'Tag number of the animal treated.' },
-        drug:       { type: 'string', description: 'Product name as they said it.' },
-        dose_amount:{ type: 'number' },
-        dose_unit:  { type: 'string', description: "e.g. 'mL', 'cc'." },
-        event_date: { type: 'string', description: 'YYYY-MM-DD. Defaults to today.' },
-        administered_by: { type: 'string' },
-        notes:      { type: 'string' },
-      },
-      required: ['tag', 'drug'],
-    },
-  },
-  async run(input, ctx) {
-    const supabase = createAdminClient()
-    const date = str(input.event_date) || ctx.today
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: `"${date}" is not a date I can use.` }
-
-    const { data: animalRow } = await supabase.from('animals')
-      .select('id, tag_number, name, status').ilike('tag_number', str(input.tag).replace(/^#/, '')).maybeSingle()
-    const animal = animalRow as { id: string; tag_number: string; name: string | null; status: string } | null
-    if (!animal) return { error: `No animal with tag ${str(input.tag)}.` }
-
-    const term = str(input.drug)
-    const { data: drugRows } = await supabase
-      .from('drug_library')
-      .select('id, brand_name, generic_name, withdrawal_days_meat, withdrawal_days_milk, route')
-      .eq('is_active', true)
-      .or(`brand_name.ilike.%${term}%,generic_name.ilike.%${term}%`)
-      .limit(5)
-
-    const drugs = (drugRows ?? []) as Array<{
-      id: string; brand_name: string; generic_name: string | null
-      withdrawal_days_meat: number | null; withdrawal_days_milk: number | null; route: string | null
-    }>
-
-    if (drugs.length === 0) {
-      return { error: `"${term}" is not in the drug library. It can be added under Admin → Drug Library, with the withdrawal off the label.` }
-    }
-    if (drugs.length > 1) {
-      const exact = drugs.filter(d => d.brand_name.toLowerCase() === term.toLowerCase())
-      if (exact.length !== 1) {
-        return { note: `More than one product matches "${term}".`, candidates: drugs.map(d => d.brand_name) }
-      }
-      drugs.splice(0, drugs.length, exact[0])
-    }
-
-    const drug = drugs[0]
-    const meat = drug.withdrawal_days_meat ?? 0
-    const clear = new Date(`${date}T00:00:00Z`)
-    clear.setUTCDate(clear.getUTCDate() + meat)
-    const clearDate = clear.toISOString().slice(0, 10)
-
-    return {
-      proposal: {
-        action: 'create_treatment',
-        summary:
-          `${drug.brand_name} to #${animal.tag_number}${animal.name ? ` (${animal.name})` : ''} on ${date}` +
-          `${num(input.dose_amount) ? `, ${num(input.dose_amount)} ${str(input.dose_unit) || 'mL'}` : ''}`,
-        payload: {
-          animal_id: animal.id,
-          event_type: 'treatment',
-          event_date: date,
-          drug_name: drug.brand_name,
-          dose_amount: num(input.dose_amount),
-          dose_unit: str(input.dose_unit) || null,
-          withdrawal_days: meat,
-          withdrawal_clear_date: clearDate,
-          administered_by: str(input.administered_by) || null,
-          notes: str(input.notes) || null,
-        },
-      },
-      needs_confirmation: true,
-      // The number that matters, surfaced before the record exists rather than after.
-      withdrawal: meat > 0
-        ? `${meat} day meat withdrawal — #${animal.tag_number} cannot go to slaughter until ${clearDate}.`
-        : 'This product carries no meat withdrawal.',
-      warning: animal.status !== 'active' ? `#${animal.tag_number} is marked ${animal.status}, not active.` : undefined,
-    }
-  },
-}
+}))
 
 /**
  * Voice only. The tap-to-confirm card does not exist on a phone call, so a
@@ -881,9 +692,7 @@ export const RANCHER_TOOLS: RancherTool[] = [
   expenseSummary,
   listReminders,
   searchSires,
-  proposeReminder,
-  proposeExpense,
-  proposeTreatment,
+  ...proposeTools,
 ]
 
 export const TOOLS_BY_NAME = new Map(RANCHER_TOOLS.map(t => [t.spec.name, t]))

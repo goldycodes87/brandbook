@@ -180,6 +180,7 @@ export async function POST(req: NextRequest) {
           ranchId: ranch?.id ?? null,
           authUserId: authUserId ?? 'voice',
           today,
+          actorName,
         })
 
         // A proposal made mid-call is parked on the conversation so a later

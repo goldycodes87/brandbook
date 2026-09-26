@@ -8,6 +8,7 @@ import { ArrowRightSquare } from 'lucide-react'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Panel, PanelSection } from '@/components/ui/Panel'
+import { ChangeLog } from '@/components/animals/ChangeLog'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Tabs } from '@/components/ui/Tabs'
 import { StatusChip, Chip } from '@/components/ui/Chip'
@@ -132,13 +133,14 @@ interface Revenue {
   }
 }
 
-type Tab = 'overview' | 'health' | 'reproduction' | 'weights' | 'documents'
+type Tab = 'overview' | 'health' | 'reproduction' | 'weights' | 'history' | 'documents'
 
 const TABS = [
   { value: 'overview'     as Tab, label: 'OVERVIEW' },
   { value: 'health'       as Tab, label: 'HEALTH' },
   { value: 'reproduction' as Tab, label: 'REPRODUCTION' },
   { value: 'weights'      as Tab, label: 'WEIGHTS' },
+  { value: 'history'      as Tab, label: 'HISTORY' },
   { value: 'documents'    as Tab, label: 'DOCUMENTS' },
 ]
 
@@ -1385,6 +1387,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
       {tab === 'health'        && <HealthTab    animal={animal} onLogEvent={() => setLogOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} onRefresh={fetchAnimal} onDispose={handleCalfDispose} />}
       {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} onRefresh={fetchAnimal} />}
+      {tab === 'history'       && <ChangeLog   animalId={animal.id} />}
       {tab === 'documents'     && (
         <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
           Document storage coming soon.

@@ -15,10 +15,25 @@ import type { Database } from "@/lib/database.types";
  * changes, regenerate that file (Supabase MCP → generate_typescript_types)
  * and the compiler will point at every query that needs updating.
  */
-export function createAdminClient() {
+export function createAdminClient(actor?: string | null) {
+  /**
+   * `actor` names whoever is responsible for the writes made with this client.
+   *
+   * It rides along as a request header, which the log_record_change trigger
+   * reads through PostgREST's request.headers setting. Doing it here rather
+   * than as a column on each audited table means a write path opts into
+   * attribution by passing a name, and the change is still logged when it
+   * does not — the log records what changed regardless, and only the "who"
+   * is best effort.
+   */
+  const name = (actor ?? "").trim();
+
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
+    process.env.SUPABASE_SECRET_KEY!,
+    name
+      ? { global: { headers: { "x-brandbook-actor": name.slice(0, 120) } } }
+      : undefined
   );
 }
 

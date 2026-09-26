@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     turn = await runAgentTurn({
       systemPrompt,
       history,
-      ctx: { ranchId: session.ranchId, authUserId: session.authUserId, today },
+      ctx: { ranchId: session.ranchId, authUserId: session.authUserId, today, actorName: session.name },
       // A web search takes longer than somebody standing at a chute will wait.
       allowWebSearch: channel !== 'voice',
     })

@@ -2739,6 +2739,36 @@ export type Database = {
           },
         ]
       }
+      record_changes: {
+        Row: {
+          action: string
+          actor: string | null
+          changed_at: string
+          changed_fields: Json
+          id: string
+          row_id: string
+          table_name: string
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          changed_at?: string
+          changed_fields?: Json
+          id?: string
+          row_id: string
+          table_name: string
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          changed_at?: string
+          changed_fields?: Json
+          id?: string
+          row_id?: string
+          table_name?: string
+        }
+        Relationships: []
+      }
       reminders: {
         Row: {
           animal_id: string | null
@@ -3580,6 +3610,7 @@ export type Database = {
         Args: { p_allocations: Json; p_owner_id: string }
         Returns: undefined
       }
+      audit_ignored_columns: { Args: never; Returns: string[] }
       create_manual_invoice: {
         Args: {
           p_allocations?: Json

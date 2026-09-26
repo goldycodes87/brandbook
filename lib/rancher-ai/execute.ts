@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { findWriteAction, type ActionContext } from '@/lib/rancher-ai/write-actions'
 
 /**
  * Where a proposal becomes a record.
@@ -7,20 +8,20 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * exactly one implementation of "actually write it". Two would drift, and the
  * one that drifted would be the one that skipped a check.
  *
+ * The writing itself lives in lib/rancher-ai/write-actions.ts, one entry per
+ * action. This file's remaining job is the part every action shares: find the
+ * action, run it, and log that it happened. When that list held its own copy
+ * of each action's validation, the copy was where a check went missing.
+ *
  * Nothing here trusts its input. A payload arrives either from a browser or
  * from a model that heard it over a phone, and both are worth exactly the same
- * amount of trust: none.
+ * amount of trust: none — so each action re-validates its own payload rather
+ * than believing what the proposal said.
  */
 
 export type ExecuteResult =
   | { ok: true; confirmation: string; table: string; rowId: string | null }
   | { ok: false; error: string }
-
-const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
-const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : null }
-const isDate = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
-const isUuid = (v: unknown) =>
-  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
 
 export async function executeProposal(opts: {
   action: string
@@ -30,133 +31,43 @@ export async function executeProposal(opts: {
   authUserId: string
   /** Falls back onto administered_by when the rancher did not name somebody. */
   actorName: string
+  /** Today in the ranch's timezone. */
+  today?: string
+  /** The confirming request's cookies, for actions that call back into the API. */
+  cookieHeader?: string | null
 }): Promise<ExecuteResult> {
-  const supabase = createAdminClient()
-  const { action, payload } = opts
+  const action = findWriteAction(opts.action)
+  if (!action) return { ok: false, error: 'I do not know how to do that' }
 
-  let result: ExecuteResult
-  let summary = ''
-
-  if (action === 'create_reminder') {
-    const title = str(payload.title)
-    const due   = payload.due_date
-    if (!title)       return { ok: false, error: 'A reminder needs something to remind you of' }
-    if (!isDate(due)) return { ok: false, error: 'A reminder needs a real date' }
-    if (payload.animal_id != null && !isUuid(payload.animal_id)) {
-      return { ok: false, error: 'That animal reference is not valid' }
-    }
-
-    const { data, error } = await supabase.from('reminders').insert({
-      title,
-      due_date: due as string,
-      animal_id: (payload.animal_id as string) ?? null,
-      notes: str(payload.notes),
-      reminder_type: 'manual',
-      is_dismissed: false,
-    }).select('id').single()
-
-    if (error) return { ok: false, error: error.message }
-    summary = `Reminder: ${title} on ${due}`
-    result = { ok: true, confirmation: `Set. You'll see it on ${due}.`, table: 'reminders', rowId: (data as { id: string }).id }
-
-  } else if (action === 'create_expense') {
-    const description = str(payload.description)
-    const amount = num(payload.total_amount)
-    const date   = payload.expense_date
-
-    if (!description) return { ok: false, error: 'An expense needs a description' }
-    if (amount === null || amount <= 0) return { ok: false, error: 'An expense needs an amount over zero' }
-    if (!isDate(date)) return { ok: false, error: 'An expense needs a real date' }
-    if (payload.category_id != null && !isUuid(payload.category_id)) {
-      return { ok: false, error: 'That category is not valid' }
-    }
-    if (payload.animal_id != null && !isUuid(payload.animal_id)) {
-      return { ok: false, error: 'That animal reference is not valid' }
-    }
-
-    const { data, error } = await supabase.from('lease_expenses').insert({
-      description,
-      total_amount: amount,
-      expense_date: date as string,
-      category_id:   (payload.category_id as string) ?? null,
-      category_name: str(payload.category_name) ?? 'Uncategorised',
-      vendor:        str(payload.vendor),
-      animal_id:     (payload.animal_id as string) ?? null,
-      expense_type: payload.animal_id ? 'animal' : 'herd',
-    }).select('id').single()
-
-    if (error) return { ok: false, error: error.message }
-    summary = `${description} — $${amount.toFixed(2)} on ${date}`
-    result = {
-      ok: true,
-      confirmation: `Recorded — $${amount.toFixed(2)} on ${date}.` +
-        (payload.animal_id ? '' : ' It will be split across owners when the quarter is billed.'),
-      table: 'lease_expenses',
-      rowId: (data as { id: string }).id,
-    }
-
-  } else if (action === 'create_treatment') {
-    const animalId = payload.animal_id
-    const drug     = str(payload.drug_name)
-    const date     = payload.event_date
-
-    if (!isUuid(animalId)) return { ok: false, error: 'That animal reference is not valid' }
-    if (!drug)             return { ok: false, error: 'A treatment needs a product' }
-    if (!isDate(date))     return { ok: false, error: 'A treatment needs a real date' }
-
-    // Re-derived from the library rather than trusted from the payload. This
-    // number decides whether an animal can be sold, and it is the one nobody
-    // should be able to talk the app out of — least of all over a phone.
-    const { data: drugRow } = await supabase
-      .from('drug_library')
-      .select('brand_name, withdrawal_days_meat')
-      .ilike('brand_name', drug)
-      .eq('is_active', true)
-      .maybeSingle()
-
-    const found = drugRow as { brand_name: string; withdrawal_days_meat: number | null } | null
-    if (!found) return { ok: false, error: `"${drug}" is not in the drug library any more.` }
-
-    const meatDays = found.withdrawal_days_meat ?? 0
-    const clear = new Date(`${date}T00:00:00Z`)
-    clear.setUTCDate(clear.getUTCDate() + meatDays)
-    const clearDate = clear.toISOString().slice(0, 10)
-
-    const { data, error } = await supabase.from('health_events').insert({
-      animal_id: animalId as string,
-      event_type: 'treatment',
-      event_date: date as string,
-      drug_name: found.brand_name,
-      dose_amount: num(payload.dose_amount),
-      dose_unit: str(payload.dose_unit),
-      withdrawal_days: meatDays,
-      withdrawal_clear_date: clearDate,
-      administered_by: str(payload.administered_by) ?? opts.actorName,
-      notes: str(payload.notes),
-    }).select('id').single()
-
-    if (error) return { ok: false, error: error.message }
-    summary = `${found.brand_name} on ${date}${meatDays ? `, clear ${clearDate}` : ''}`
-    result = {
-      ok: true,
-      confirmation: meatDays > 0
-        ? `Recorded. ${meatDays} day meat withdrawal — clear on ${clearDate}.`
-        : 'Recorded. No meat withdrawal on that one.',
-      table: 'health_events',
-      rowId: (data as { id: string }).id,
-    }
-
-  } else {
-    return { ok: false, error: 'I do not know how to do that' }
+  const ctx: ActionContext = {
+    authUserId:   opts.authUserId,
+    today:        opts.today ?? new Date().toISOString().slice(0, 10),
+    actorName:    opts.actorName,
+    cookieHeader: opts.cookieHeader ?? null,
   }
+
+  let outcome
+  try {
+    outcome = await action.execute(opts.payload, ctx)
+  } catch (e) {
+    outcome = { error: e instanceof Error ? e.message : 'That did not go through.' }
+  }
+
+  const result: ExecuteResult = 'error' in outcome
+    ? { ok: false, error: outcome.error }
+    : { ok: true, confirmation: outcome.confirmation, table: outcome.table, rowId: outcome.rowId }
 
   // Logged whether it came from a tap or a spoken yes, because those are not
   // equally strong confirmations and a wrong record has to be findable.
-  await supabase.from('ai_writes').insert({
+  //
+  // Failures are logged too. An action that was confirmed and then refused is
+  // exactly the thing worth being able to look up later, and the old code only
+  // recorded the ones that worked.
+  await createAdminClient().from('ai_writes').insert({
     conversation_id: opts.conversationId,
     auth_user_id: opts.authUserId,
-    action,
-    summary,
+    action: opts.action,
+    summary: result.ok ? result.confirmation : `FAILED — ${result.error}`,
     channel: opts.channel,
     table_name: result.ok ? result.table : null,
     row_id: result.ok ? result.rowId : null,

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "check:allocation": "node scripts/check-expense-allocation.mjs",
-    "check:client-props": "node scripts/check-client-props.mjs"
+    "check:client-props": "node scripts/check-client-props.mjs",
+    "check:write-actions": "node scripts/check-write-actions.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
