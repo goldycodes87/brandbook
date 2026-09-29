@@ -83,13 +83,24 @@ async function fetchStatValue(supabase: any, key: string): Promise<number> {
         return count ?? 0
       }
       case 'confirmed_pregnant': {
-        // Was .eq('result', 'positive') — there is no `result` column and no
-        // 'positive' value, so this threw, got swallowed by the catch below,
-        // and read 0 on the dashboard all through calving planning. The column
-        // is preg_check_result and the value is 'confirmed'.
-        const { count } = await supabase.from('reproduction_events').select('id', { count: 'exact', head: true })
-          .eq('event_type', 'preg_check').eq('preg_check_result', 'confirmed')
-        return count ?? 0
+        // Counting every 'confirmed' row overstates the herd the moment a cow
+        // is rechecked: the August confirmation stays on the books forever, so
+        // four cows that came up open in September would still be counted as
+        // carrying. Only her LATEST check says what she is now.
+        //
+        // (The earlier bug here was .eq('result', 'positive') — no such column,
+        // no such value. It threw, the catch below swallowed it, and the tile
+        // read 0 right through calving planning.)
+        const { data } = await supabase.from('reproduction_events')
+          .select('animal_id, event_date, preg_check_result')
+          .eq('event_type', 'preg_check')
+          .order('event_date', { ascending: true })
+
+        const latest = new Map<string, string | null>()
+        for (const r of (data ?? []) as Array<{ animal_id: string | null; preg_check_result: string | null }>) {
+          if (r.animal_id) latest.set(r.animal_id, r.preg_check_result)
+        }
+        return [...latest.values()].filter(v => v === 'confirmed').length
       }
       case 'expected_calvings': {
         const { count } = await supabase.from('reproduction_events').select('id', { count: 'exact', head: true })

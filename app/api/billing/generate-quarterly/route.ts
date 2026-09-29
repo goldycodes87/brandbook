@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     expense_year,
     due_date,
     dry_run = false,
+    expenses_only = false,
   }: {
     owner_id: string
     billing_quarter: number
@@ -47,6 +48,8 @@ export async function POST(req: NextRequest) {
     expense_year: number
     due_date: string
     dry_run?: boolean
+    /** Bill the expense quarter alone — no grazing for the coming quarter. */
+    expenses_only?: boolean
   } = body
 
   if (!owner_id || !billing_quarter || !billing_year) {
@@ -107,7 +110,11 @@ export async function POST(req: NextRequest) {
 
   const lineItems: LineItem[] = []
 
-  if (billableUnits > 0 && monthlyRate > 0) {
+  // An owner who is leaving still owes for the quarter that has finished, but
+  // must not be charged grazing for one they will not be here for. Without
+  // this the generator bills head count as it stands today, which for a man
+  // selling out is exactly the wrong number.
+  if (!expenses_only && billableUnits > 0 && monthlyRate > 0) {
     const pairNote = billingPairCalves.length > 0
       ? ` (${billingPairCalves.length} pair calf${billingPairCalves.length > 1 ? 's' : ''} counted as 1 unit with dam)`
       : ''
@@ -267,6 +274,8 @@ export async function POST(req: NextRequest) {
     // Shown so a trimmed invoice reads as deliberate rather than as a
     // number that quietly came up short.
     excluded_already_billed: excludedAsBilled,
+    // So a dry run reads as "no grazing on purpose" rather than looking short.
+    expenses_only,
   }
 
   // ── Step 9: Has this owner already been billed for this expense quarter? ────
@@ -318,12 +327,18 @@ export async function POST(req: NextRequest) {
     p_invoice_number:     invoiceNumber,
     p_invoice_quarter:    billing_quarter,
     p_invoice_sequence:   sequence,
-    p_period_start:       bStart,
-    p_period_end:         bEnd,
+    // An expenses-only invoice covers the quarter that has finished, not the
+    // one being billed ahead, so it carries that period and says so. Stamping
+    // it with the grazing quarter would put a period on the page that nothing
+    // on the page belongs to.
+    p_period_start:       expenses_only ? eStart : bStart,
+    p_period_end:         expenses_only ? eEnd   : bEnd,
     ...(due_date ? { p_due_date: due_date } : {}),
     p_line_items:         lineItems,
     p_total:              total,
-    p_notes:              `Q${billing_quarter} ${2000 + billing_year} grazing + Q${expense_quarter} ${2000 + expYY} expenses`,
+    p_notes: expenses_only
+      ? `Q${expense_quarter} ${2000 + expYY} expenses only — no grazing billed`
+      : `Q${billing_quarter} ${2000 + billing_year} grazing + Q${expense_quarter} ${2000 + expYY} expenses`,
     p_expense_quarter:    expense_quarter,
     p_expense_year:       expYY,
     p_allocations:        ownerAllocations.map(a => ({

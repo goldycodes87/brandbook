@@ -821,12 +821,45 @@ const recordPregCheck: WriteAction = {
         animal_id: animalId, reminder_type: 'calving', due_date: due,
         title: 'Calving due', reproduction_event_id: (data as { id: string }).id, is_dismissed: false,
       })
+      return {
+        confirmation: `Confirmed bred — calving reminder set for ${due}.`,
+        table: 'reproduction_events',
+        rowId: (data as { id: string }).id,
+      }
+    }
+
+    // ── A cow that was confirmed and is now open ──────────────────────────
+    //
+    // Recording the new result is not enough on its own. A confirmed check
+    // leaves three other marks, and every one of them goes on saying she is
+    // carrying a calf:
+    //
+    //   - a calving reminder, which keeps her on the dashboard
+    //   - expected_calving_date on the BRED event, which is what the calving
+    //     schedule actually reads — clearing the check's own copy does nothing
+    //   - a calving reminder due date that no longer means anything
+    //
+    // The event history is left alone. She WAS checked confirmed in August;
+    // that is a fact, and a recheck does not unmake it. What gets cleared is
+    // only the forward-looking part.
+    let cleared = 0
+
+    const { count: remCount } = await supabase.from('reminders')
+      .update({ is_dismissed: true, dismissed_at: new Date().toISOString() }, { count: 'exact' })
+      .eq('animal_id', animalId).eq('reminder_type', 'calving').eq('is_dismissed', false)
+    cleared += remCount ?? 0
+
+    if (bred?.id) {
+      await supabase.from('reproduction_events')
+        .update({ expected_calving_date: null })
+        .eq('id', bred.id)
     }
 
     return {
-      confirmation: result === 'confirmed'
-        ? `Confirmed bred${due ? ` — calving reminder set for ${due}` : ''}.`
-        : result === 'open' ? 'Recorded open.' : 'Recorded for recheck.',
+      confirmation: result === 'open'
+        ? `Recorded open.${cleared > 0 ? ` Calving reminder cleared` : ''}` +
+          `${bred?.id ? ' and she is off the calving schedule.' : '.'}`
+        : 'Recorded for recheck — she is off the calving schedule until you check again.',
       table: 'reproduction_events',
       rowId: (data as { id: string }).id,
     }
