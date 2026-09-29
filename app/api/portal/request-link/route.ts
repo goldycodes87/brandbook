@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
   const name = person.preferred_name || person.first_name || 'there'
 
   const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({
+  const sent = await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL || 'BrandBook <noreply@brandbook.app>',
     to: person.email ?? email,
     subject: `Your ${ranchName} portal link`,
@@ -92,7 +92,29 @@ export async function POST(req: NextRequest) {
     this, you can ignore it — but tell the ranch, because somebody typed your address.
   </p>
 </body></html>`,
-  }).catch(() => {})
+  }).catch((e: unknown) => ({ error: { message: e instanceof Error ? e.message : String(e) } }))
+
+  // The failure that actually happened, and the one this used to hide.
+  //
+  // `.catch(() => {})` meant a rejected send — wrong from-address, a
+  // restricted key, a bounced domain — returned "the link is on its way" and
+  // left no trace anywhere. An owner sits waiting for an email nobody knows
+  // was never sent, and the token in the database looks perfectly healthy, so
+  // every diagnosis starts in the wrong place.
+  //
+  // The reply to the caller stays identical either way: whether an address is
+  // on file is still not something this route will tell you. What changes is
+  // that the ranch can find out, from the logs and from the admin view.
+  if (sent && 'error' in sent && sent.error) {
+    console.error('[portal/request-link] link minted but the email did not send:', sent.error.message)
+    await supabase.from('portal_memberships')
+      .update({ invite_send_error: sent.error.message, invite_send_error_at: new Date().toISOString() })
+      .eq('id', membership.id)
+  } else {
+    await supabase.from('portal_memberships')
+      .update({ invite_send_error: null, invite_send_error_at: null })
+      .eq('id', membership.id)
+  }
 
   return same
 }

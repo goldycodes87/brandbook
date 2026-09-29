@@ -2342,6 +2342,8 @@ export type Database = {
           created_at: string
           id: string
           invite_expires_at: string | null
+          invite_send_error: string | null
+          invite_send_error_at: string | null
           invite_token: string | null
           invited_at: string
           notify: Json
@@ -2357,6 +2359,8 @@ export type Database = {
           created_at?: string
           id?: string
           invite_expires_at?: string | null
+          invite_send_error?: string | null
+          invite_send_error_at?: string | null
           invite_token?: string | null
           invited_at?: string
           notify?: Json
@@ -2372,6 +2376,8 @@ export type Database = {
           created_at?: string
           id?: string
           invite_expires_at?: string | null
+          invite_send_error?: string | null
+          invite_send_error_at?: string | null
           invite_token?: string | null
           invited_at?: string
           notify?: Json
