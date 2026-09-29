@@ -69,6 +69,8 @@ type AssignRow = {
   lease_id: string | null
   start_date: string
   end_date: string | null
+  /** Who owned the animal during THIS window. See toAssignment. */
+  owner_id: string | null
   animals: { id: string; sex: string | null; owner_id: string | null; weaning_date: string | null; dam_id: string | null } | null
 }
 
@@ -78,7 +80,7 @@ const EXPENSE_SELECT =
   'expense_categories(calculation_type, expense_type)'
 
 const ASSIGN_SELECT =
-  'animal_id, lease_id, start_date, end_date, animals(id, sex, owner_id, weaning_date, dam_id)'
+  'animal_id, lease_id, start_date, end_date, owner_id, animals(id, sex, owner_id, weaning_date, dam_id)'
 
 function toAllocatable(r: ExpenseRow): AllocatableExpense {
   return {
@@ -101,7 +103,20 @@ function toAssignment(a: AssignRow): AllocationAssignment {
     animal_id:    a.animal_id,
     start_date:   a.start_date,
     end_date:     a.end_date,
-    owner_id:     a.animals?.owner_id ?? null,
+    /**
+     * The assignment's own owner, not the animal's.
+     *
+     * This is the difference between "whose animal-days were these in Q3?" and
+     * "who owns this animal today". Reading the animal meant a sale re-wrote
+     * history: transfer Andy's cattle to Doug and Andy's finished quarter
+     * silently became Doug's, so there was no order in which a quarterly
+     * invoice — next quarter's grazing, last quarter's expenses — could be
+     * right on both halves.
+     *
+     * The animal is still the fallback for a row written before the column
+     * existed, which after the backfill should be none.
+     */
+    owner_id:     a.owner_id ?? a.animals?.owner_id ?? null,
     sex:          a.animals?.sex ?? null,
     weaning_date: a.animals?.weaning_date ?? null,
     dam_id:       a.animals?.dam_id ?? null,

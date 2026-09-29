@@ -1032,6 +1032,7 @@ export type Database = {
           lease_id: string
           moved_from_lease_id: string | null
           notes: string | null
+          owner_id: string | null
           removal_reason: string | null
           start_date: string
         }
@@ -1043,6 +1044,7 @@ export type Database = {
           lease_id: string
           moved_from_lease_id?: string | null
           notes?: string | null
+          owner_id?: string | null
           removal_reason?: string | null
           start_date: string
         }
@@ -1054,6 +1056,7 @@ export type Database = {
           lease_id?: string
           moved_from_lease_id?: string | null
           notes?: string | null
+          owner_id?: string | null
           removal_reason?: string | null
           start_date?: string
         }
@@ -1077,6 +1080,13 @@ export type Database = {
             columns: ["moved_from_lease_id"]
             isOneToOne: false
             referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grazing_assignments_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "grazing_owners"
             referencedColumns: ["id"]
           },
         ]
