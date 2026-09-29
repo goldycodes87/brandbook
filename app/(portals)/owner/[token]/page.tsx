@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, use, useCallback } from 'react'
 import { fmtDate, fmtMoney, fmtTs, calcAge } from '@/lib/format'
 import { BrandWatermark } from '@/components/brand/BrandWatermark'
+import { PurchasesReport, ScheduleFReport } from '@/components/portal/OwnerReports'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -1436,6 +1437,21 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
             </MoreSection>
 
             {/* Annual Report */}
+            {/* ── Purchases ───────────────────────────────────────────
+                What he bought, when, for how much, from whom. The answer a
+                person wants at tax time and the one that was hardest to get:
+                it lived one field at a time across the animal records and
+                nothing ever put it in a row. */}
+            <MoreSection title="WHAT I'VE BOUGHT">
+              <PurchasesReport />
+            </MoreSection>
+
+            {/* ── Schedule F ──────────────────────────────────────────
+                For his accountant, from the same figures the ranch uses. */}
+            <MoreSection title="FOR MY ACCOUNTANT">
+              <ScheduleFReport year={selectedYear} />
+            </MoreSection>
+
             <MoreSection title="ANNUAL REPORT">
               {(() => {
                 const years = settlements.length > 0
