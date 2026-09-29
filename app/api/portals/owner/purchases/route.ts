@@ -5,22 +5,36 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getOwnerSession } from '@/lib/owner-auth'
 
 /**
- * What this owner has bought: date, what it was, what it cost, who sold it.
+ * What THIS owner bought: when, what, from whom, for how much.
  *
- * The answer a person wants at tax time and the one that was hardest to get —
- * it lived one field at a time across the animal records, and nothing put it
- * in a row.
+ * ── The thing this gets right that the first version did not ──────────────
  *
- * Two things this has to get right or it is worse than nothing:
+ * A purchase belongs to an OWNER, not to an animal. An animal changes hands
+ * and each owner has their own purchase of it — their own date, their own
+ * seller, their own price. animals.purchase_price / purchase_date / vendor
+ * hold exactly one of those, whichever was typed in first, and it belongs to
+ * whoever owned the animal then.
  *
- *   Pairs are one purchase. A cow bought with a calf at side is a single
- *   transaction at a single price, and the price sits on whichever of the two
- *   rows it was typed into. Listing them separately either doubles the money
- *   or shows a calf that cost nothing.
+ * So Doug's report was showing him that he bought Daphne from Ben Perez for
+ * $2,000 and Lola from Gnoll Ranch. He bought neither. He bought both from
+ * Andy Holloman on 30 September. Ben Perez and Gnoll Ranch are Andy's
+ * history, and they belong on the ranch's side of the app, not on Doug's.
  *
- *   Missing is missing. A vendor with no price and no date is a real state in
- *   this data, and it goes out as a row with blanks rather than a zero. A zero
- *   is a claim that something was free.
+ * The ownership chain is in calf_transfers — from, to, date, price — and that
+ * is what an owner's purchase actually is. So:
+ *
+ *   1. Every transfer TO this owner is a purchase: seller, date and price
+ *      come from the transfer.
+ *   2. An animal with purchase fields and NO transfer to this owner is one
+ *      they bought from outside themselves — an auction, a neighbour — and
+ *      those fields are theirs.
+ *
+ * Anything else on the animal is a previous owner's business.
+ *
+ * ── Pairs ─────────────────────────────────────────────────────────────────
+ * One transaction, one date, and the price on the cow. The calf carries no
+ * price of its own; showing it separately either doubles the money or claims
+ * a calf was free.
  */
 
 interface PurchaseRow {
@@ -30,7 +44,7 @@ interface PurchaseRow {
   tag: string
   cost: number | null
   seller: string | null
-  incomplete: string[]
+  source: 'transfer' | 'outside'
 }
 
 export async function GET(req: NextRequest) {
@@ -42,84 +56,111 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient()
 
-  const { data, error } = await supabase
-    .from('animals')
-    .select('id, tag_number, name, sex, breed, ear_tag_color, purchase_date, purchase_price, vendor, origin, purchased_as_pair, pair_animal_id, status')
-    .eq('owner_id', session.id)
-    .order('tag_number', { ascending: true })
+  const [animalsRes, transfersRes] = await Promise.all([
+    supabase
+      .from('animals')
+      .select('id, tag_number, name, sex, breed, ear_tag_color, purchase_date, purchase_price, vendor, origin, purchased_as_pair, pair_animal_id')
+      .eq('owner_id', session.id)
+      .order('tag_number', { ascending: true }),
+    supabase
+      .from('calf_transfers')
+      .select('animal_id, from_owner_id, transfer_date, fmv_at_transfer')
+      .eq('to_owner_id', session.id)
+      .order('transfer_date', { ascending: false }),
+  ])
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (animalsRes.error)   return NextResponse.json({ error: animalsRes.error.message }, { status: 500 })
+  if (transfersRes.error) return NextResponse.json({ error: transfersRes.error.message }, { status: 500 })
 
-  type Row = {
+  type Animal = {
     id: string; tag_number: string; name: string | null; sex: string | null
     breed: string | null; ear_tag_color: string | null
     purchase_date: string | null; purchase_price: number | null; vendor: string | null
     origin: string | null; purchased_as_pair: boolean | null; pair_animal_id: string | null
-    status: string | null
+  }
+  type Transfer = {
+    animal_id: string; from_owner_id: string | null
+    transfer_date: string; fmv_at_transfer: number | null
   }
 
-  const all = (data ?? []) as Row[]
-  const byId = new Map(all.map(a => [a.id, a]))
+  const animals   = (animalsRes.data ?? []) as Animal[]
+  const transfers = (transfersRes.data ?? []) as Transfer[]
+  const byId      = new Map(animals.map(a => [a.id, a]))
 
-  // Home-raised is not a purchase. Anything carrying a price, a date or a
-  // seller is, whatever `origin` happens to say — the field was added later
-  // than some of these rows.
-  const bought = all.filter(a =>
-    a.origin === 'purchased' || a.purchase_price != null || a.purchase_date != null || a.vendor)
+  // Who they bought from, by name.
+  const sellerIds = [...new Set(transfers.map(t => t.from_owner_id).filter((x): x is string => Boolean(x)))]
+  const sellerNames = new Map<string, string>()
+  if (sellerIds.length > 0) {
+    const { data: owners } = await supabase
+      .from('grazing_owners')
+      .select('id, name, owner_name, company_name, is_self')
+      .in('id', sellerIds)
+    for (const o of (owners ?? []) as Array<{ id: string; name: string | null; owner_name: string | null; company_name: string | null; is_self: boolean | null }>) {
+      sellerNames.set(o.id, o.company_name || o.owner_name || o.name || 'the ranch')
+    }
+  }
+
+  // The most recent transfer per animal — if it changed hands twice, what
+  // they paid is what they paid the last time.
+  const latestTransfer = new Map<string, Transfer>()
+  for (const t of transfers) {
+    if (!latestTransfer.has(t.animal_id)) latestTransfer.set(t.animal_id, t)
+  }
+
+  const describe = (a: Animal, isPair: boolean) => {
+    const bits = [a.ear_tag_color, a.breed].filter(Boolean).join(' ')
+    const kind = isPair ? 'pair' : (a.sex ?? 'animal')
+    return `${bits ? bits + ' ' : ''}${kind}`.trim()
+  }
 
   const used = new Set<string>()
   const rows: PurchaseRow[] = []
 
-  const describe = (a: Row, pair?: Row) => {
-    const bits = [a.ear_tag_color, a.breed].filter(Boolean).join(' ')
-    const kind = pair ? 'pair' : (a.sex ?? 'animal')
-    return `${bits ? bits + ' ' : ''}${kind}`.trim()
-  }
-
-  for (const a of bought) {
+  for (const a of animals) {
     if (used.has(a.id)) continue
 
     const pair = a.purchased_as_pair && a.pair_animal_id ? byId.get(a.pair_animal_id) : undefined
-    if (pair) { used.add(pair.id) }
+
+    // The cow carries the price. Between a pair, she is the record of it.
+    const cow = pair
+      ? (a.sex === 'calf' ? pair : a)
+      : a
+    const calf = pair ? (cow === a ? pair : a) : undefined
+
+    const transfer = latestTransfer.get(cow.id) ?? (calf ? latestTransfer.get(calf.id) : undefined)
+
+    let row: PurchaseRow | null = null
+
+    if (transfer) {
+      row = {
+        animal_ids: calf ? [cow.id, calf.id] : [cow.id],
+        date:   transfer.transfer_date,
+        cost:   transfer.fmv_at_transfer != null ? Number(transfer.fmv_at_transfer) : null,
+        seller: transfer.from_owner_id ? (sellerNames.get(transfer.from_owner_id) ?? 'the ranch') : 'the ranch',
+        description: describe(cow, Boolean(calf)),
+        tag: calf ? `${cow.tag_number} & ${calf.tag_number}` : cow.tag_number,
+        source: 'transfer',
+      }
+    } else if (cow.purchase_price != null || cow.purchase_date != null || cow.vendor) {
+      // Bought from outside by this owner — an auction, a neighbour.
+      row = {
+        animal_ids: calf ? [cow.id, calf.id] : [cow.id],
+        date:   cow.purchase_date,
+        cost:   cow.purchase_price != null ? Number(cow.purchase_price) : null,
+        seller: cow.vendor,
+        description: describe(cow, Boolean(calf)),
+        tag: calf ? `${cow.tag_number} & ${calf.tag_number}` : cow.tag_number,
+        source: 'outside',
+      }
+    }
+
     used.add(a.id)
-
-    // Which of the pair is the record of the transaction?
-    //
-    // Not "whichever came back first" — Doug's pair carries 17 May on the cow
-    // and 15 Apr on the calf, so row order would decide the date on a tax
-    // document. The one holding the PRICE is the one the purchase was entered
-    // against; its date and seller go with its money. Fall back to the other
-    // only for a field the primary is missing.
-    const primary   = a.purchase_price != null ? a
-                    : pair?.purchase_price != null ? pair
-                    : a
-    const secondary = primary === a ? pair : a
-
-    const cost   = primary.purchase_price ?? secondary?.purchase_price ?? null
-    const date   = primary.purchase_date  ?? secondary?.purchase_date  ?? null
-    const seller = primary.vendor         ?? secondary?.vendor         ?? null
-
-    const missing: string[] = []
-    if (date === null)   missing.push('date')
-    if (cost === null)   missing.push('price')
-    if (seller === null) missing.push('seller')
-
-    rows.push({
-      animal_ids: pair ? [a.id, pair.id] : [a.id],
-      date,
-      description: describe(primary, pair ? secondary : undefined),
-      tag: pair ? `${a.tag_number} & ${pair.tag_number}` : a.tag_number,
-      cost: cost != null ? Number(cost) : null,
-      seller,
-      incomplete: missing,
-    })
+    if (calf) used.add(calf.id)
+    if (row) rows.push(row)
   }
 
-  const filtered = year === null
-    ? rows
-    : rows.filter(r => r.date?.slice(0, 4) === String(year))
+  const filtered = year === null ? rows : rows.filter(r => r.date?.slice(0, 4) === String(year))
 
-  // Undated last: they are real purchases with a gap, not the oldest ones.
   filtered.sort((a, b) => {
     if (a.date && b.date) return b.date.localeCompare(a.date)
     if (a.date) return -1
@@ -127,16 +168,15 @@ export async function GET(req: NextRequest) {
     return a.tag.localeCompare(b.tag)
   })
 
-  const known = filtered.filter(r => r.cost != null)
+  const priced = filtered.filter(r => r.cost != null)
 
   return NextResponse.json({
     data: filtered,
     summary: {
-      purchases:      filtered.length,
-      head:           filtered.reduce((s, r) => s + r.animal_ids.length, 0),
-      total:          known.reduce((s, r) => s + (r.cost ?? 0), 0),
-      // Said plainly, because a total that quietly omits rows is a wrong total.
-      missing_price:  filtered.length - known.length,
+      purchases:     filtered.length,
+      head:          filtered.reduce((s, r) => s + r.animal_ids.length, 0),
+      total:         priced.reduce((s, r) => s + (r.cost ?? 0), 0),
+      missing_price: filtered.length - priced.length,
     },
     years: [...new Set(rows.map(r => r.date?.slice(0, 4)).filter(Boolean))].sort().reverse(),
   })
