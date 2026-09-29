@@ -41,8 +41,15 @@ export interface PregCheckFollowupResult {
 
 /** Days from breeding to calving. */
 const GESTATION_DAYS = 283
-/** How far ahead of calving to raise the reminder. */
-const CALVING_LEAD_DAYS = 14
+/**
+ * How far ahead of calving to raise the reminder.
+ *
+ * Exported because there are two ways to record a preg check — this module and
+ * RancherAI — and they were setting the reminder on different days. Fourteen
+ * days of disagreement about when to start watching a cow is worth one shared
+ * constant.
+ */
+export const CALVING_LEAD_DAYS = 14
 const RECHECK_DAYS = 14
 const MONITOR_DAYS = 30
 

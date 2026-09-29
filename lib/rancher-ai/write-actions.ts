@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Update } from '@/lib/supabase/admin'
 import { asAnimalSex, asAnimalStatus } from '@/lib/db-enums'
+import { CALVING_LEAD_DAYS } from '@/lib/preg-check-followup'
 
 /**
  * Everything RancherAI can change, as data.
@@ -817,12 +818,18 @@ const recordPregCheck: WriteAction = {
       .eq('animal_id', animalId).eq('reminder_type', 'preg_check').eq('is_dismissed', false)
 
     if (result === 'confirmed' && due) {
+      // Raised ahead of the due date, not on it — the point of the reminder is
+      // to start watching her, and a heads-up that arrives the morning she
+      // calves is not a heads-up. The same lead the app's own preg-check flow
+      // uses, from the same constant, because these two were setting it on
+      // different days and nobody could see the disagreement.
+      const watch = addDays(due, -CALVING_LEAD_DAYS)
       await supabase.from('reminders').insert({
-        animal_id: animalId, reminder_type: 'calving', due_date: due,
-        title: 'Calving due', reproduction_event_id: (data as { id: string }).id, is_dismissed: false,
+        animal_id: animalId, reminder_type: 'calving', due_date: watch,
+        title: 'Calving watch', reproduction_event_id: (data as { id: string }).id, is_dismissed: false,
       })
       return {
-        confirmation: `Confirmed bred — calving reminder set for ${due}.`,
+        confirmation: `Confirmed bred — due ${due}, watch starts ${watch}.`,
         table: 'reproduction_events',
         rowId: (data as { id: string }).id,
       }

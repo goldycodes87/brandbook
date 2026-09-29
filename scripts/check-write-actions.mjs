@@ -28,9 +28,16 @@ const OUT  = fs.mkdtempSync(path.join(os.tmpdir(), 'brandbook-actions-'))
 fs.writeFileSync(path.join(OUT, 'admin.js'),
   'export function createAdminClient() { throw new Error("no database in this check") }\n')
 
+// preg-check-followup reaches for the browser fetch helpers at module scope.
+// Nothing here calls them; only its CALVING_LEAD_DAYS is wanted.
+fs.writeFileSync(path.join(OUT, 'fetch.js'),
+  'export const apiPost = () => { throw new Error("no network in this check") }\n' +
+  'export const apiPatch = () => { throw new Error("no network in this check") }\n')
+
 for (const [rel, name] of [
   ['lib/database.types.ts', 'database.types'],
   ['lib/db-enums.ts', 'db-enums'],
+  ['lib/preg-check-followup.ts', 'preg-check-followup'],
   ['lib/rancher-ai/write-actions.ts', 'write-actions'],
 ]) {
   const src = fs.readFileSync(path.join(ROOT, rel), 'utf8')

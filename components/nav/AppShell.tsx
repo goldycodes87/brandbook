@@ -8,7 +8,7 @@ import {
   MapPin, DollarSign, Dna, TrendingUp,
   ShoppingCart, Package, Settings,
   MoreHorizontal, X, LogOut, Bell, FileBarChart,
-  Sparkles, Receipt, Leaf,
+  Sparkles, Receipt, Leaf, CalendarDays,
 } from 'lucide-react'
 import { apiFetch, apiGet } from '@/lib/fetch'
 import { QuickExpenseButton } from '@/components/expenses/QuickExpenseButton'
@@ -19,6 +19,7 @@ const NAV_GROUPS = [
   { title: null, items: [
     { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
     { href: '/ai',           label: 'Ask',          icon: Sparkles },
+    { href: '/calendar',     label: 'Calendar',     icon: CalendarDays },
   ] },
   { title: 'The herd', items: [
     { href: '/animals',      label: 'Animals',      icon: Tag },
