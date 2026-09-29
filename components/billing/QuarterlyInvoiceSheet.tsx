@@ -6,6 +6,7 @@ import { X, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { Field, Input } from '@/components/ui/Field'
+import { Toggle } from '@/components/ui/Toggle'
 
 interface GrazingOwner {
   id: string
@@ -44,6 +45,8 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose }: Props) {
   const [expenseQ, setExpenseQ] = useState(prevQuarter(currentQuarter(), currentYear()).q)
   const [expenseY, setExpenseY] = useState(prevQuarter(currentQuarter(), currentYear()).y)
   const [dueDate,  setDueDate]  = useState('')
+  /** An owner on the way out owes the finished quarter but no grazing ahead. */
+  const [expensesOnly, setExpensesOnly] = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
 
@@ -77,6 +80,7 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose }: Props) {
           expense_quarter: expenseQ,
           expense_year:    expenseY,
           due_date:        dueDate || null,
+          expenses_only:   expensesOnly,
           dry_run:         true,
         }),
       })
@@ -91,6 +95,7 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose }: Props) {
           expense_quarter: expenseQ,
           expense_year:    expenseY,
           due_date:        dueDate || null,
+          expenses_only:   expensesOnly,
         },
       }))
       onClose()
@@ -210,6 +215,23 @@ export function QuarterlyInvoiceSheet({ isOpen, onClose }: Props) {
           <Field label="Due Date (optional)">
             <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
           </Field>
+
+          {/* For an owner who is leaving. He still owes the quarter that has
+              finished; charging him grazing for one he will not be here for is
+              the wrong number, and head count as it stands today is what the
+              generator would otherwise use. */}
+          <Toggle
+            label="Expenses only — no grazing"
+            description={`Bills the Q${expenseQ} 20${String(expenseY).padStart(2, '0')} expense share alone. Use when an owner is selling out.`}
+            checked={expensesOnly}
+            onChange={setExpensesOnly}
+          />
+
+          {expensesOnly && (
+            <ContextBanner tone="warning">
+              No grazing will be billed. The invoice covers Q{expenseQ} 20{String(expenseY).padStart(2, '0')} expenses only.
+            </ContextBanner>
+          )}
 
           {error && <ContextBanner tone="danger">{error}</ContextBanner>}
         </div>

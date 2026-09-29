@@ -37,6 +37,8 @@ interface PreviewParams {
   expense_quarter: number
   expense_year: number
   due_date: string | null
+  /** Carried from the sheet so Generate bills exactly what the preview showed. */
+  expenses_only?: boolean
 }
 
 const SEX_LABELS: Record<string, string> = {
