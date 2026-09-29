@@ -8,7 +8,7 @@ import {
   MapPin, DollarSign, Dna, TrendingUp,
   ShoppingCart, Package, Settings,
   MoreHorizontal, X, LogOut, Bell, FileBarChart,
-  Sparkles, Receipt, Leaf, CalendarDays,
+  Sparkles, Receipt, Leaf, CalendarDays, Handshake,
 } from 'lucide-react'
 import { apiFetch, apiGet } from '@/lib/fetch'
 import { QuickExpenseButton } from '@/components/expenses/QuickExpenseButton'
@@ -32,6 +32,7 @@ const NAV_GROUPS = [
     { href: '/leases',       label: 'Leases',       icon: MapPin },
   ] },
   { title: 'Money', items: [
+    { href: '/requests',     label: 'Requests',    icon: Handshake },
     { href: '/expenses/review', label: 'Receipts',  icon: Receipt },
     { href: '/billing',      label: 'Billing',      icon: DollarSign },
     { href: '/sales',        label: 'Sales',        icon: ShoppingCart },
@@ -178,13 +179,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
   const [receipts, setReceipts] = useState(0)
+  const [requests, setRequests] = useState(0)
 
-  // Receipts waiting to be looked at. A receipt forwarded from a feed store
-  // on Monday has to come and find you on Wednesday; a number in the nav is
-  // what does that.
+  // Things waiting on you, counted in the nav.
+  //
+  // A receipt forwarded from a feed store on Monday has to come and find you
+  // on Wednesday. An owner request matters more: somebody pressed a button in
+  // their portal and is now waiting on an answer with no way of knowing
+  // whether it even arrived.
   useEffect(() => {
-    const read = () => apiGet('/api/expenses/review/count')
-      .then(r => r.json()).then(d => setReceipts(d.count ?? 0)).catch(() => {})
+    const read = () => {
+      apiGet('/api/expenses/review/count')
+        .then(r => r.json()).then(d => setReceipts(d.count ?? 0)).catch(() => {})
+      apiGet('/api/owner-requests/count')
+        .then(r => r.json()).then(d => setRequests(d.count ?? 0)).catch(() => {})
+    }
     read()
     const t = setInterval(read, 60_000)
     return () => clearInterval(t)
@@ -229,7 +238,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   {...item}
                   active={isActive(item.href)}
-                  badge={item.href === '/expenses/review' ? (receipts || undefined) : undefined}
+                  badge={
+                    item.href === '/expenses/review' ? (receipts || undefined)
+                  : item.href === '/requests'        ? (requests || undefined)
+                  : undefined
+                  }
                 />
               ))}
             </div>

@@ -15,6 +15,7 @@ import { BulkHealthEventSheet } from '@/components/health/BulkHealthEventSheet'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 import { RemindersWidget } from '@/components/dashboard/RemindersWidget'
 import { ReceiptsWaiting } from '@/components/dashboard/ReceiptsWaiting'
+import { RequestsWaiting } from '@/components/dashboard/RequestsWaiting'
 import { MessagesCard } from '@/components/dashboard/MessagesCard'
 import { RanchMasthead } from '@/components/dashboard/RanchMasthead'
 import { BrandWatermark } from '@/components/brand/BrandWatermark'
@@ -184,6 +185,9 @@ export default async function DashboardPage() {
           {/* What is waiting on you. Receipts renders only when the queue is
               non-empty; Messages stays put so there is a door to it. */}
           <div className="flex flex-col gap-2.5 mb-5 sm:mb-6">
+            <Suspense fallback={null}>
+              <RequestsWaiting />
+            </Suspense>
             <Suspense fallback={null}>
               <ReceiptsWaiting />
             </Suspense>
