@@ -1,5 +1,6 @@
 import { PDFDocument, PDFImage, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { invoiceTotal } from '@/lib/invoice-line-items'
 
 // ── Page constants (Letter) ─────────────────────────────────────────────────
 const PW = 612
@@ -22,6 +23,7 @@ type RawLineItem = {
   unit_price?: number | null
   amount: number
   is_header?: boolean
+  is_subtotal?: boolean
   share_note?: string
 }
 
@@ -142,7 +144,9 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
   const ownerEmail   = owner?.email || ''
 
   const lineItems = (invoice.line_items as RawLineItem[]) || []
-  const subtotal  = lineItems.reduce((s, li) => s + (li.amount ?? 0), 0)
+  // Not a raw reduce: section subtotals repeat money already in the lines
+  // above them, so summing every row bills the invoice twice.
+  const subtotal  = invoiceTotal(lineItems)
 
   const pdfDoc  = await PDFDocument.create()
   const font    = await pdfDoc.embedFont(StandardFonts.Helvetica)
@@ -247,6 +251,18 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
       page.drawRectangle({ x: M, y: y - 20, width: CW, height: 20, color: BG_GRAY })
       page.drawText(sanitize(li.description), { x: xDesc + 4, y: y - 14, size: 9, font: fontBold, color: RED })
       y -= 22
+      continue
+    }
+
+    // A section subtotal: right-aligned against the description column and
+    // ruled off, so the eye reads it as closing the section rather than as one
+    // more charge in it.
+    if (li.is_subtotal) {
+      const sy = y - 14
+      page.drawLine({ start: { x: xDesc + COL_DESC / 2, y: y + 1 }, end: { x: PW - M, y: y + 1 }, thickness: 0.5, color: RULE })
+      rightText(page, fontBold, sanitize(li.description), 10, xUp + COL_UP - 4, sy, GRAY)
+      rightText(page, fontBold, fmt(li.amount), 10, xAmt + COL_AMT - 4, sy)
+      y -= 24
       continue
     }
 

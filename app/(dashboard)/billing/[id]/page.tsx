@@ -47,7 +47,7 @@ interface Invoice {
   square_payment_link: string | null
   payment_method: string | null
   payment_reference: string | null
-  line_items: Array<{ description: string; amount: number }>
+  line_items: Array<{ description: string; amount: number; is_header?: boolean; is_subtotal?: boolean }>
   expense_splits: Array<{ description: string; category: string; owner_amount: number }>
 }
 
@@ -109,12 +109,25 @@ function InvoicePreview({ invoice }: { invoice: Invoice }) {
           </tr>
         </thead>
         <tbody>
-          {(invoice.line_items ?? []).map((li, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-              <td style={{ padding: '10px 12px', fontSize: 14 }}>{li.description}</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 14 }}>{fmtMoney(li.amount)}</td>
-            </tr>
-          ))}
+          {(invoice.line_items ?? []).map((li, i) =>
+            li.is_header ? (
+              <tr key={i} style={{ background: '#f9fafb' }}>
+                <td colSpan={2} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#666' }}>
+                  {li.description}
+                </td>
+              </tr>
+            ) : li.is_subtotal ? (
+              <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#555' }}>{li.description}</td>
+                <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>{fmtMoney(li.amount)}</td>
+              </tr>
+            ) : (
+              <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                <td style={{ padding: '10px 12px', fontSize: 14 }}>{li.description}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 14 }}>{fmtMoney(li.amount)}</td>
+              </tr>
+            )
+          )}
           {(invoice.expense_splits ?? []).map((e, i) => (
             <tr key={`e${i}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
               <td style={{ padding: '10px 12px', fontSize: 14 }}>

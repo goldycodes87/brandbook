@@ -13,6 +13,7 @@ interface LineItem {
   unit_price: number | null
   amount: number
   is_header?: boolean
+  is_subtotal?: boolean
   share_note?: string
   expense_type?: string
 }
@@ -174,13 +175,32 @@ export default function QuarterlyPreviewPage() {
               >
                 {item.description}
               </div>
+            ) : item.is_subtotal ? (
+              <div
+                key={i}
+                className="grid px-3 py-2.5 text-sm font-semibold"
+                style={{ gridTemplateColumns: '1fr auto', gap: 8, borderTop: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+              >
+                <span className="text-right">{item.description}</span>
+                <span className="text-right" style={{ color: 'var(--text)' }}>{fmt(item.amount)}</span>
+              </div>
             ) : (
               <div
                 key={i}
                 className="grid px-3 py-3 text-sm"
                 style={{ gridTemplateColumns: '1fr auto auto', gap: 8, borderTop: '1px solid var(--border)' }}
               >
-                <span style={{ color: 'var(--text)' }}>{item.description}</span>
+                <span style={{ color: 'var(--text)' }}>
+                  {item.description}
+                  {item.unit_price != null && (item.quantity ?? 0) > 1 && (
+                    <span className="block type-helper" style={{ color: 'var(--text-muted)' }}>
+                      {item.quantity} @ {fmt(item.unit_price)} each
+                    </span>
+                  )}
+                  {item.share_note && (
+                    <span className="block type-helper" style={{ color: 'var(--text-muted)' }}>{item.share_note}</span>
+                  )}
+                </span>
                 <span className="text-right" style={{ color: 'var(--text-muted)' }}>{item.quantity ?? '—'}</span>
                 <span className="text-right font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(item.amount)}</span>
               </div>

@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { loadQuarterAllocations, quarterRange, type ExpenseMeta } from '@/lib/expense-allocation-data'
 import type { Allocation } from '@/lib/expense-allocation'
 import { fmtDate } from '@/lib/format'
-import { groupIntoLineItems, type LineItem } from '@/lib/invoice-line-items'
+import { buildExpenseSections, invoiceTotal, type LineItem } from '@/lib/invoice-line-items'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -189,39 +189,41 @@ export async function POST(req: NextRequest) {
     leaseRows.set(key, group)
   }
 
-  const wholeHerdLineItems = groupIntoLineItems(wholeHerdRows)
-  const leaseGroups = new Map(
-    [...leaseRows].map(([key, g]) => [key, { lease_name: g.lease_name, line_items: groupIntoLineItems(g.rows, g.lease_name) }]),
-  )
-
   // ── Step 7: Build final line items ───────────────────────────────────────────
-  if (wholeHerdLineItems.length > 0) {
-    lineItems.push({
-      description: `- Q${expense_quarter} ${2000 + expense_year} EXPENSES (WHOLE HERD) -`,
-      quantity:    null,
-      unit_price:  null,
-      amount:      0,
-      is_header:   true,
-    })
-    lineItems.push(...wholeHerdLineItems)
-  }
-
-  if (leaseGroups.size > 0) {
-    lineItems.push({
-      description: `- Q${expense_quarter} ${2000 + expense_year} LEASE EXPENSES -`,
-      quantity:    null,
-      unit_price:  null,
-      amount:      0,
-      is_header:   true,
-    })
-    // The lease name is already on the description — groupIntoLineItems put it
-    // there, because it had to build the label before the grouping was done.
-    for (const group of leaseGroups.values()) {
-      lineItems.push(...group.line_items)
+  //
+  // Sectioned by what kind of cost it is, with a subtotal under each, because
+  // that is how a bill gets checked: agree the herd percentage, agree the work
+  // on your own animals, then agree the sum. Lease-specific rows keep their
+  // property name in the description rather than getting a section of their
+  // own — the lease matters for WHICH herd split applies, not for how the
+  // money is read.
+  const tagsById = new Map<string, string>()
+  const animalIds = [...new Set(
+    [...wholeHerdRows, ...[...leaseRows.values()].flatMap(g => g.rows)]
+      .map(r => r.meta.animal_id).filter((x): x is string => Boolean(x)),
+  )]
+  if (animalIds.length > 0) {
+    const { data: tagRows } = await supabase
+      .from('animals').select('id, tag_number').in('id', animalIds)
+    for (const a of (tagRows ?? []) as Array<{ id: string; tag_number: string }>) {
+      tagsById.set(a.id, a.tag_number)
     }
   }
 
-  const total        = Math.round(lineItems.reduce((s, i) => s + i.amount, 0) * 100) / 100
+  const leaseLabelled = [...leaseRows.values()].flatMap(g =>
+    g.rows.map(r => ({ ...r, meta: { ...r.meta, category_name: `${r.meta.category_name ?? 'Expense'} (${g.lease_name})` } })),
+  )
+
+  lineItems.push(...buildExpenseSections([...wholeHerdRows, ...leaseLabelled], {
+    quarter: expense_quarter,
+    year:    expense_year,
+    herdPct: ownerHerdPct * 100,
+    tags:    tagsById,
+  }))
+
+  // Headers carry no money and subtotals carry money already counted above
+  // them — summing the array raw would bill every expense twice.
+  const total        = invoiceTotal(lineItems)
   const ownerName    = owner.company_name || owner.owner_name || owner.name
   const expenseCount = ownerAllocations.length
 
