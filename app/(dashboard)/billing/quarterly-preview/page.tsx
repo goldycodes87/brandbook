@@ -57,16 +57,50 @@ export default function QuarterlyPreviewPage() {
   const [creating, setCreating] = useState(false)
   const [error,    setError]    = useState('')
 
+  /**
+   * The params come from the sheet; the numbers are asked for again here.
+   *
+   * What was in sessionStorage used to be rendered as-is, so this page could
+   * show a preview computed by an older build while Generate — which re-runs
+   * the API — produced something else. Approving one set of figures and
+   * billing another is the exact failure this system is not allowed to have.
+   *
+   * Re-running the dry run costs one request and makes the page show what the
+   * server would actually bill right now. The cached copy is only a fallback
+   * for when that request cannot be made.
+   */
   useEffect(() => {
     const raw = sessionStorage.getItem('quarterly_preview')
     if (!raw) { router.replace('/billing'); return }
+
+    let cancelled = false
+    let data: { preview: InvoicePreview; params: PreviewParams }
     try {
-      const data = JSON.parse(raw)
-      setPreview(data.preview)
-      setParams(data.params)
+      data = JSON.parse(raw)
     } catch {
       router.replace('/billing')
+      return
     }
+    setParams(data.params)
+
+    fetch('/api/billing/generate-quarterly', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data.params, dry_run: true }),
+    })
+      .then(r => r.json())
+      .then(json => {
+        if (cancelled) return
+        if (json.preview) setPreview(json.preview)
+        else { setPreview(data.preview); setError(json.error ?? 'Showing the saved preview — could not refresh it.') }
+      })
+      .catch(() => {
+        if (cancelled) return
+        setPreview(data.preview)
+        setError('Showing the saved preview — could not reach the server to refresh it.')
+      })
+
+    return () => { cancelled = true }
   }, [router])
 
   const handleCreate = async () => {
