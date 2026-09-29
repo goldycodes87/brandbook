@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, use } from 'react'
+import { useEffect, useState, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { BrandBookMark } from '@/components/brand/BrandBookMark'
 import { ContextBanner } from '@/components/ui/ContextBanner'
@@ -18,7 +18,22 @@ export default function WelcomePage({ params }: { params: Promise<{ token: strin
   const router = useRouter()
   const [error, setError] = useState('')
 
+  /**
+   * Redeemed once, whatever React does with the effect.
+   *
+   * `off` only stopped the RESPONSE being acted on; the request still went.
+   * In development and under StrictMode this fired three times, and the third
+   * came back 401 — the earlier calls had already rotated what it was
+   * redeeming. Harmless in the end, but it writes a failed sign-in into the
+   * logs for a sign-in that worked, and that is exactly the sort of noise
+   * somebody later spends an hour chasing.
+   */
+  const redeemed = useRef(false)
+
   useEffect(() => {
+    if (redeemed.current) return
+    redeemed.current = true
+
     let off = false
     fetch('/api/portal/accept', {
       method: 'POST',

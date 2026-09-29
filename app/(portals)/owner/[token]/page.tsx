@@ -161,6 +161,20 @@ type Tab = 'portfolio' | 'animals' | 'messages' | 'more'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
+/**
+ * Read off the viewer's own clock, not the ranch's.
+ *
+ * An owner can be anywhere; the ranch timezone is the wrong one to greet him
+ * in, and getting it wrong is the kind of small thing that makes software
+ * feel like it was written for somebody else.
+ */
+function greeting(): string {
+  const h = new Date().getHours()
+  if (h >= 5 && h < 12)  return 'Good morning'
+  if (h >= 12 && h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
 function getPhotoUrl(photos: string[] | null | undefined): string | null {
   if (!photos || photos.length === 0) return null
   return photos[0]
@@ -846,6 +860,8 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   const [owner, setOwner]         = useState<OwnerInfo | null>(null)
   /** The owner's own registered brand, watermarked behind their portal. */
   const [brandUrl, setBrandUrl]   = useState<string | null>(null)
+  /** What to call him — "Doug", not "P&L Cattle, LLC". */
+  const [greetingName, setGreetingName] = useState<string | null>(null)
   const [animals, setAnimals]     = useState<Animal[]>([])
   const [invoices, setInvoices]   = useState<Invoice[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
@@ -926,6 +942,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
         setInvoices(invRes.data ?? [])
         setSettlements(settleRes.data ?? [])
         setBrandUrl(meRes.brand_url ?? null)
+        setGreetingName(meRes.greeting_name ?? null)
         setLoading(false)
 
         // Load current quarter allocations for portfolio hero
@@ -1021,6 +1038,30 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   const unpaidInvoices = invoices.filter(i => i.status !== 'paid')
   const pendingTotal = alloc?.totals.pending ?? 0
 
+  /**
+   * How a person counts cattle: pairs, not rows.
+   *
+   * A calf still on its dam is not a separate animal to an owner — it is half
+   * of a pair, and it is not billed for grazing either. Saying "4 cows · 2
+   * calves" rather than "6" is the same herd described the way he would
+   * describe it.
+   */
+  const herdBreakdown = (() => {
+    const counts = new Map<string, number>()
+    for (const a of animals) {
+      const k = (a.sex || 'other').toLowerCase()
+      counts.set(k, (counts.get(k) ?? 0) + 1)
+    }
+    const LABEL: Record<string, [string, string]> = {
+      cow: ['cow', 'cows'], heifer: ['heifer', 'heifers'], bull: ['bull', 'bulls'],
+      steer: ['steer', 'steers'], calf: ['calf', 'calves'],
+    }
+    return [...counts.entries()]
+      .filter(([k]) => LABEL[k])
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, n]) => `${n} ${LABEL[k][n === 1 ? 0 : 1]}`)
+  })()
+
   const BOTTOM_TABS: { value: Tab; label: string; icon: React.ReactNode }[] = [
     { value: 'portfolio', label: 'Portfolio', icon: <IconHome /> },
     { value: 'animals',   label: 'Animals',   icon: <IconAnimals /> },
@@ -1055,30 +1096,140 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
         {/* ── PORTFOLIO TAB ───────────────────────────────── */}
         {tab === 'portfolio' && (
           <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 600, margin: '0 auto' }}>
-            {/* Hero card */}
-            <div style={{ borderRadius: 16, padding: '24px 20px', background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1b0e 100%)', color: '#fff', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.55)', marginBottom: 6, textTransform: 'uppercase' }}>MY HERD — TOTAL COST BASIS</p>
-              <p style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#fff' }}>
-                {animals.length > 0 ? `${animals.length} head` : '—'}
-              </p>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 6 }}>
+            {/* ── The plate ────────────────────────────────────────────
+                Greeting first, entity under a brass rule — the same shape
+                the ranch's own dashboard opens with, because this is the
+                same product seen from the other side of the fence. */}
+            <header>
+              <h1 style={{
+                fontFamily: 'var(--font-display)', fontSize: 'clamp(1.6rem, 7vw, 2.1rem)',
+                fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                lineHeight: 1, color: 'var(--text)', margin: 0,
+              }}>
+                {greeting()}{greetingName ? `, ${greetingName}` : ''}
+              </h1>
+              <div aria-hidden style={{ height: 1, background: 'var(--brass-rule)', opacity: 0.8, margin: '10px 0 8px' }} />
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
                 {owner?.name}
               </p>
+            </header>
+
+            {/* ── The herd ─────────────────────────────────────────────
+                It said "TOTAL COST BASIS" over a head count, which is two
+                different things and neither of them was the number shown.
+                It is a head count, so it says so, and it breaks down the
+                way a person counts cattle — pairs, not rows. */}
+            <div style={{
+              borderRadius: 18, padding: '22px 20px',
+              background: 'linear-gradient(155deg, var(--surface-3) 0%, var(--surface-1) 100%)',
+              border: '1px solid var(--border-strong)', boxShadow: 'var(--lift)',
+            }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>
+                My herd
+              </p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '2.6rem', fontWeight: 700, lineHeight: 1.05, color: 'var(--text)' }}>
+                {animals.length > 0 ? `${animals.length} head` : '—'}
+              </p>
+              {herdBreakdown.length > 0 && (
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+                  {herdBreakdown.join(' · ')}
+                </p>
+              )}
             </div>
 
-            {/* Stat chips row */}
+            {/* ── What needs him ──────────────────────────────────────
+                Only when something does. An owner opening this wants to
+                know whether he owes anything, not to read a zero. */}
+            {unpaidInvoices.length > 0 && (
+              <button
+                onClick={() => setTab('more')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+                  padding: '14px 16px', borderRadius: 14, cursor: 'pointer',
+                  border: '1px solid var(--accent-border)', background: 'var(--accent-soft)',
+                  boxShadow: 'var(--lift)',
+                }}
+              >
+                <span style={{ fontSize: 18 }} aria-hidden>📄</span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                    {unpaidInvoices.length === 1
+                      ? `Invoice ${unpaidInvoices[0].invoice_number} is due`
+                      : `${unpaidInvoices.length} invoices outstanding`}
+                  </span>
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {fmtMoney(unpaidInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0))}
+                    {unpaidInvoices[0]?.due_date ? ` · due ${fmtDate(unpaidInvoices[0].due_date)}` : ''}
+                  </span>
+                </span>
+                <span style={{ color: 'var(--accent)' }}>→</span>
+              </button>
+            )}
+
+            {/* ── The numbers ────────────────────────────────────────── */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {[
-                { label: 'ANIMALS', value: animals.length },
-                { label: 'THIS QTR', value: pendingTotal > 0 ? fmtMoney(pendingTotal) : '$0' },
-                { label: 'INVOICES', value: unpaidInvoices.length },
+                { label: 'HEAD', value: String(animals.length) },
+                { label: 'THIS QUARTER', value: pendingTotal > 0 ? fmtMoney(pendingTotal) : '$0' },
+                { label: 'OUTSTANDING', value: unpaidInvoices.length === 0 ? 'None' : fmtMoney(unpaidInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0)) },
               ].map(s => (
-                <div key={s.label} style={{ padding: '12px 10px', borderRadius: 12, background: 'var(--surface-1)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                  <p style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: 4 }}>{s.label}</p>
-                  <p style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>{s.value}</p>
+                <div key={s.label} style={{
+                  padding: '13px 10px', borderRadius: 13, textAlign: 'center',
+                  background: 'linear-gradient(180deg, var(--surface-2), var(--surface-1))',
+                  border: '1px solid var(--border)', boxShadow: 'var(--lift)',
+                }}>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.14em', marginBottom: 4 }}>{s.label}</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--text)' }}>{s.value}</p>
                 </div>
               ))}
             </div>
+
+            {/* ── His cattle, as cattle ───────────────────────────────
+                A row of faces. An owner who cannot see his cows on the
+                first screen is reading a statement, not looking at a herd. */}
+            {animals.length > 0 && (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>My cattle</p>
+                  <button onClick={() => setTab('animals')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--accent)' }}>
+                    See all {animals.length} →
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+                  {animals.slice(0, 8).map(a => {
+                    const src = getPhotoUrl(a.photos)
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => setTab('animals')}
+                        style={{
+                          flex: '0 0 auto', width: 92, border: 'none', background: 'none',
+                          padding: 0, cursor: 'pointer', textAlign: 'left',
+                        }}
+                      >
+                        <span style={{
+                          display: 'block', width: 92, height: 92, borderRadius: 14, overflow: 'hidden',
+                          background: 'var(--surface-2)', border: '1px solid var(--border)',
+                        }}>
+                          {src ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={src} alt={`#${a.tag_number}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 26, opacity: 0.35 }}>🐄</span>
+                          )}
+                        </span>
+                        <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)', marginTop: 6 }}>
+                          #{a.tag_number}
+                        </span>
+                        {a.name && (
+                          <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)' }}>{a.name}</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Upcoming events — reminders from allocations or just list top reminders */}
             {invoices.length > 0 && (

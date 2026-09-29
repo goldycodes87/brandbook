@@ -18,6 +18,22 @@ export async function GET() {
   // owner sees their brand whichever door they came through; consolidating the
   // columns is a separate job from showing the picture.
   const supabase = createAdminClient()
+
+  // What to call him.
+  //
+  // session.name is the ENTITY — "P&L Cattle, LLC" — which is right on an
+  // invoice and wrong in a greeting. Onboarding asks "Goes by", so use that,
+  // then his first name. Greeting a man by his LLC is the tell that nobody
+  // read what he typed.
+  const { data: personRow } = await supabase
+    .from('portal_people')
+    .select('preferred_name, first_name')
+    .eq('id', session.personId ?? '')
+    .maybeSingle()
+
+  const p = personRow as { preferred_name: string | null; first_name: string | null } | null
+  const greetingName = (p?.preferred_name || p?.first_name || '').trim() || null
+
   const { data } = await supabase
     .from('grazing_owners')
     .select('brand_image_url, brand_photo_url, brand_drawing_url')
@@ -36,5 +52,5 @@ export async function GET() {
     (b?.brand_drawing_url ?? '').trim() ||
     null
 
-  return NextResponse.json({ owner: session, brand_url })
+  return NextResponse.json({ owner: session, brand_url, greeting_name: greetingName })
 }

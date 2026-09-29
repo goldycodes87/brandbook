@@ -11,7 +11,10 @@ export async function GET() {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('animals')
-    .select('id, tag_number, name, sex, breed, status')
+    // photos and dob were missing, which is why every card in the portal
+    // showed a cow emoji: the page has rendered a photo since it shipped and
+    // was never sent one. Four of Doug's six head have a picture on file.
+    .select('id, tag_number, name, sex, breed, status, photos, dob, ear_tag_color')
     .eq('owner_id', session.id)
     .order('tag_number', { ascending: true, nullsFirst: false })
     .limit(200)
