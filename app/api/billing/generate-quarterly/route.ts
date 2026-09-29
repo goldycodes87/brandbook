@@ -5,29 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { loadQuarterAllocations, quarterRange, type ExpenseMeta } from '@/lib/expense-allocation-data'
 import type { Allocation } from '@/lib/expense-allocation'
 import { fmtDate } from '@/lib/format'
-
-type LineItem = {
-  description: string
-  quantity: number | null
-  unit_price: number | null
-  amount: number
-  is_header?: boolean
-  share_note?: string
-  expense_type?: string
-  is_whole_herd?: boolean
-}
-
-function lineItemFor(alloc: Allocation, meta: ExpenseMeta): LineItem {
-  return {
-    description:  meta.description || meta.category_name || 'Expense',
-    quantity:     1,
-    unit_price:   alloc.amount,
-    amount:       alloc.amount,
-    expense_type: alloc.kind,
-    ...(alloc.share_note ? { share_note: alloc.share_note } : {}),
-    ...(meta.is_lease_specific ? {} : { is_whole_herd: true }),
-  }
-}
+import { groupIntoLineItems, type LineItem } from '@/lib/invoice-line-items'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -182,8 +160,12 @@ export async function POST(req: NextRequest) {
   const ownerHerdPct  = herdDays.total > 0 ? ownerHerdDays / herdDays.total : 0
 
   // ── Step 6: Group this owner's shares into line items ───────────────────────
-  const wholeHerdLineItems: LineItem[] = []
-  const leaseGroups = new Map<string, { lease_name: string; line_items: LineItem[] }>()
+  //
+  // Collected first, grouped after. Grouping needs to see every share in a
+  // category at once to know whether they are uniform, so a line cannot be
+  // built one allocation at a time.
+  const wholeHerdRows: Array<{ alloc: Allocation; meta: ExpenseMeta }> = []
+  const leaseRows = new Map<string, { lease_name: string; rows: Array<{ alloc: Allocation; meta: ExpenseMeta }> }>()
 
   // Every SINGLE-OWNER lease_expenses row on this invoice. Shared rows are
   // pro-rated across several owners and invoice_id is one column, so they are
@@ -197,15 +179,20 @@ export async function POST(req: NextRequest) {
     if (alloc.kind !== 'shared') billedExpenseIds.add(alloc.expense_id)
 
     if (!meta.is_lease_specific) {
-      wholeHerdLineItems.push(lineItemFor(alloc, meta))
+      wholeHerdRows.push({ alloc, meta })
       continue
     }
 
     const key   = meta.lease_id ?? 'unknown'
-    const group = leaseGroups.get(key) ?? { lease_name: meta.lease_name ?? 'Lease', line_items: [] }
-    group.line_items.push(lineItemFor(alloc, meta))
-    leaseGroups.set(key, group)
+    const group = leaseRows.get(key) ?? { lease_name: meta.lease_name ?? 'Lease', rows: [] }
+    group.rows.push({ alloc, meta })
+    leaseRows.set(key, group)
   }
+
+  const wholeHerdLineItems = groupIntoLineItems(wholeHerdRows)
+  const leaseGroups = new Map(
+    [...leaseRows].map(([key, g]) => [key, { lease_name: g.lease_name, line_items: groupIntoLineItems(g.rows, g.lease_name) }]),
+  )
 
   // ── Step 7: Build final line items ───────────────────────────────────────────
   if (wholeHerdLineItems.length > 0) {
@@ -227,10 +214,10 @@ export async function POST(req: NextRequest) {
       amount:      0,
       is_header:   true,
     })
+    // The lease name is already on the description — groupIntoLineItems put it
+    // there, because it had to build the label before the grouping was done.
     for (const group of leaseGroups.values()) {
-      for (const item of group.line_items) {
-        lineItems.push({ ...item, description: `${item.description} (${group.lease_name})` })
-      }
+      lineItems.push(...group.line_items)
     }
   }
 
