@@ -249,11 +249,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main column */}
-      <div
-        style={{ marginLeft: 0 }}
-        className="flex-1 xl:ml-[var(--sidebar-w)] flex flex-col min-h-dvh"
-      >
+      {/* Main column.
+          The offset MUST stay in the class and not become an inline style: the
+          sidebar is fixed, so this margin is the only thing keeping content out
+          from under it, and an inline marginLeft beats the responsive class
+          every time. One `style={{ marginLeft: 0 }}` here cost the left 240px
+          of every desktop page in the app. */}
+      <div className="flex-1 xl:ml-[var(--sidebar-w)] flex flex-col min-h-dvh">
         <Topbar title={pageTitle} />
         <main
           className="flex-1 pb-[var(--bottomnav-h)] xl:pb-0"
