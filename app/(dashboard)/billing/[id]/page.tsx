@@ -47,7 +47,7 @@ interface Invoice {
   square_payment_link: string | null
   payment_method: string | null
   payment_reference: string | null
-  line_items: Array<{ description: string; amount: number; is_header?: boolean; is_subtotal?: boolean }>
+  line_items: Array<{ description: string; amount: number; quantity?: number | null; unit_price?: number | null; share_note?: string; is_header?: boolean; is_subtotal?: boolean }>
   expense_splits: Array<{ description: string; category: string; owner_amount: number }>
 }
 
@@ -104,26 +104,35 @@ function InvoicePreview({ invoice }: { invoice: Invoice }) {
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ background: '#f9fafb' }}>
-            <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#888', fontWeight: 700 }}>Description</th>
-            <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#888', fontWeight: 700 }}>Amount</th>
+            <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#888', fontWeight: 700 }}>Item</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#888', fontWeight: 700 }}>Qty</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#888', fontWeight: 700 }}>Cost Ea</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#888', fontWeight: 700 }}>Total</th>
           </tr>
         </thead>
         <tbody>
           {(invoice.line_items ?? []).map((li, i) =>
             li.is_header ? (
               <tr key={i} style={{ background: '#f9fafb' }}>
-                <td colSpan={2} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#666' }}>
+                <td colSpan={4} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#666' }}>
                   {li.description}
                 </td>
               </tr>
             ) : li.is_subtotal ? (
               <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#555' }}>{li.description}</td>
+                <td colSpan={3} style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#555' }}>{li.description}</td>
                 <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>{fmtMoney(li.amount)}</td>
               </tr>
             ) : (
               <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '10px 12px', fontSize: 14 }}>{li.description}</td>
+                <td style={{ padding: '10px 12px', fontSize: 14 }}>
+                  {li.description}
+                  {li.share_note && (
+                    <span style={{ display: 'block', color: '#888', fontSize: 12 }}>{li.share_note}</span>
+                  )}
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 14, color: '#555' }}>{li.quantity ?? ''}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 14, color: '#555' }}>{li.unit_price != null ? fmtMoney(li.unit_price) : ''}</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 14 }}>{fmtMoney(li.amount)}</td>
               </tr>
             )
@@ -134,11 +143,12 @@ function InvoicePreview({ invoice }: { invoice: Invoice }) {
                 {e.description}
                 {e.category && <span style={{ color: '#888', fontSize: 12, marginLeft: 6 }}>({e.category})</span>}
               </td>
+              <td colSpan={2} />
               <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 14 }}>{fmtMoney(e.owner_amount)}</td>
             </tr>
           ))}
           <tr>
-            <td style={{ padding: '14px 12px', fontWeight: 700, fontSize: 15, borderTop: '2px solid #111' }}>TOTAL DUE</td>
+            <td colSpan={3} style={{ padding: '14px 12px', fontWeight: 700, fontSize: 15, borderTop: '2px solid #111' }}>TOTAL DUE</td>
             <td style={{ padding: '14px 12px', textAlign: 'right', fontWeight: 700, fontSize: 20, color: '#ea580c', borderTop: '2px solid #111' }}>
               {fmtMoney(invoice.total_amount)}
             </td>
