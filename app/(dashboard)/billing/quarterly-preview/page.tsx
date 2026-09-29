@@ -160,11 +160,12 @@ export default function QuarterlyPreviewPage() {
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
           <div
             className="grid text-xs font-semibold px-3 py-2"
-            style={{ gridTemplateColumns: '1fr auto auto', background: 'var(--surface-2)', color: 'var(--text-muted)', gap: 8 }}
+            style={{ gridTemplateColumns: '1fr 4rem 6rem 7rem', background: 'var(--surface-2)', color: 'var(--text-muted)', gap: 8 }}
           >
-            <span>DESCRIPTION</span>
+            <span>ITEM</span>
             <span className="text-right">QTY</span>
-            <span className="text-right">AMOUNT</span>
+            <span className="text-right">COST EA</span>
+            <span className="text-right">TOTAL</span>
           </div>
           {preview.line_items.map((item, i) =>
             item.is_header ? (
@@ -179,7 +180,7 @@ export default function QuarterlyPreviewPage() {
               <div
                 key={i}
                 className="grid px-3 py-2.5 text-sm font-semibold"
-                style={{ gridTemplateColumns: '1fr auto', gap: 8, borderTop: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+                style={{ gridTemplateColumns: '1fr 7rem', gap: 8, borderTop: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
               >
                 <span className="text-right">{item.description}</span>
                 <span className="text-right" style={{ color: 'var(--text)' }}>{fmt(item.amount)}</span>
@@ -188,20 +189,19 @@ export default function QuarterlyPreviewPage() {
               <div
                 key={i}
                 className="grid px-3 py-3 text-sm"
-                style={{ gridTemplateColumns: '1fr auto auto', gap: 8, borderTop: '1px solid var(--border)' }}
+                style={{ gridTemplateColumns: '1fr 4rem 6rem 7rem', gap: 8, borderTop: '1px solid var(--border)' }}
               >
                 <span style={{ color: 'var(--text)' }}>
                   {item.description}
-                  {item.unit_price != null && (item.quantity ?? 0) > 1 && (
-                    <span className="block type-helper" style={{ color: 'var(--text-muted)' }}>
-                      {item.quantity} @ {fmt(item.unit_price)} each
-                    </span>
-                  )}
+                  {/* Why Qty x Cost Ea does not equal Total on a split cost. */}
                   {item.share_note && (
                     <span className="block type-helper" style={{ color: 'var(--text-muted)' }}>{item.share_note}</span>
                   )}
                 </span>
                 <span className="text-right" style={{ color: 'var(--text-muted)' }}>{item.quantity ?? '—'}</span>
+                <span className="text-right" style={{ color: 'var(--text-muted)' }}>
+                  {item.unit_price != null ? fmt(item.unit_price) : '—'}
+                </span>
                 <span className="text-right font-semibold" style={{ color: 'var(--gold-fg)' }}>{fmt(item.amount)}</span>
               </div>
             )
