@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getOwnerSession } from '@/lib/owner-auth'
+import { resolvePeriod, withinPeriod, type PeriodKey } from '@/lib/purchase-periods'
 
 /**
  * What THIS owner bought: when, what, from whom, for how much.
@@ -51,8 +52,7 @@ export async function GET(req: NextRequest) {
   const session = await getOwnerSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const yearParam = req.nextUrl.searchParams.get('year')
-  const year = yearParam && /^\d{4}$/.test(yearParam) ? Number(yearParam) : null
+  const period = resolvePeriod((req.nextUrl.searchParams.get('period') ?? 'all_time') as PeriodKey)
 
   const supabase = createAdminClient()
 
@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
     if (row) rows.push(row)
   }
 
-  const filtered = year === null ? rows : rows.filter(r => r.date?.slice(0, 4) === String(year))
+  const filtered = rows.filter(r => withinPeriod(r.date, period))
 
   filtered.sort((a, b) => {
     if (a.date && b.date) return b.date.localeCompare(a.date)
@@ -178,6 +178,9 @@ export async function GET(req: NextRequest) {
       total:         priced.reduce((s, r) => s + (r.cost ?? 0), 0),
       missing_price: filtered.length - priced.length,
     },
-    years: [...new Set(rows.map(r => r.date?.slice(0, 4)).filter(Boolean))].sort().reverse(),
+    period: { key: period.key, label: period.label, start: period.start, end: period.end },
+    // Undated purchases fall outside every bounded period. Said out loud so a
+    // short list reads as a filter doing its job, not as missing records.
+    undated: rows.filter(r => !r.date).length,
   })
 }

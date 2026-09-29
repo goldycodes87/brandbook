@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { fmtDate, fmtMoney } from '@/lib/format'
+import { PERIOD_CHOICES, type PeriodKey } from '@/lib/purchase-periods'
 
 /**
  * The two reports an owner asks an accountant for, and the one he asks
@@ -11,6 +12,10 @@ import { fmtDate, fmtMoney } from '@/lib/format'
  * nobody reads to the bottom of it, and because both of these are the sort of
  * thing that grows: a report gains a column every tax year.
  */
+
+const chipActive: React.CSSProperties = {
+  background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)',
+}
 
 const chip: React.CSSProperties = {
   padding: '8px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700,
@@ -38,6 +43,13 @@ interface PurchaseSummary {
   missing_price: number
 }
 
+interface PurchasesResponse {
+  data: PurchaseRow[]
+  summary: PurchaseSummary
+  period: { key: PeriodKey; label: string }
+  undated: number
+}
+
 /**
  * Every head bought: when, what, what it cost, who sold it.
  *
@@ -49,21 +61,65 @@ interface PurchaseSummary {
 export function PurchasesReport() {
   const [rows, setRows] = useState<PurchaseRow[]>([])
   const [summary, setSummary] = useState<PurchaseSummary | null>(null)
+  const [undated, setUndated] = useState(0)
+  const [period, setPeriod] = useState<PeriodKey>('all_time')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let off = false
-    fetch('/api/portals/owner/purchases', { credentials: 'include' })
+    setLoading(true)
+    fetch(`/api/portals/owner/purchases?period=${period}`, { credentials: 'include' })
       .then(r => r.json())
-      .then(d => { if (!off) { setRows(d.data ?? []); setSummary(d.summary ?? null) } })
+      .then((d: PurchasesResponse) => {
+        if (off) return
+        setRows(d.data ?? [])
+        setSummary(d.summary ?? null)
+        setUndated(d.undated ?? 0)
+      })
       .catch(() => {})
       .finally(() => { if (!off) setLoading(false) })
     return () => { off = true }
-  }, [])
+  }, [period])
 
-  if (loading) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</p>
+  /* The picker stays put while the list below it reloads. Unmounting it on
+     every change would take the control out from under a thumb mid-tap. */
+  const picker = (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+      {PERIOD_CHOICES.map(c => (
+        <button
+          key={c.key}
+          type="button"
+          onClick={() => setPeriod(c.key)}
+          style={{ ...chip, ...(period === c.key ? chipActive : {}), padding: '6px 11px', fontSize: 11 }}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  const downloadPdf = () => {
+    window.open(`/api/portals/owner/purchases/pdf?period=${period}`, '_blank')
+  }
+
+  if (loading) {
+    return <div>{picker}<p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</p></div>
+  }
+
   if (rows.length === 0) {
-    return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No purchases on file yet.</p>
+    return (
+      <div>
+        {picker}
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          Nothing bought in that period.
+          {/* A purchase with no date recorded sits outside every bounded
+              period. Saying so stops an empty list reading as lost records. */}
+          {undated > 0 && period !== 'all_time' && (
+            <> {undated} purchase{undated === 1 ? ' has' : 's have'} no date recorded — see All time.</>
+          )}
+        </p>
+      </div>
+    )
   }
 
   const downloadCsv = () => {
@@ -86,6 +142,7 @@ export function PurchasesReport() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {picker}
       {rows.map(r => (
         <div
           key={r.animal_ids.join('-')}
@@ -128,9 +185,16 @@ export function PurchasesReport() {
         </div>
       )}
 
-      <button type="button" onClick={downloadCsv} style={{ ...chip, alignSelf: 'flex-start' }}>
-        DOWNLOAD CSV
-      </button>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={downloadPdf} style={{ ...chip, ...chipActive }}>
+          DOWNLOAD PDF
+        </button>
+        {/* Kept alongside: a PDF is for sending, a CSV is for a spreadsheet,
+            and an accountant will want one of each. */}
+        <button type="button" onClick={downloadCsv} style={chip}>
+          CSV
+        </button>
+      </div>
     </div>
   )
 }
