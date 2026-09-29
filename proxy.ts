@@ -76,6 +76,29 @@ const API_GATES: Array<[prefix: string, cookies: Array<[name: string, signed: bo
   ["/api/vet/",           [["brandbook_portal_session", true], ["brandbook_vet_session", false]]],
 ];
 
+/**
+ * Does this path sit behind no gate?
+ *
+ * A prefix ending in "/" also matches the bare path, and that detail is the
+ * whole point of this function existing. `"/owner/"` with a plain startsWith
+ * covered `/owner/<token>` and missed `/owner` — which is precisely where the
+ * welcome page sends an owner who has finished onboarding. So every owner who
+ * completed setup signed in successfully, was redirected to their portal, and
+ * got bounced to the OPERATOR login screen by the fallback gate below. It read
+ * as "the magic link doesn't work", and the link was fine.
+ *
+ * Making the bare paths public costs nothing: /owner, /vet and /landowner are
+ * shells whose every byte comes from /api/portal* and /api/portals/*, which
+ * are gated on the portal cookie. Reaching the page without one shows nothing.
+ */
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC.some(p =>
+    p.endsWith('/')
+      ? pathname === p.slice(0, -1) || pathname.startsWith(p)
+      : pathname.startsWith(p),
+  );
+}
+
 async function cookieValid(req: NextRequest, name: string, signed: boolean) {
   const raw = req.cookies.get(name)?.value;
   if (!signed) return Boolean(raw);
@@ -106,7 +129,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const isPublic = PUBLIC.some(p => pathname.startsWith(p));
+  const isPublic = isPublicPath(pathname);
   if (isPublic) return NextResponse.next();
   if (!(await hasValidSession(req, [["brandbook_session", true]]))) {
     return NextResponse.redirect(new URL("/login", req.url));
