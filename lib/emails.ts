@@ -297,3 +297,166 @@ export function operatorLinkEmail(opts: { ranchName: string; personName: string;
 export async function sendOperatorLinkEmail(to: string, opts: Parameters<typeof operatorLinkEmail>[0]) {
   return send(to, `Sign in to ${opts.ranchName}`, operatorLinkEmail(opts))
 }
+
+// ─── Transaction emails ──────────────────────────────────────────────────────
+//
+// The two moments an owner actually wants to hear from the ranch: cattle
+// bought, and cattle sold. Everything else — a weight recorded, a tub bought,
+// a calf weaned — is why the portal exists, and sending it is how an owner
+// learns to filter the ranch's address.
+//
+// Both are one screen. The figure an owner is looking for is the biggest
+// thing on it: what he paid, or what he cleared.
+
+const usd = (n: number) =>
+  '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** The headline figure, set large in the accent. */
+function hero(amount: string, caption: string) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td align="center" style="padding:4px 0 2px;font-family:Georgia,'Times New Roman',serif;
+        font-size:40px;line-height:1.1;font-weight:700;color:${ACCENT}">${amount}</td>
+  </tr><tr>
+    <td align="center" style="padding:8px 0 0;font-family:${SANS};font-size:10px;font-weight:600;
+        letter-spacing:.2em;text-transform:uppercase;color:${MUTED}">${caption}</td>
+  </tr></table>`
+}
+
+/** One ruled line: what on the left, figure on the right. */
+function row(left: string, right: string, opts?: { sub?: string; strong?: boolean; accent?: boolean }) {
+  const color = opts?.accent ? ACCENT : opts?.strong ? TEXT : SECOND
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                 style="border-top:1px solid ${HAIRLINE}"><tr>
+    <td style="padding:11px 0;font-family:${SANS};font-size:13px;line-height:1.45;color:${color};
+        font-weight:${opts?.strong ? 600 : 400}">${left}${
+          opts?.sub ? `<br><span style="font-size:11px;color:${MUTED}">${opts.sub}</span>` : ''
+        }</td>
+    <td align="right" style="padding:11px 0;font-family:${SANS};font-size:13px;white-space:nowrap;
+        color:${color};font-weight:${opts?.strong ? 700 : 600}">${right}</td>
+  </tr></table>`
+}
+
+/** The uppercase micro-label that opens a block. */
+function label(text: string) {
+  return `<p style="margin:26px 0 2px;font-family:${SANS};font-size:10px;font-weight:700;
+    letter-spacing:.18em;text-transform:uppercase;color:${MUTED}">${text}</p>`
+}
+
+/**
+ * Cattle bought.
+ *
+ * What he got, what each head cost, who sold them, and what the herd stands at
+ * now. A pair is one line with the price on it — the same convention as the
+ * invoices and the purchases report, so the three never disagree.
+ */
+export function purchaseEmail(opts: {
+  ranchName: string
+  personName: string
+  date: string
+  seller: string
+  lines: Array<{ what: string; tag: string; amount: number | null }>
+  /** Head, not lines. A pair is one line and two animals. */
+  head: number
+  total: number
+  headAfter: number
+  url: string
+}) {
+  const head = opts.head
+  return shell({
+    ranchName: opts.ranchName,
+    preheader: `${head} head from ${opts.seller} — ${usd(opts.total)}. Your herd stands at ${opts.headAfter}.`,
+    body: `
+      ${mark()}
+      <div style="height:18px"></div>
+      ${pill('New Cattle')}
+      <div style="height:20px"></div>
+      ${h1(head === 1 ? 'One head is yours' : `${head} head are yours`)}
+      ${lead(`Bought from ${opts.seller} on ${opts.date}.`)}
+      ${rule()}
+      ${hero(usd(opts.total), 'Total paid')}
+
+      ${label('What you bought')}
+      ${opts.lines.map(l => row(
+        l.what, l.amount == null ? '—' : usd(l.amount), { sub: `Tag ${l.tag}` },
+      )).join('')}
+      ${row('Total', usd(opts.total), { strong: true })}
+
+      ${label('Your herd now')}
+      ${row('Head on the place', String(opts.headAfter), { strong: true })}
+
+      ${button(opts.url, 'SEE THEM IN MY PORTAL')}
+      <p style="margin:14px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${MUTED};text-align:center">
+        Weights, health and breeding for every one of them live in your portal.
+      </p>
+    `,
+  })
+}
+
+export async function sendPurchaseEmail(to: string, opts: Parameters<typeof purchaseEmail>[0]) {
+  return send(
+    to,
+    `${opts.head} head added to your herd — ${usd(opts.total)}`,
+    purchaseEmail(opts),
+  )
+}
+
+/**
+ * Cattle sold.
+ *
+ * Gross, every fee by name, and the net set large — because the net is the
+ * number being looked for and burying it under an itemisation is how an owner
+ * comes to believe the fees are hiding something.
+ */
+export function saleEmail(opts: {
+  ranchName: string
+  personName: string
+  date: string
+  what: string
+  tag: string
+  buyer: string
+  weightLbs?: number | null
+  pricePerLb?: number | null
+  gross: number
+  fees: Array<{ label: string; amount: number }>
+  net: number
+  url: string
+}) {
+  const feeTotal = opts.fees.reduce((s, f) => s + f.amount, 0)
+  const weighed  = opts.weightLbs
+    ? `${opts.weightLbs.toLocaleString('en-US')} lb${opts.pricePerLb ? ` at ${usd(opts.pricePerLb)}/lb` : ''}`
+    : null
+
+  return shell({
+    ranchName: opts.ranchName,
+    preheader: `${opts.what} (Tag ${opts.tag}) sold for ${usd(opts.gross)}. Net to you ${usd(opts.net)}.`,
+    body: `
+      ${mark()}
+      <div style="height:18px"></div>
+      ${pill('Sold')}
+      <div style="height:20px"></div>
+      ${h1(opts.what)}
+      ${lead(`Tag ${opts.tag} · ${opts.buyer} · ${opts.date}`)}
+      ${rule()}
+      ${hero(usd(opts.net), 'Net to you')}
+
+      ${label('How it came out')}
+      ${row('Gross proceeds', usd(opts.gross), weighed ? { sub: weighed } : undefined)}
+      ${opts.fees.map(f => row(f.label, `-${usd(f.amount)}`)).join('')}
+      ${feeTotal > 0 ? row('Total fees', `-${usd(feeTotal)}`) : ''}
+      ${row('Net to you', usd(opts.net), { strong: true, accent: true })}
+
+      ${button(opts.url, 'OPEN THE SALE RECORD')}
+      <p style="margin:14px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${MUTED};text-align:center">
+        This sale is on your year-end report and your Schedule F the moment it is recorded.
+      </p>
+    `,
+  })
+}
+
+export async function sendSaleEmail(to: string, opts: Parameters<typeof saleEmail>[0]) {
+  return send(
+    to,
+    `${opts.what} sold — ${usd(opts.net)} net to you`,
+    saleEmail(opts),
+  )
+}
