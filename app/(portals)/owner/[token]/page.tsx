@@ -1405,9 +1405,18 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
                     <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: inv.status === 'paid' ? '#22c55e' : 'var(--accent)' }}>{fmtMoney(inv.total_amount)}</span>
                       <StatusBadge status={inv.status} />
-                      {inv.pdf_url && (
-                        <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>Download PDF</a>
-                      )}
+                      {/* Always offered. It used to appear only when pdf_url
+                          happened to be set, which the send path never did, so
+                          an owner could see a bill and not open it. The route
+                          builds it on request from the invoice as it stands. */}
+                      <a
+                        href={inv.pdf_url || `/api/portals/owner/invoices/${inv.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}
+                      >
+                        Download PDF
+                      </a>
                     </div>
                   </div>
                 ))
