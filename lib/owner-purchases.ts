@@ -150,7 +150,14 @@ export async function buildOwnerPurchases(ownerId: string): Promise<PurchaseRow[
       }
     }
 
-    used.add(a.id)
+    // Both halves, by their own ids -- not `a` and `calf`.
+    //
+    // When the loop reached the CALF first, cow resolved to its dam and calf
+    // resolved back to `a`, so this marked the calf twice and never marked the
+    // dam. Her turn came round, she re-paired with the same calf, and the pair
+    // was listed again: Doug's report showed the 41 & 38 pair twice and put him
+    // $3,500 over at $17,300.
+    used.add(cow.id)
     if (calf) used.add(calf.id)
     if (row) rows.push(row)
   }
