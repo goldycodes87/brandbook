@@ -2,6 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notifySale } from '@/lib/notify-transactions'
+import { describeAnimal } from '@/lib/animal-label'
+import type { SaleLine, AppliedFee } from '@/lib/sale-fees'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -91,5 +94,69 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  return NextResponse.json({ ok: true, sale }, { status: 201 })
+  // ── Tell the seller what he cleared ─────────────────────────────────────────
+  //
+  // The fees come from the caller, because which ones apply is a decision about
+  // THIS sale: cattle that never left the place owe no hauling and no
+  // commission. Nothing is assumed — an unticked checklist sends a statement
+  // with no fees on it, which is correct for a private deal between two owners
+  // on the same lease.
+  //
+  // Cannot fail the sale. The animal is sold and the row is written whether or
+  // not Resend answered.
+  let notified: unknown = null
+  try {
+    if (animal.owner_id) {
+      const { data: a } = await supabase
+        .from('animals')
+        .select('tag_number, name, sex, breed, ear_tag_color, pair_animal_id, purchased_as_pair')
+        .eq('id', id)
+        .maybeSingle()
+
+      const row = a as {
+        tag_number: string | null; name: string | null; sex: string | null
+        breed: string | null; ear_tag_color: string | null
+        pair_animal_id: string | null; purchased_as_pair: boolean | null
+      } | null
+
+      let pairTag: string | null = null
+      if (row?.purchased_as_pair && row.pair_animal_id) {
+        const { data: p } = await supabase
+          .from('animals').select('tag_number').eq('id', row.pair_animal_id).maybeSingle()
+        pairTag = (p as { tag_number: string | null } | null)?.tag_number ?? null
+      }
+
+      const label = describeAnimal({
+        sex: row?.sex, breed: row?.breed, ear_tag_color: row?.ear_tag_color,
+        tag_number: row?.tag_number, name: row?.name,
+        isPair: Boolean(pairTag), pairTag,
+      })
+
+      // Weight and a price per pound mean she went on weight; otherwise the
+      // figure agreed is the figure, and she went by the head.
+      const byWeight = sale_weight_lbs != null && price_per_lb != null
+      const line: SaleLine = {
+        what: label.title,
+        tag:  label.tagLine,
+        date: sale_date,
+        basis: byWeight ? 'pound' : 'head',
+        head: pairTag ? 2 : 1,
+        weightLbs:    byWeight ? Number(sale_weight_lbs) : null,
+        pricePerLb:   byWeight ? Number(price_per_lb)    : null,
+        pricePerHead: byWeight ? null : (gross_proceeds ? Number(gross_proceeds) : 0),
+      }
+
+      notified = await notifySale({
+        ownerId:   animal.owner_id,
+        buyerName: buyer || destination || 'a buyer',
+        lines:     [line],
+        fees:      Array.isArray(body.fees) ? (body.fees as AppliedFee[]) : [],
+        saleId:    sale?.id ?? null,
+      })
+    }
+  } catch (e) {
+    console.error('[animals/sell] notify failed:', (e as Error).message)
+  }
+
+  return NextResponse.json({ ok: true, sale, notified }, { status: 201 })
 }

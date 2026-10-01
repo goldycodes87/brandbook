@@ -8,7 +8,7 @@ import {
   MapPin, DollarSign, Dna, TrendingUp,
   ShoppingCart, Package, Settings,
   MoreHorizontal, X, LogOut, Bell, FileBarChart,
-  Sparkles, Receipt, Leaf, CalendarDays, Handshake,
+  Sparkles, Receipt, Leaf, CalendarDays, Handshake, Users,
 } from 'lucide-react'
 import { apiFetch, apiGet } from '@/lib/fetch'
 import { QuickExpenseButton } from '@/components/expenses/QuickExpenseButton'
@@ -31,10 +31,16 @@ const NAV_GROUPS = [
     { href: '/grazing',      label: 'Grazing',      icon: Leaf },
     { href: '/leases',       label: 'Leases',       icon: MapPin },
   ] },
-  { title: 'Money', items: [
-    { href: '/requests',     label: 'Requests',    icon: Handshake },
-    { href: '/expenses/review', label: 'Receipts',  icon: Receipt },
+  // Owner records lived under Settings, which filed the people you deal with
+  // every week as configuration. Everything about a person now sits together,
+  // and Money keeps what is ranch-wide rather than per-owner.
+  { title: 'Owners', items: [
+    { href: '/admin/owners', label: 'Owners',       icon: Users },
+    { href: '/requests',     label: 'Requests',     icon: Handshake },
     { href: '/billing',      label: 'Billing',      icon: DollarSign },
+  ] },
+  { title: 'Money', items: [
+    { href: '/expenses/review', label: 'Receipts',  icon: Receipt },
     { href: '/sales',        label: 'Sales',        icon: ShoppingCart },
   ] },
   { title: 'Looking back', items: [
