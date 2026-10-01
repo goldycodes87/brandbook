@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { apiGet, apiPost } from '@/lib/fetch'
+import { SaleFeeChecklist } from '@/components/animals/SaleFeeChecklist'
+import { defaultFees, feesForInternalTransfer, type AppliedFee } from '@/lib/sale-fees'
 
 interface SaleSheetProps {
   isOpen: boolean
@@ -54,6 +56,7 @@ export function SaleSheet({ isOpen, onClose, animal, onSuccess }: SaleSheetProps
   const [owners,         setOwners]         = useState<GrazingOwner[]>([])
   const [saving,         setSaving]         = useState(false)
   const [error,          setError]          = useState('')
+  const [fees,           setFees]           = useState<AppliedFee[]>(defaultFees)
 
   useEffect(() => {
     if (!isOpen) return
@@ -72,6 +75,10 @@ export function SaleSheet({ isOpen, onClose, animal, onSuccess }: SaleSheetProps
     }
   }, [saleWeightLbs, pricePerLb])
 
+  useEffect(() => {
+    setFees(buyerType === 'internal' ? feesForInternalTransfer(defaultFees()) : defaultFees())
+  }, [buyerType])
+
   const handleClose = () => {
     setBuyerType('external')
     setSaleDate(today())
@@ -82,6 +89,7 @@ export function SaleSheet({ isOpen, onClose, animal, onSuccess }: SaleSheetProps
     setPricePerLb('')
     setGrossProceeds('')
     setNotes('')
+    setFees(defaultFees())
     setError('')
     setSaving(false)
     onClose()
@@ -104,6 +112,7 @@ export function SaleSheet({ isOpen, onClose, animal, onSuccess }: SaleSheetProps
         notes:           notes || null,
         buyer_type:      buyerType,
         buyer_owner_id:  buyerType === 'internal' ? buyerOwnerId : null,
+        fees,
       })
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Failed to record sale'); return }
@@ -208,6 +217,13 @@ export function SaleSheet({ isOpen, onClose, animal, onSuccess }: SaleSheetProps
           <Field label="Gross proceeds ($)" helper="Auto-calculated from weight × price; edit if needed">
             <Input type="number" step="0.01" min="0" value={grossProceeds} onChange={e => setGrossProceeds(e.target.value)} placeholder="2220.00" />
           </Field>
+
+          <SaleFeeChecklist
+            gross={Number(grossProceeds) || 0}
+            head={1}
+            fees={fees}
+            onChange={setFees}
+          />
 
           <Field label="Notes">
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Additional details…" />

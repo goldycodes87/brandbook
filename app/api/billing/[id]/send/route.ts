@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Resend } from 'resend'
 import { generateInvoicePdfBuffer } from '@/lib/generate-invoice-pdf'
+import { uploadToR2 } from '@/lib/r2'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -174,10 +175,29 @@ export async function POST(req: NextRequest, { params }: Params) {
 </body>
 </html>`
 
-  // ── Generate PDF buffer for attachment ────────────────────────────────────
+  // ── Generate the PDF, attach it, and keep a copy ──────────────────────────
+  //
+  // The attachment used to be the only copy. An owner who lost the email had
+  // nowhere to get the invoice again: the portal shows a Download PDF link
+  // only when pdf_url is set, and nothing on this path ever set it. So Doug
+  // could see that invoice 2604003 existed and for how much, and could not
+  // open it.
+  //
+  // Storing it is not allowed to stop the send. A man would rather have the
+  // email with the attachment and no archive copy than no email at all.
   let pdfBuffer: Buffer | null = null
+  let storedPdfUrl: string | null = null
   try {
     pdfBuffer = await generateInvoicePdfBuffer(id)
+    try {
+      storedPdfUrl = await uploadToR2(
+        `invoices/${invoice.invoice_number ?? id}.pdf`,
+        pdfBuffer,
+        'application/pdf',
+      )
+    } catch (e: unknown) {
+      console.error('[send] PDF upload failed, sending anyway:', (e as Error).message)
+    }
   } catch (e: unknown) {
     console.error('[send] PDF generation failed:', (e as Error).message)
   }
@@ -212,7 +232,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     status:        'sent',
     sent_at:       now,
     email_sent_at: now,
-    ...(paymentUrl ? { square_payment_link: paymentUrl } : {}),
+    ...(paymentUrl   ? { square_payment_link: paymentUrl } : {}),
+    ...(storedPdfUrl ? { pdf_url: storedPdfUrl } : {}),
   }).eq('id', id)
 
   return NextResponse.json({ ok: true, square_link: paymentUrl })

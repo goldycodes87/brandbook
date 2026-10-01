@@ -152,7 +152,17 @@ export interface SaleTotals {
 export function settleSale(lines: SaleLine[], fees: AppliedFee[]): SaleTotals {
   const gross = Math.round(lines.reduce((s, l) => s + lineAmount(l), 0) * 100) / 100
   const head  = lines.reduce((s, l) => s + l.head, 0)
+  return { gross, head, ...applyFees(gross, head, fees) }
+}
 
+/**
+ * The fee half, against a gross and a head count that are already known.
+ *
+ * Split out so the checklist in the sale sheet can price itself as the
+ * operator ticks boxes, without inventing a second copy of the arithmetic.
+ * What he sees while deciding is what the email says afterwards.
+ */
+export function applyFees(gross: number, head: number, fees: AppliedFee[]) {
   const out: Array<{ label: string; amount: number }> = []
   for (const f of fees) {
     if (!f.on || !f.rate) continue
@@ -183,5 +193,19 @@ export function settleSale(lines: SaleLine[], fees: AppliedFee[]): SaleTotals {
   }
 
   const feeTotal = Math.round(out.reduce((s, f) => s + f.amount, 0) * 100) / 100
-  return { gross, head, fees: out, feeTotal, net: Math.round((gross - feeTotal) * 100) / 100 }
+  return { fees: out, feeTotal, net: Math.round((gross - feeTotal) * 100) / 100 }
+}
+
+/**
+ * The fees that make sense for cattle that never left the place.
+ *
+ * An internal transfer between two owners on the same lease goes through no
+ * barn: no commission, no yardage, no insurance, no hauling. The brand
+ * inspection and the checkoff still apply, because the cattle changed hands —
+ * but they stay unticked, since who pays is agreed per deal.
+ */
+const BARN_ONLY = new Set(['commission', 'yardage', 'insurance', 'hauling', 'private_sale_fee'])
+
+export function feesForInternalTransfer(fees: AppliedFee[]): AppliedFee[] {
+  return fees.map(f => (BARN_ONLY.has(f.key) ? { ...f, on: false } : f))
 }
