@@ -23,14 +23,21 @@
 
 export type PriceBasis = 'head' | 'pound'
 
-export type FeeBasis = 'pct_of_gross' | 'per_head' | 'flat'
+export type FeeBasis = 'pct_of_gross' | 'per_head' | 'flat' | 'min_plus_per_head'
 
 export interface FeeDef {
   key: string
   label: string
   basis: FeeBasis
-  /** Percent for pct_of_gross, dollars for per_head and flat. */
+  /**
+   * Percent for pct_of_gross, dollars for per_head and flat. For
+   * min_plus_per_head it is the minimum, which covers the first `covers` head.
+   */
   rate: number
+  /** min_plus_per_head only: how many head the minimum covers. */
+  covers?: number
+  /** min_plus_per_head only: the charge for each head beyond that. */
+  perHeadOver?: number
   /** Whether it starts ticked when a sale is being written up. */
   on: boolean
   hint: string
@@ -46,7 +53,10 @@ export const SALE_FEES: FeeDef[] = [
   { key: 'commission',       label: 'Commission',            basis: 'pct_of_gross', rate: 3,    on: true,  hint: 'The barn’s cut of the gross.' },
   { key: 'yardage',          label: 'Yardage',               basis: 'per_head',     rate: 5,    on: true,  hint: 'Pen space and feed at the barn.' },
   { key: 'insurance',        label: 'Insurance',             basis: 'pct_of_gross', rate: 0.25, on: true,  hint: 'Covers the cattle while the barn has them.' },
-  { key: 'brand_inspection', label: 'Brand inspection',      basis: 'per_head',     rate: 1.25, on: true,  hint: 'Required in Colorado before cattle change hands.' },
+  // Required in Colorado, but who pays for it is negotiated per sale, so it
+  // starts off rather than quietly landing on the seller. $40 minimum covers
+  // the first three head; $1.25 each after that.
+  { key: 'brand_inspection', label: 'Brand inspection',      basis: 'min_plus_per_head', rate: 40, covers: 3, perHeadOver: 1.25, on: false, hint: '$40 minimum covers 3 head, then $1.25 each. Legally required — but agree who pays before you tick it.' },
   { key: 'beef_checkoff',    label: 'Beef checkoff',         basis: 'per_head',     rate: 1,    on: true,  hint: 'A dollar a head, required on every sale.' },
   { key: 'hauling',          label: 'Hauling',               basis: 'flat',         rate: 0,    on: false, hint: 'Off unless the cattle actually left the place.' },
   { key: 'vet_health',       label: 'Vet and health papers', basis: 'flat',         rate: 0,    on: false, hint: 'Health certificate, testing, haul-in exam.' },
@@ -59,12 +69,17 @@ export interface AppliedFee {
   label: string
   basis: FeeBasis
   rate: number
+  covers?: number
+  perHeadOver?: number
   on: boolean
 }
 
 /** The checklist as it starts, before the admin touches it. */
 export function defaultFees(): AppliedFee[] {
-  return SALE_FEES.map(f => ({ key: f.key, label: f.label, basis: f.basis, rate: f.rate, on: f.on }))
+  return SALE_FEES.map(f => ({
+    key: f.key, label: f.label, basis: f.basis, rate: f.rate,
+    covers: f.covers, perHeadOver: f.perHeadOver, on: f.on,
+  }))
 }
 
 /**
@@ -142,16 +157,27 @@ export function settleSale(lines: SaleLine[], fees: AppliedFee[]): SaleTotals {
   for (const f of fees) {
     if (!f.on || !f.rate) continue
 
-    const amount = f.basis === 'pct_of_gross' ? gross * f.rate / 100
-                 : f.basis === 'per_head'     ? f.rate * head
-                 : f.rate
+    const amount =
+      f.basis === 'pct_of_gross'      ? gross * f.rate / 100
+      : f.basis === 'per_head'        ? f.rate * head
+      // A minimum that covers the first few head, then a charge for each one
+      // beyond. A small sale pays the minimum and nothing more.
+      : f.basis === 'min_plus_per_head'
+        ? f.rate + Math.max(0, head - (f.covers ?? 0)) * (f.perHeadOver ?? 0)
+      : f.rate
 
     const rounded = Math.round(amount * 100) / 100
     if (rounded === 0) continue
 
-    const label = f.basis === 'pct_of_gross' ? `${f.label} (${f.rate}%)`
-                : f.basis === 'per_head'     ? `${f.label} (${head} head)`
-                : f.label
+    const over = Math.max(0, head - (f.covers ?? 0))
+    const label =
+      f.basis === 'pct_of_gross'      ? `${f.label} (${f.rate}%)`
+      : f.basis === 'per_head'        ? `${f.label} (${head} head)`
+      : f.basis === 'min_plus_per_head'
+        ? (over > 0
+            ? `${f.label} ($${f.rate} min + ${over} head)`
+            : `${f.label} ($${f.rate} minimum)`)
+      : f.label
 
     out.push({ label, amount: rounded })
   }
