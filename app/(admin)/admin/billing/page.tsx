@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { AdminRoom } from '@/components/admin/AdminRoom'
 import { BillingRatesRoom } from '@/components/admin/BillingRatesRoom'
+import { SaleFeePanel } from '@/components/settings/SaleFeePanel'
 import { getAdminSession } from '@/lib/admin-auth'
 
 export default async function BillingRatesPage() {
@@ -16,6 +17,9 @@ export default async function BillingRatesPage() {
       subtitle="What the ranch charges, and what an expense can be filed under."
     >
       <BillingRatesRoom canEdit={Boolean(session?.canConfigure)} />
+      <div className="mt-6">
+        <SaleFeePanel canEdit={Boolean(session?.canConfigure)} />
+      </div>
     </AdminRoom>
   )
 }

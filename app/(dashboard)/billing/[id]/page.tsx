@@ -9,7 +9,7 @@ import Badge from '@/components/ui/Badge'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { InvoiceForm } from '@/components/billing/InvoiceForm'
-import { Send, Download, CheckCircle, RotateCcw, ArrowLeft, Printer, Link, DollarSign } from 'lucide-react'
+import { Send, Download, CheckCircle, RotateCcw, ArrowLeft, Printer, Link, DollarSign, Ban, Trash2 } from 'lucide-react'
 import { apiGet, apiPatch } from '@/lib/fetch'
 import { fmtDate, fmtMoneyDecimals as fmtMoney } from '@/lib/format'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
@@ -35,7 +35,7 @@ interface Invoice {
   period_end: string | null
   due_date: string | null
   total_amount: number
-  status: 'draft' | 'approved' | 'sent' | 'paid'
+  status: 'draft' | 'approved' | 'sent' | 'paid' | 'void'
   notes: string | null
   pdf_url: string | null
   approved_at: string | null
@@ -63,6 +63,9 @@ function statusBadge(status: string) {
     case 'paid':     return <Badge variant="success">PAID</Badge>
     case 'sent':     return <Badge variant="info">SENT</Badge>
     case 'approved': return <Badge variant="warning">APPROVED</Badge>
+    // Without this a voided invoice fell through and read DRAFT — the one
+    // status it is least like, and the one that invites somebody to send it.
+    case 'void':     return <Badge variant="danger">VOID</Badge>
     default:         return <Badge variant="neutral">DRAFT</Badge>
   }
 }
@@ -205,6 +208,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [creatingLink, setCreatingLink] = useState(false)
   const [confirmSend, setConfirmSend] = useState(false)
   const [confirmPaid, setConfirmPaid] = useState(false)
+  const [confirmVoid, setConfirmVoid] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [voiding, setVoiding] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentReference, setPaymentReference] = useState('')
   const [actionError, setActionError] = useState('')
@@ -241,6 +248,39 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     const res = await apiPatch(`/api/billing/${id}`, { status: 'approved', approved_at: new Date().toISOString() })
     if (res.ok) load()
     else { const j = await res.json(); setActionError(j.error ?? 'Approve failed') }
+  }
+
+  // Voiding keeps the number, the figures and the reason on the books. It is
+  // how a sent invoice is retracted -- deleting one would leave a hole in the
+  // sequence that nobody can explain a year later.
+  const handleVoid = async () => {
+    setActionError(''); setVoiding(true)
+    try {
+      const stamp = `Voided ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      const res = await apiPatch(`/api/billing/${id}`, {
+        status: 'void',
+        notes: invoice?.notes ? `${invoice.notes} — ${stamp}` : stamp,
+      })
+      if (res.ok) { setConfirmVoid(false); load() }
+      else { const j = await res.json(); setActionError(j.error ?? 'Void failed') }
+    } finally { setVoiding(false) }
+  }
+
+  // Only a draft or a void, and the API says the same. Deleting also hands
+  // back the expenses it was holding, which would otherwise stay stamped as
+  // billed on a row that no longer exists.
+  const handleDelete = async () => {
+    setActionError(''); setDeleting(true)
+    try {
+      const res = await fetch(`/api/billing/${id}`, { method: 'DELETE' })
+      if (res.ok) { router.push('/billing'); return }
+      const j = await res.json()
+      setActionError(j.error ?? 'Delete failed')
+      setConfirmDelete(false)
+    } catch {
+      setActionError('Connection error')
+      setConfirmDelete(false)
+    } finally { setDeleting(false) }
   }
 
   const handleMarkPaid = async () => {
@@ -394,6 +434,24 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             DOWNLOAD PDF
           </Button>
         )}
+        {invoice.status === 'void' && (
+          <Button intent="ghost" size="sm" loading={generatingPdf} onClick={handleDownloadPdf} leading={<Printer size={14} />}>
+            DOWNLOAD PDF
+          </Button>
+        )}
+
+        {/* Retract and remove, kept apart from the rest. A paid invoice is a
+            record of money received and neither applies to it. */}
+        {(invoice.status === 'draft' || invoice.status === 'approved' || invoice.status === 'sent') && (
+          <Button intent="ghost" size="sm" onClick={() => setConfirmVoid(true)} leading={<Ban size={14} />}>
+            VOID
+          </Button>
+        )}
+        {(invoice.status === 'draft' || invoice.status === 'void') && (
+          <Button intent="ghost" size="sm" onClick={() => setConfirmDelete(true)} leading={<Trash2 size={14} />}>
+            DELETE
+          </Button>
+        )}
       </div>
 
       {/* Square payment link (active) */}
@@ -484,6 +542,30 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         message={`This will email the invoice to ${invoice.owner?.email ?? 'the owner'}.`}
         confirmLabel={invoice.status === 'sent' ? 'RESEND' : 'SEND'}
         loading={sending}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmVoid}
+        onClose={() => setConfirmVoid(false)}
+        onConfirm={handleVoid}
+        title="Void this invoice?"
+        message={
+          invoice.status === 'sent'
+            ? `${invoice.invoice_number} has been sent to ${invoice.owner?.email ?? 'the owner'}. Voiding keeps it on the books marked void, drops it out of their portal, and frees its expenses to be billed again.`
+            : `${invoice.invoice_number} will be marked void. It stays on the books, and its expenses are free to be billed again.`
+        }
+        confirmLabel="VOID"
+        loading={voiding}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete this invoice for good?"
+        message={`${invoice.invoice_number} will be removed entirely and cannot be brought back. Its expenses go back to unbilled. If it was ever sent, void it instead so the record survives.`}
+        confirmLabel="DELETE"
+        loading={deleting}
       />
 
     </PageContainer>

@@ -72,17 +72,52 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return NextResponse.json({ data })
 }
 
+/**
+ * Delete an invoice, and give back what it was holding.
+ *
+ * Only a draft or a void. A sent, approved or paid invoice is a record of
+ * money that has been put in front of somebody, and the way to retract one is
+ * to void it — which leaves the number, the figures and the reason on the
+ * books. Deleting it would leave a hole in the sequence that nobody can
+ * explain a year later.
+ *
+ * The expenses it covered have to be released, or they stay stamped as billed
+ * on a row that no longer exists and can never be charged to anybody again.
+ * That was the live bug in the old version: it deleted the invoice and left
+ * lease_expenses.invoice_id and the allocations pointing at nothing.
+ */
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createAdminClient()
 
   const { data: inv } = await supabase
-    .from('invoices').select('status').eq('id', id).single()
-  if (inv?.status !== 'draft') {
-    return NextResponse.json({ error: 'Only draft invoices can be deleted' }, { status: 400 })
+    .from('invoices').select('status, invoice_number').eq('id', id).single()
+
+  const status = (inv as { status: string | null } | null)?.status ?? null
+  if (status !== 'draft' && status !== 'void') {
+    return NextResponse.json(
+      {
+        error: status
+          ? `That invoice is ${status}. Void it first — a sent or paid invoice stays on the books.`
+          : 'Invoice not found',
+      },
+      { status: 400 },
+    )
   }
+
+  const { error: unstamp } = await supabase
+    .from('lease_expenses').update({ invoice_id: null }).eq('invoice_id', id)
+  if (unstamp) return NextResponse.json({ error: unstamp.message }, { status: 500 })
+
+  const { error: unalloc } = await supabase
+    .from('expense_allocations').delete().eq('invoice_id', id)
+  if (unalloc) return NextResponse.json({ error: unalloc.message }, { status: 500 })
 
   const { error } = await supabase.from('invoices').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+
+  return NextResponse.json({
+    ok: true,
+    deleted: (inv as { invoice_number: string | null } | null)?.invoice_number ?? null,
+  })
 }

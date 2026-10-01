@@ -82,6 +82,56 @@ export function defaultFees(): AppliedFee[] {
   }))
 }
 
+/** What the settings screen stores: only what differs from the catalogue. */
+export interface FeeOverride {
+  key: string
+  rate?: number
+  on?: boolean
+  covers?: number
+  perHeadOver?: number
+}
+
+/**
+ * The catalogue with the ranch's own rates laid over it.
+ *
+ * Driven by the catalogue rather than by the stored rows, on purpose. A fee
+ * added to SALE_FEES later appears on the checklist straight away instead of
+ * waiting for somebody to visit Settings, and an override left behind for a
+ * fee that has since been removed is ignored rather than resurrecting it.
+ *
+ * The basis is never overridable. Whether a fee is a percentage, a per-head
+ * charge or a flat sum is what the fee IS; letting it be edited would let a
+ * 3% commission become $3.
+ */
+export function mergeFeeDefaults(stored: unknown): AppliedFee[] {
+  const rows = Array.isArray(stored) ? (stored as FeeOverride[]) : []
+  const byKey = new Map(rows.filter(r => r && typeof r.key === 'string').map(r => [r.key, r]))
+
+  return SALE_FEES.map(f => {
+    const o = byKey.get(f.key)
+    return {
+      key:   f.key,
+      label: f.label,
+      basis: f.basis,
+      rate:        typeof o?.rate        === 'number'  ? o.rate        : f.rate,
+      on:          typeof o?.on          === 'boolean' ? o.on          : f.on,
+      covers:      typeof o?.covers      === 'number'  ? o.covers      : f.covers,
+      perHeadOver: typeof o?.perHeadOver === 'number'  ? o.perHeadOver : f.perHeadOver,
+    }
+  })
+}
+
+/** Back out to just the overrides, so the catalogue stays the source of truth. */
+export function toFeeOverrides(fees: AppliedFee[]): FeeOverride[] {
+  return fees.map(f => ({
+    key: f.key,
+    rate: f.rate,
+    on: f.on,
+    ...(f.covers      != null ? { covers: f.covers } : {}),
+    ...(f.perHeadOver != null ? { perHeadOver: f.perHeadOver } : {}),
+  }))
+}
+
 /**
  * How this animal should be priced, unless somebody says otherwise.
  *

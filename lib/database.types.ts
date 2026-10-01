@@ -2636,6 +2636,7 @@ export type Database = {
           owner_name: string | null
           phone: string | null
           ranch_name: string | null
+          sale_fee_defaults: Json | null
           state: string | null
           timezone: string | null
           treatment_labor_per_head: number | null
@@ -2661,6 +2662,7 @@ export type Database = {
           owner_name?: string | null
           phone?: string | null
           ranch_name?: string | null
+          sale_fee_defaults?: Json | null
           state?: string | null
           timezone?: string | null
           treatment_labor_per_head?: number | null
@@ -2686,6 +2688,7 @@ export type Database = {
           owner_name?: string | null
           phone?: string | null
           ranch_name?: string | null
+          sale_fee_defaults?: Json | null
           state?: string | null
           timezone?: string | null
           treatment_labor_per_head?: number | null
