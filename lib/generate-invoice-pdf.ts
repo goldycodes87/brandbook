@@ -331,7 +331,17 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
 export type ReportSection = {
   heading: string
   rows: { label: string; value: string }[]
-  table?: { columns: string[]; rows: string[][] }
+  table?: {
+    columns: string[]
+    rows: string[][]
+    /**
+     * Per-column alignment. Defaults to the old behaviour — first column left,
+     * everything else right — which is correct for a two-column figure table
+     * and wrong the moment a table has words in the middle of it: right-aligned
+     * "Sex" and "Breed" columns read as a mistake.
+     */
+    align?: Array<'left' | 'right'>
+  }
 }
 
 export async function generateReportPdfBuffer(
@@ -380,28 +390,38 @@ export async function generateReportPdfBuffer(
     // Optional table
     if (section.table && section.table.rows.length > 0) {
       y -= 8
-      const { columns, rows: tRows } = section.table
+      const { columns, rows: tRows, align } = section.table
       const colCount = columns.length
       const colW = CW / colCount
+      const alignOf = (i: number) => align?.[i] ?? (i === 0 ? 'left' : 'right')
 
       maybeNewPage(22 + Math.min(tRows.length, 5) * 16)
 
-      // Table header row
-      page.drawRectangle({ x: M, y: y - 18, width: CW, height: 18, color: RED })
-      columns.forEach((col, i) => {
-        if (i === 0) {
-          page.drawText(sanitize(col), { x: M + i * colW + 4, y: y - 13, size: 8, font: fontBold, color: WHITE })
-        } else {
-          rightText(page, fontBold, sanitize(col), 8, M + (i + 1) * colW - 4, y - 13, WHITE)
-        }
-      })
-      y -= 18
+      const drawTableHead = () => {
+        page.drawRectangle({ x: M, y: y - 18, width: CW, height: 18, color: RED })
+        columns.forEach((col, i) => {
+          if (alignOf(i) === 'left') {
+            page.drawText(sanitize(col), { x: M + i * colW + 4, y: y - 13, size: 8, font: fontBold, color: WHITE })
+          } else {
+            rightText(page, fontBold, sanitize(col), 8, M + (i + 1) * colW - 4, y - 13, WHITE)
+          }
+        })
+        y -= 18
+      }
+
+      drawTableHead()
 
       for (const tr of tRows) {
+        const pageBefore = page
         maybeNewPage(18)
+        // A long table carries its column headings onto the next page. Without
+        // this a herd list or a year of expenses continues as a grid of
+        // unlabelled figures, and a total that lands alone at the top of a page
+        // reads as belonging to whatever heading follows it.
+        if (page !== pageBefore) drawTableHead()
         page.drawLine({ start: { x: M, y: y + 1 }, end: { x: PW - M, y: y + 1 }, thickness: 0.3, color: RULE })
         tr.forEach((cell, i) => {
-          if (i === 0) {
+          if (alignOf(i) === 'left') {
             page.drawText(sanitize(cell), { x: M + i * colW + 4, y: y - 12, size: 9, font, color: DARK })
           } else {
             rightText(page, font, sanitize(cell), 9, M + (i + 1) * colW - 4, y - 12)
