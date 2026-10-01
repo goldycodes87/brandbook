@@ -3,6 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { Update } from '@/lib/supabase/admin'
 import { asAnimalSex, asAnimalStatus } from '@/lib/db-enums'
 import { CALVING_LEAD_DAYS } from '@/lib/preg-check-followup'
+// Taking an invoice back lives in its own file: these are the only actions the
+// assistant has that destroy something.
+import { voidInvoice, deleteInvoice } from '@/lib/rancher-ai/billing-actions'
 
 /**
  * Everything RancherAI can change, as data.
@@ -1351,8 +1354,8 @@ export const WRITE_ACTIONS: readonly WriteAction[] = [
   recordBreeding, recordPregCheck, recordCalving, recordWeaning,
   // Day to day
   createReminder, dismissReminder, createExpense,
-  // Billing, drafts only
-  draftQuarterlyInvoice,
+  // Billing — drafts and reversals. Nothing here sends.
+  draftQuarterlyInvoice, voidInvoice, deleteInvoice,
 ]
 
 const BY_NAME = new Map(WRITE_ACTIONS.map(a => [a.name, a]))
