@@ -345,9 +345,13 @@ function label(text: string) {
 /**
  * Cattle bought.
  *
- * What he got, what each head cost, who sold them, and what the herd stands at
- * now. A pair is one line with the price on it — the same convention as the
- * invoices and the purchases report, so the three never disagree.
+ * Buying cattle is a good day and the email should read like one. The first
+ * version led with "3 head are yours", which is accurate and reads like a
+ * dispatch note.
+ *
+ * A pair is one line carrying the price, the same convention as the invoices
+ * and the purchases report, so the three never disagree. Head is passed in
+ * separately because a pair is one line and two animals.
  */
 export function purchaseEmail(opts: {
   ranchName: string
@@ -355,23 +359,24 @@ export function purchaseEmail(opts: {
   date: string
   seller: string
   lines: Array<{ what: string; tag: string; amount: number | null }>
-  /** Head, not lines. A pair is one line and two animals. */
   head: number
   total: number
   headAfter: number
   url: string
 }) {
-  const head = opts.head
+  const who = opts.personName ? `, ${opts.personName}` : ''
+  const headWord = opts.head === 1 ? 'One head' : `${opts.head} head`
+
   return shell({
     ranchName: opts.ranchName,
-    preheader: `${head} head from ${opts.seller} — ${usd(opts.total)}. Your herd stands at ${opts.headAfter}.`,
+    preheader: `${headWord} from ${opts.seller} — ${usd(opts.total)}. Your herd stands at ${opts.headAfter}.`,
     body: `
       ${mark()}
       <div style="height:18px"></div>
       ${pill('New Cattle')}
       <div style="height:20px"></div>
-      ${h1(head === 1 ? 'One head is yours' : `${head} head are yours`)}
-      ${lead(`Bought from ${opts.seller} on ${opts.date}.`)}
+      ${h1(`Congratulations${who}!`)}
+      ${lead(`${headWord} are yours — bought from ${opts.seller} on ${opts.date}.`)}
       ${rule()}
       ${hero(usd(opts.total), 'Total paid')}
 
@@ -393,56 +398,65 @@ export function purchaseEmail(opts: {
 }
 
 export async function sendPurchaseEmail(to: string, opts: Parameters<typeof purchaseEmail>[0]) {
-  return send(
-    to,
-    `${opts.head} head added to your herd — ${usd(opts.total)}`,
-    purchaseEmail(opts),
-  )
+  const who = opts.personName ? `, ${opts.personName}` : ''
+  return send(to, `Congratulations${who} — ${opts.head} head added to your herd`, purchaseEmail(opts))
 }
 
 /**
  * Cattle sold.
  *
- * Gross, every fee by name, and the net set large — because the net is the
- * number being looked for and burying it under an itemisation is how an owner
- * comes to believe the fees are hiding something.
+ * Every head that went, what each one brought and on what basis — by the head
+ * for a pair or a bred cow, by the pound for a calf, a steer or an open cow.
+ * Then the fees that actually applied to THIS sale, and what is left.
+ *
+ * The net is the biggest thing on the page because it is the number being
+ * looked for. Burying it under an itemisation is how an owner comes to believe
+ * the fees are hiding something.
  */
 export function saleEmail(opts: {
   ranchName: string
   personName: string
-  date: string
-  what: string
-  tag: string
   buyer: string
-  weightLbs?: number | null
-  pricePerLb?: number | null
+  lines: Array<{ what: string; tag: string; date: string; detail: string; amount: number }>
+  head: number
   gross: number
   fees: Array<{ label: string; amount: number }>
+  feeTotal: number
   net: number
   url: string
 }) {
-  const feeTotal = opts.fees.reduce((s, f) => s + f.amount, 0)
-  const weighed  = opts.weightLbs
-    ? `${opts.weightLbs.toLocaleString('en-US')} lb${opts.pricePerLb ? ` at ${usd(opts.pricePerLb)}/lb` : ''}`
-    : null
+  const who = opts.personName ? `, ${opts.personName}` : ''
+  const headWord = opts.head === 1 ? 'head has' : 'head have'
 
   return shell({
     ranchName: opts.ranchName,
-    preheader: `${opts.what} (Tag ${opts.tag}) sold for ${usd(opts.gross)}. Net to you ${usd(opts.net)}.`,
+    preheader: `${opts.head} ${headWord} sold for ${usd(opts.gross)}. Net to you ${usd(opts.net)}.`,
     body: `
       ${mark()}
       <div style="height:18px"></div>
       ${pill('Sold')}
       <div style="height:20px"></div>
-      ${h1(opts.what)}
-      ${lead(`Tag ${opts.tag} · ${opts.buyer} · ${opts.date}`)}
+      ${h1(`Congratulations${who}!`)}
+      ${lead(`${opts.head} ${headWord} sold to ${opts.buyer}.`)}
       ${rule()}
       ${hero(usd(opts.net), 'Net to you')}
 
-      ${label('How it came out')}
-      ${row('Gross proceeds', usd(opts.gross), weighed ? { sub: weighed } : undefined)}
-      ${opts.fees.map(f => row(f.label, `-${usd(f.amount)}`)).join('')}
-      ${feeTotal > 0 ? row('Total fees', `-${usd(feeTotal)}`) : ''}
+      ${label('What sold')}
+      ${opts.lines.map(l => row(
+        l.what, usd(l.amount), { sub: `Tag ${l.tag} · ${l.detail} · ${l.date}` },
+      )).join('')}
+      ${row('Gross', usd(opts.gross), { strong: true })}
+
+      ${opts.fees.length > 0 ? `
+        ${label('Less fees')}
+        ${opts.fees.map(f => row(f.label, `-${usd(f.amount)}`)).join('')}
+        ${opts.fees.length > 1 ? row('Total fees', `-${usd(opts.feeTotal)}`, { strong: true }) : ''}
+      ` : `
+        ${label('Less fees')}
+        ${row('No fees on this sale', usd(0), { sub: 'The cattle did not go through a barn.' })}
+      `}
+
+      ${label('')}
       ${row('Net to you', usd(opts.net), { strong: true, accent: true })}
 
       ${button(opts.url, 'OPEN THE SALE RECORD')}
@@ -454,9 +468,6 @@ export function saleEmail(opts: {
 }
 
 export async function sendSaleEmail(to: string, opts: Parameters<typeof saleEmail>[0]) {
-  return send(
-    to,
-    `${opts.what} sold — ${usd(opts.net)} net to you`,
-    saleEmail(opts),
-  )
+  const who = opts.personName ? `, ${opts.personName}` : ''
+  return send(to, `Congratulations${who} — ${opts.head} head sold, ${usd(opts.net)} net to you`, saleEmail(opts))
 }
