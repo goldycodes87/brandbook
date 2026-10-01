@@ -21,6 +21,28 @@ import { settleSale, lineAmount, lineDetail } from '@/lib/sale-fees'
 
 const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL || 'https://brandbook-zeta-eight.vercel.app'
 
+/**
+ * A photograph at the size the email actually draws it.
+ *
+ * The statements show each head at 38 pixels and were pointing at the
+ * originals, which are whatever came off a phone — Daphne's is 9.1 MB. Five
+ * head meant asking the reader's mail client for something like thirty
+ * megabytes to paint five thumbnails, which on a phone in a pasture does not
+ * render at all. 160px wide covers a 38px slot on a retina screen twice over.
+ */
+function thumb(url: string | null | undefined): string | null {
+  const src = (url ?? '').trim()
+  if (!src) return null
+
+  const base = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '').replace(/\/+$/, '')
+  // Only our own bucket goes through the resizer; anything else is passed
+  // along untouched rather than handed to a route that will refuse it.
+  if (!base || !src.startsWith(base)) return src
+
+  const key = src.slice(base.length).replace(/^\/+/, '')
+  return `${APP_URL()}/api/img?key=${encodeURIComponent(key)}&w=160`
+}
+
 interface OwnerRow {
   id: string
   name: string | null
@@ -110,7 +132,7 @@ export async function notifyPurchase(opts: {
       title: label.title,
       tagLine: label.tagLine,
       amount: h.amount,
-      photo: cow?.photos?.[0] ?? null,
+      photo: thumb(cow?.photos?.[0]),
     }
   })
 

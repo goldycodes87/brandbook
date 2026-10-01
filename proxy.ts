@@ -54,6 +54,12 @@ const PUBLIC_API = [
   // ours. The route checks a shared secret on every request and returns 503
   // when that secret is unset, so an unconfigured deploy answers nobody.
   "/api/rancher-ai/voice-webhook",
+  // Thumbnails for the pictures in an owner's emailed statement. A mail client
+  // -- and Gmail's image proxy on its behalf -- fetches these with no cookie,
+  // so a gate here would show every owner a row of broken boxes. It is not an
+  // open proxy: it takes a key within our own bucket and builds the URL
+  // itself, and the originals it reads are already on a public bucket.
+  "/api/img",
 ];
 
 // Which cookie gates which API prefix, and whether that cookie carries an
