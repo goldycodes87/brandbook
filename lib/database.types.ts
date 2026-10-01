@@ -2261,6 +2261,7 @@ export type Database = {
           rancher_notes: string | null
           request_type: string
           resolved_membership_id: string | null
+          sale_id: string | null
           sell_reason: string | null
           sell_timeline: string | null
           status: string
@@ -2284,6 +2285,7 @@ export type Database = {
           rancher_notes?: string | null
           request_type: string
           resolved_membership_id?: string | null
+          sale_id?: string | null
           sell_reason?: string | null
           sell_timeline?: string | null
           status?: string
@@ -2307,6 +2309,7 @@ export type Database = {
           rancher_notes?: string | null
           request_type?: string
           resolved_membership_id?: string | null
+          sale_id?: string | null
           sell_reason?: string | null
           sell_timeline?: string | null
           status?: string
@@ -2332,6 +2335,13 @@ export type Database = {
             columns: ["resolved_membership_id"]
             isOneToOne: false
             referencedRelation: "portal_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_requests_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
             referencedColumns: ["id"]
           },
         ]

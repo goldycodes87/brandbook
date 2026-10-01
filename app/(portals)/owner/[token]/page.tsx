@@ -5,6 +5,7 @@ import { fmtDate, fmtMoney, fmtTs, calcAge } from '@/lib/format'
 import { BrandWatermark } from '@/components/brand/BrandWatermark'
 import { PurchasesReport, ScheduleFReport } from '@/components/portal/OwnerReports'
 import { NotificationSettings } from '@/components/portal/NotificationSettings'
+import { PayoutChoice } from '@/components/portal/PayoutChoice'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -1138,6 +1139,10 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
                 </p>
               )}
             </div>
+
+            {/* Arrives first, because he got here by pressing a button in
+                an email and wants to see that it landed. */}
+            <PayoutChoice />
 
             {/* ── What needs him ──────────────────────────────────────
                 Only when something does. An owner opening this wants to

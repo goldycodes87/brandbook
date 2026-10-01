@@ -2,6 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyTransfer } from '@/lib/notify-transactions'
+import { describeAnimal } from '@/lib/animal-label'
+import { fmtDate } from '@/lib/format'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -114,8 +117,81 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!reErr) reopened++
   }
 
+  // ── Tell both sides ─────────────────────────────────────────────────────────
+  //
+  // One event, two statements: the buyer gets what he bought, the seller gets
+  // what he sold and what to do with the money. Deliberately after everything
+  // above has landed, and deliberately unable to fail the request — the cattle
+  // moved whether or not Resend answered, and a route that reports failure
+  // because of the mail leaves somebody re-running a transfer that already
+  // happened.
+  let notified: unknown = null
+  try {
+    const { data: a } = await supabase
+      .from('animals')
+      .select('id, pair_animal_id, purchased_as_pair, tag_number, name, sex, breed, ear_tag_color')
+      .eq('id', animal_id)
+      .maybeSingle()
+
+    const animal = a as {
+      id: string; pair_animal_id: string | null; purchased_as_pair: boolean | null
+      tag_number: string | null; name: string | null; sex: string | null
+      breed: string | null; ear_tag_color: string | null
+    } | null
+
+    // A calf moving with its dam is covered by the dam's line. Mailing a
+    // second statement for the calf would double the head count and the money.
+    const isPairCalf = animal?.purchased_as_pair && animal.sex?.toLowerCase() === 'calf'
+
+    if (animal && !isPairCalf) {
+      const pairId = animal.purchased_as_pair ? animal.pair_animal_id : null
+      const price  = fmv_at_transfer != null ? Number(fmv_at_transfer) : null
+
+      const [{ data: fromOwner }, { data: toOwner }] = await Promise.all([
+        supabase.from('grazing_owners').select('name, owner_name, company_name').eq('id', id).maybeSingle(),
+        to_owner_id
+          ? supabase.from('grazing_owners').select('name, owner_name, company_name').eq('id', to_owner_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ])
+      const nameOf = (o: unknown) => {
+        const x = o as { name?: string | null; owner_name?: string | null; company_name?: string | null } | null
+        return x?.company_name || x?.owner_name || x?.name || 'the ranch'
+      }
+
+      let pairTag: string | null = null
+      if (pairId) {
+        const { data: p } = await supabase.from('animals').select('tag_number').eq('id', pairId).maybeSingle()
+        pairTag = (p as { tag_number: string | null } | null)?.tag_number ?? null
+      }
+      const label = describeAnimal({
+        sex: animal.sex, breed: animal.breed, ear_tag_color: animal.ear_tag_color,
+        tag_number: animal.tag_number, name: animal.name,
+        isPair: Boolean(pairId), pairTag,
+      })
+
+      notified = await notifyTransfer({
+        fromOwnerId: id,
+        toOwnerId:   to_owner_id || null,
+        fromName:    nameOf(fromOwner),
+        toName:      nameOf(toOwner),
+        date:        fmtDate(on),
+        head:        [{ animalId: animal.id, pairAnimalId: pairId, amount: price }],
+        saleLines: [{
+          what: label.title, tag: label.tagLine, date: fmtDate(on),
+          basis: 'head', head: pairId ? 2 : 1, pricePerHead: price ?? 0,
+        }],
+        // Cattle changing hands between two owners on the same place did not
+        // go through a barn, so nothing is ticked by default. The operator
+        // adds brand inspection and the rest on the sale record if they apply.
+        fees: [],
+      })
+    }
+  } catch (e) {
+    console.error('[transfer notify]', (e as Error).message)
+  }
+
   return NextResponse.json(
-    { data, grazing: { closed: open.length, reopened, effective: on } },
+    { data, grazing: { closed: open.length, reopened, effective: on }, notified },
     { status: 201 },
   )
 }

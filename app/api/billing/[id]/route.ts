@@ -1,17 +1,23 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Update } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
-  const cookieStore = await cookies()
-  if (cookieStore.get('brandbook_owner_session')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  // This used to refuse the request whenever a brandbook_owner_session cookie
+  // was present in the browser, which is not the same question as "is an owner
+  // asking". Cookies are per browser, not per tab: an operator who had opened
+  // an owner portal once -- which is exactly what you do when checking what an
+  // owner sees -- carried that cookie forever after and got 403 on every
+  // invoice, surfacing as "Invoice not found".
+  //
+  // The proxy already gates /api/billing/* on a validly signed
+  // brandbook_session and nothing else, so an owner holding only a portal
+  // cookie is turned away before reaching this line. The check added no
+  // protection and cost the operator the page.
   const { id } = await params
   const supabase = createAdminClient()
 

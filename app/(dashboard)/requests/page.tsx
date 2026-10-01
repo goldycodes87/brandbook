@@ -32,7 +32,7 @@ interface OwnerRequest {
   id: string
   owner_id: string
   owner_name: string
-  request_type: 'buy' | 'sell' | 'access'
+  request_type: 'buy' | 'sell' | 'access' | 'payout'
   status: Status
   quantity: number | null
   animal_type: string | null
@@ -62,6 +62,8 @@ const TIMEFRAME = new Map([
 const FUNDS = new Map([
   ['send_minus_fee', 'Send payment, less the selling fee'],
   ['keep_for_purchase', 'Keep on account to buy something else'],
+  ['check', 'Mail a check'],
+  ['invoice_first', 'Settle the open invoice first, then send the balance'],
   ['other', 'Other'],
 ])
 
@@ -147,14 +149,23 @@ export default function RequestsPage() {
               key={r.id}
               title={
                 <span className="flex items-center gap-2 flex-wrap">
-                  <span>{r.request_type === 'buy' ? 'WANTS TO BUY' : 'WANTS TO SELL'}</span>
+                  <span>{
+                    r.request_type === 'buy'    ? 'WANTS TO BUY'
+                    : r.request_type === 'payout' ? 'WHAT TO DO WITH THE MONEY'
+                    : 'WANTS TO SELL'
+                  }</span>
                   <Chip tone={STATUS_TONE[r.status]} size="sm">{r.status}</Chip>
                 </span>
               }
               subtitle={`${r.owner_name} · ${fmtDate(r.created_at)}`}
             >
               <div className="flex flex-col gap-3">
-                {r.request_type === 'buy' ? (
+                {r.request_type === 'payout' ? (
+                  <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Fact label="Wants" value={pretty(FUNDS, r.funds_disposition)} />
+                    <Fact label="Asked" value={fmtDate(r.created_at)} />
+                  </dl>
+                ) : r.request_type === 'buy' ? (
                   <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <Fact label="How many" value={r.quantity != null ? String(r.quantity) : null} />
                     <Fact label="What" value={r.animal_type} />
