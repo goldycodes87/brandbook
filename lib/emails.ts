@@ -29,7 +29,7 @@ const MUTED   = '#6b7280'  // --text-muted
 const SECOND  = '#9ca3af'  // --text-secondary
 const HAIRLINE = '#242424' // --border, flattened: rgba on black is unreliable in mail
 
-const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+export const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
 
 /**
  * The mark, drawn in HTML.
@@ -135,7 +135,9 @@ function sender() {
       || 'BrandBook <noreply@brandbook.app>'
 }
 
-async function send(to: string, subject: string, html: string) {
+// Exported so the statement mail in emails-statement.ts posts through the same
+// Resend call and the same from-address rules. One sender, one failure shape.
+export async function send(to: string, subject: string, html: string) {
   const key = process.env.RESEND_API_KEY
   if (!key) return { ok: false as const, error: 'Email is not configured' }
 
@@ -296,178 +298,4 @@ export function operatorLinkEmail(opts: { ranchName: string; personName: string;
 
 export async function sendOperatorLinkEmail(to: string, opts: Parameters<typeof operatorLinkEmail>[0]) {
   return send(to, `Sign in to ${opts.ranchName}`, operatorLinkEmail(opts))
-}
-
-// ─── Transaction emails ──────────────────────────────────────────────────────
-//
-// The two moments an owner actually wants to hear from the ranch: cattle
-// bought, and cattle sold. Everything else — a weight recorded, a tub bought,
-// a calf weaned — is why the portal exists, and sending it is how an owner
-// learns to filter the ranch's address.
-//
-// Both are one screen. The figure an owner is looking for is the biggest
-// thing on it: what he paid, or what he cleared.
-
-const usd = (n: number) =>
-  '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-/** The headline figure, set large in the accent. */
-function hero(amount: string, caption: string) {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td align="center" style="padding:4px 0 2px;font-family:Georgia,'Times New Roman',serif;
-        font-size:40px;line-height:1.1;font-weight:700;color:${ACCENT}">${amount}</td>
-  </tr><tr>
-    <td align="center" style="padding:8px 0 0;font-family:${SANS};font-size:10px;font-weight:600;
-        letter-spacing:.2em;text-transform:uppercase;color:${MUTED}">${caption}</td>
-  </tr></table>`
-}
-
-/** One ruled line: what on the left, figure on the right. */
-function row(left: string, right: string, opts?: { sub?: string; strong?: boolean; accent?: boolean }) {
-  const color = opts?.accent ? ACCENT : opts?.strong ? TEXT : SECOND
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                 style="border-top:1px solid ${HAIRLINE}"><tr>
-    <td style="padding:11px 0;font-family:${SANS};font-size:13px;line-height:1.45;color:${color};
-        font-weight:${opts?.strong ? 600 : 400}">${left}${
-          opts?.sub ? `<br><span style="font-size:11px;color:${MUTED}">${opts.sub}</span>` : ''
-        }</td>
-    <td align="right" style="padding:11px 0;font-family:${SANS};font-size:13px;white-space:nowrap;
-        color:${color};font-weight:${opts?.strong ? 700 : 600}">${right}</td>
-  </tr></table>`
-}
-
-/** The uppercase micro-label that opens a block. */
-function label(text: string) {
-  return `<p style="margin:26px 0 2px;font-family:${SANS};font-size:10px;font-weight:700;
-    letter-spacing:.18em;text-transform:uppercase;color:${MUTED}">${text}</p>`
-}
-
-/**
- * Cattle bought.
- *
- * Buying cattle is a good day and the email should read like one. The first
- * version led with "3 head are yours", which is accurate and reads like a
- * dispatch note.
- *
- * A pair is one line carrying the price, the same convention as the invoices
- * and the purchases report, so the three never disagree. Head is passed in
- * separately because a pair is one line and two animals.
- */
-export function purchaseEmail(opts: {
-  ranchName: string
-  personName: string
-  date: string
-  seller: string
-  lines: Array<{ what: string; tag: string; amount: number | null }>
-  head: number
-  total: number
-  headAfter: number
-  url: string
-}) {
-  const who = opts.personName ? `, ${opts.personName}` : ''
-  const headWord = opts.head === 1 ? 'One head' : `${opts.head} head`
-
-  return shell({
-    ranchName: opts.ranchName,
-    preheader: `${headWord} from ${opts.seller} — ${usd(opts.total)}. Your herd stands at ${opts.headAfter}.`,
-    body: `
-      ${mark()}
-      <div style="height:18px"></div>
-      ${pill('New Cattle')}
-      <div style="height:20px"></div>
-      ${h1(`Congratulations${who}!`)}
-      ${lead(`${headWord} are yours — bought from ${opts.seller} on ${opts.date}.`)}
-      ${rule()}
-      ${hero(usd(opts.total), 'Total paid')}
-
-      ${label('What you bought')}
-      ${opts.lines.map(l => row(
-        l.what, l.amount == null ? '—' : usd(l.amount), { sub: `Tag ${l.tag}` },
-      )).join('')}
-      ${row('Total', usd(opts.total), { strong: true })}
-
-      ${label('Your herd now')}
-      ${row('Head on the place', String(opts.headAfter), { strong: true })}
-
-      ${button(opts.url, 'SEE THEM IN MY PORTAL')}
-      <p style="margin:14px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${MUTED};text-align:center">
-        Weights, health and breeding for every one of them live in your portal.
-      </p>
-    `,
-  })
-}
-
-export async function sendPurchaseEmail(to: string, opts: Parameters<typeof purchaseEmail>[0]) {
-  const who = opts.personName ? `, ${opts.personName}` : ''
-  return send(to, `Congratulations${who} — ${opts.head} head added to your herd`, purchaseEmail(opts))
-}
-
-/**
- * Cattle sold.
- *
- * Every head that went, what each one brought and on what basis — by the head
- * for a pair or a bred cow, by the pound for a calf, a steer or an open cow.
- * Then the fees that actually applied to THIS sale, and what is left.
- *
- * The net is the biggest thing on the page because it is the number being
- * looked for. Burying it under an itemisation is how an owner comes to believe
- * the fees are hiding something.
- */
-export function saleEmail(opts: {
-  ranchName: string
-  personName: string
-  buyer: string
-  lines: Array<{ what: string; tag: string; date: string; detail: string; amount: number }>
-  head: number
-  gross: number
-  fees: Array<{ label: string; amount: number }>
-  feeTotal: number
-  net: number
-  url: string
-}) {
-  const who = opts.personName ? `, ${opts.personName}` : ''
-  const headWord = opts.head === 1 ? 'head has' : 'head have'
-
-  return shell({
-    ranchName: opts.ranchName,
-    preheader: `${opts.head} ${headWord} sold for ${usd(opts.gross)}. Net to you ${usd(opts.net)}.`,
-    body: `
-      ${mark()}
-      <div style="height:18px"></div>
-      ${pill('Sold')}
-      <div style="height:20px"></div>
-      ${h1(`Congratulations${who}!`)}
-      ${lead(`${opts.head} ${headWord} sold to ${opts.buyer}.`)}
-      ${rule()}
-      ${hero(usd(opts.net), 'Net to you')}
-
-      ${label('What sold')}
-      ${opts.lines.map(l => row(
-        l.what, usd(l.amount), { sub: `Tag ${l.tag} · ${l.detail} · ${l.date}` },
-      )).join('')}
-      ${row('Gross', usd(opts.gross), { strong: true })}
-
-      ${opts.fees.length > 0 ? `
-        ${label('Less fees')}
-        ${opts.fees.map(f => row(f.label, `-${usd(f.amount)}`)).join('')}
-        ${opts.fees.length > 1 ? row('Total fees', `-${usd(opts.feeTotal)}`, { strong: true }) : ''}
-      ` : `
-        ${label('Less fees')}
-        ${row('No fees on this sale', usd(0), { sub: 'The cattle did not go through a barn.' })}
-      `}
-
-      ${label('')}
-      ${row('Net to you', usd(opts.net), { strong: true, accent: true })}
-
-      ${button(opts.url, 'OPEN THE SALE RECORD')}
-      <p style="margin:14px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${MUTED};text-align:center">
-        This sale is on your year-end report and your Schedule F the moment it is recorded.
-      </p>
-    `,
-  })
-}
-
-export async function sendSaleEmail(to: string, opts: Parameters<typeof saleEmail>[0]) {
-  const who = opts.personName ? `, ${opts.personName}` : ''
-  return send(to, `Congratulations${who} — ${opts.head} head sold, ${usd(opts.net)} net to you`, saleEmail(opts))
 }
