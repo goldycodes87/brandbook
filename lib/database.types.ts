@@ -2425,6 +2425,10 @@ export type Database = {
           license_expires: string | null
           license_number: string | null
           license_state: string | null
+          notify_herd_updates: boolean
+          notify_invoices: boolean
+          notify_purchases: boolean
+          notify_sales: boolean
           phone: string | null
           practice_name: string | null
           preferred_name: string | null
@@ -2443,6 +2447,10 @@ export type Database = {
           license_expires?: string | null
           license_number?: string | null
           license_state?: string | null
+          notify_herd_updates?: boolean
+          notify_invoices?: boolean
+          notify_purchases?: boolean
+          notify_sales?: boolean
           phone?: string | null
           practice_name?: string | null
           preferred_name?: string | null
@@ -2461,6 +2469,10 @@ export type Database = {
           license_expires?: string | null
           license_number?: string | null
           license_state?: string | null
+          notify_herd_updates?: boolean
+          notify_invoices?: boolean
+          notify_purchases?: boolean
+          notify_sales?: boolean
           phone?: string | null
           practice_name?: string | null
           preferred_name?: string | null

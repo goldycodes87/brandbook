@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, use, useCallback } from 'react'
 import { fmtDate, fmtMoney, fmtTs, calcAge } from '@/lib/format'
 import { BrandWatermark } from '@/components/brand/BrandWatermark'
 import { PurchasesReport, ScheduleFReport } from '@/components/portal/OwnerReports'
+import { NotificationSettings } from '@/components/portal/NotificationSettings'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -1450,6 +1451,13 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
                 For his accountant, from the same figures the ranch uses. */}
             <MoreSection title="FOR MY ACCOUNTANT">
               <ScheduleFReport year={selectedYear} />
+            </MoreSection>
+
+            {/* ── What we may email about ─────────────────────────────
+                One switch used to mean everything or nothing, so the only way
+                to stop the chatter was to stop the invoices too. */}
+            <MoreSection title="EMAILS FROM THE RANCH">
+              <NotificationSettings />
             </MoreSection>
 
             <MoreSection title="ANNUAL REPORT">
