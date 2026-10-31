@@ -17,6 +17,7 @@ import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelect
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { SireSelector, type SireResult, type SireLibraryResult } from '@/components/reproduction/SireSelector'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
+import { prepareImage, EDGE_FOR_KEEPING } from '@/lib/prepare-image'
 
 // ── Ear tag color picker ──────────────────────────────────────────────────────
 
@@ -320,8 +321,13 @@ export default function EditAnimalPage({ params }: { params: Promise<{ id: strin
     if (!file) return
     setUploadingPhoto(true)
     try {
+      // Shrunk before sending, as on the new-animal page: this path posts
+      // through a Vercel function rather than straight to R2, so a 9 MB
+      // camera photograph is both slow and near the body limit.
+      const img = await prepareImage(file, { maxEdge: EDGE_FOR_KEEPING })
+
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', img.blob, 'photo.jpg')
       const res = await apiPost(`/api/animals/${id}/photos`, fd)
       if (res.ok) {
         const data = await res.json()

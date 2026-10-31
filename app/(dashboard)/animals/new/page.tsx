@@ -11,6 +11,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { BreedSelector, type BreedEntry } from '@/components/animals/BreedSelector'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
+import { prepareImage, EDGE_FOR_KEEPING } from '@/lib/prepare-image'
 
 // ── Ear tag color picker ──────────────────────────────────────────────────────
 
@@ -348,8 +349,15 @@ export default function NewAnimalPage() {
         const d = await res.json()
         pendingIdRef.current = d.data?.id ?? d.id
       }
+      // Shrunk before it leaves the phone. A camera photograph is 8-9 MB and
+      // this path posts it through a Vercel function rather than straight to
+      // R2, so the body limit is in play on top of the upload time — on a bar
+      // of signal in a pasture that is the difference between adding an animal
+      // and giving up. It also normalises an iPhone HEIC to JPEG.
+      const img = await prepareImage(file, { maxEdge: EDGE_FOR_KEEPING })
+
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', img.blob, 'photo.jpg')
       const res = await apiPost(`/api/animals/${pendingIdRef.current}/photos`, fd)
       if (res.ok) {
         const d = await res.json()

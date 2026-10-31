@@ -36,11 +36,30 @@ export interface PreparedImage {
   bytes: number
 }
 
-/** Claude downscales past this anyway. */
-const MAX_EDGE = 1568
+/**
+ * For anything read by the model: Claude downscales past this anyway, so more
+ * pixels cost upload time and buy nothing.
+ */
+export const EDGE_FOR_READING = 1568
+
+/**
+ * For a photograph of an animal, which is looked at by people rather than read
+ * by a model. Bound by the screen and the bill rather than by an API limit, so
+ * it keeps more detail — a brand or an ear notch stays legible when somebody
+ * opens the picture full size a year from now. Still around a megabyte against
+ * the nine the camera produced.
+ */
+export const EDGE_FOR_KEEPING = 2048
 
 /** Comfortably inside the 10 MB base64 ceiling, with room for the overhead. */
 const MAX_BYTES = 4_500_000
+
+export interface PrepareOptions {
+  /** Longest side in pixels. Defaults to EDGE_FOR_READING. */
+  maxEdge?: number
+  /** JPEG quality, 0-1. Defaults to 0.82. */
+  quality?: number
+}
 
 async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
   // createImageBitmap applies EXIF orientation, which an <img> does not do
@@ -71,13 +90,15 @@ function toBase64(blob: Blob): Promise<string> {
   })
 }
 
-export async function prepareImage(file: File): Promise<PreparedImage> {
+export async function prepareImage(file: File, opts: PrepareOptions = {}): Promise<PreparedImage> {
+  const maxEdge = opts.maxEdge ?? EDGE_FOR_READING
+
   const source = await decode(file)
   const sw = 'width'  in source ? source.width  : 0
   const sh = 'height' in source ? source.height : 0
   if (!sw || !sh) throw new Error('That image has no size this device can read.')
 
-  const scale = Math.min(1, MAX_EDGE / Math.max(sw, sh))
+  const scale = Math.min(1, maxEdge / Math.max(sw, sh))
   const w = Math.max(1, Math.round(sw * scale))
   const h = Math.max(1, Math.round(sh * scale))
 
@@ -104,8 +125,9 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
 
   // Almost always one pass. The loop is for the odd photograph that stays
   // large at this resolution rather than for the common case.
-  let blob = await encode(0.82)
-  for (const q of [0.7, 0.55, 0.4]) {
+  const first = opts.quality ?? 0.82
+  let blob = await encode(first)
+  for (const q of [0.7, 0.55, 0.4].filter(q => q < first)) {
     if (blob.size <= MAX_BYTES) break
     blob = await encode(q)
   }

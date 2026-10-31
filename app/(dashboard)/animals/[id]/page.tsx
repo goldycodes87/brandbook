@@ -34,6 +34,7 @@ import { BreedDisplay } from '@/components/animals/BreedDisplay'
 import { BullPerformanceSection } from '@/components/animals/BullPerformanceSection'
 import { PregCheckSheet } from '@/components/reproduction/PregCheckSheet'
 import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/fetch'
+import { prepareImage, EDGE_FOR_KEEPING } from '@/lib/prepare-image'
 import { deriveReproStatus } from '@/lib/repro-status'
 import { fmtDate, calcAge } from '@/lib/format'
 
@@ -1247,12 +1248,23 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
     setUploadingPhoto(true)
     setPhotoError('')
     try {
+      // Step 0: Shrink it before anything else.
+      //
+      // This path does go straight to R2, so the body limit is not the
+      // problem here -- the upload time is. The camera produces 8-9 MB and
+      // the app draws these at a few hundred pixels, so the other eight
+      // megabytes cost a wait in the chute and a storage bill, and buy
+      // nothing. Normalising an iPhone HEIC to JPEG is the other half: the
+      // presign keyed it .jpg off a fallback while storing it as HEIC, and
+      // the thumbnailer cannot read those.
+      const img = await prepareImage(file, { maxEdge: EDGE_FOR_KEEPING })
+
       // Step 1: Get presigned URL
       const presignRes = await fetch(`/api/animals/${id}/photos/presign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ filename: file.name, content_type: file.type || 'image/jpeg' }),
+        body: JSON.stringify({ filename: 'photo.jpg', content_type: img.mediaType }),
       })
       if (!presignRes.ok) {
         const err = await presignRes.json()
@@ -1264,8 +1276,8 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
       // Step 2: Upload directly to R2 (no Vercel body size limit)
       const uploadRes = await fetch(presigned_url, {
         method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type || 'image/jpeg' },
+        body: img.blob,
+        headers: { 'Content-Type': img.mediaType },
       })
       if (!uploadRes.ok) {
         setPhotoError('Upload to storage failed (' + uploadRes.status + ')')
