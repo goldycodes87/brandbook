@@ -37,7 +37,7 @@ export async function GET() {
       .from('portal_memberships')
       .select(`
         id, role, status, invited_at, accepted_at, onboarded_at, invite_token, owner_id,
-        portal_people ( id, first_name, last_name, preferred_name, email, phone, practice_name, auth_user_id ),
+        portal_people ( id, first_name, last_name, preferred_name, email, phone, practice_name, auth_user_id, last_seen_at ),
         grazing_owners ( id, name, company_name, owner_name )
       `)
       .eq('ranch_id', s.ranchId ?? '')
@@ -58,7 +58,8 @@ export async function GET() {
     invite_token: string | null; owner_id: string | null
     portal_people: { id: string; first_name: string | null; last_name: string | null
                      preferred_name: string | null; email: string | null; phone: string | null
-                     practice_name: string | null; auth_user_id: string | null } | null
+                     practice_name: string | null; auth_user_id: string | null
+                     last_seen_at: string | null } | null
     grazing_owners: { name: string | null; company_name: string | null; owner_name: string | null } | null
   }>
 
@@ -78,6 +79,10 @@ export async function GET() {
       // A password login and a magic link are different doors; the room should
       // say which one this person has.
       hasPassword: Boolean(r.portal_people?.auth_user_id),
+      // Whether they have ever actually opened the thing. An invite that was
+      // accepted and never used again is worth seeing, and until now there was
+      // no way to tell it from one in daily use.
+      lastSeenAt: r.portal_people?.last_seen_at ?? null,
       herd:      r.grazing_owners?.company_name || r.grazing_owners?.owner_name || r.grazing_owners?.name || null,
       accepted:  r.accepted_at != null,
       onboarded: r.onboarded_at != null,

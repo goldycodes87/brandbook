@@ -24,12 +24,39 @@ export async function GET() {
   // withdrawn.
   const { data, error } = await supabase
     .from('invoices')
-    .select('id, invoice_number, period_start, period_end, total_amount, status, due_date, pdf_url, created_at')
+    // viewed_at comes back so the stamp below can tell a first sighting from
+    // a return visit without a second query.
+    .select('id, invoice_number, period_start, period_end, total_amount, status, due_date, pdf_url, created_at, viewed_at')
     .eq('owner_id', session.id)
     .in('status', ['sent', 'paid', 'approved'])
     .order('created_at', { ascending: false })
     .limit(100)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Stamp the ones he is seeing for the first time.
+  //
+  // invoices.viewed_at has existed since the beginning and nothing ever wrote
+  // to it. The billing screen shows a "Viewed" row in its timeline that could
+  // never fill in, and an empty column could not tell "he has not looked" from
+  // "we never recorded it" — so it answered nothing and looked like it should.
+  //
+  // First sighting only: it records when the bill reached him, which is the
+  // useful fact when a payment is late. Re-stamping on every visit would turn
+  // it into a second last_seen_at and lose that.
+  //
+  // Not awaited. Nobody's invoice list should fail to load over this.
+  const unseen = (data ?? [])
+    .filter((i: { viewed_at: string | null }) => !i.viewed_at)
+    .map((i: { id: string }) => i.id)
+
+  if (unseen.length > 0) {
+    void supabase
+      .from('invoices')
+      .update({ viewed_at: new Date().toISOString() })
+      .in('id', unseen)
+      .then(({ error: e }) => { if (e) console.error('[invoice viewed_at]', e.message) })
+  }
+
   return NextResponse.json({ data: data ?? [] })
 }

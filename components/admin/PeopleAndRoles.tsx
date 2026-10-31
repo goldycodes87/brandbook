@@ -17,6 +17,7 @@ interface Person {
   email: string | null
   practice: string | null
   hasPassword: boolean
+  lastSeenAt: string | null
   herd: string | null
   accepted: boolean
   onboarded: boolean
@@ -28,6 +29,15 @@ interface HerdOption { id: string; label: string }
 interface AccessRequest {
   id: string; herd: string; name: string | null; email: string | null
   notes: string | null; askedAt: string
+}
+
+function lastSeen(iso: string): string {
+  const then = new Date(iso)
+  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000)
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 30)  return `${days} days ago`
+  return `on ${then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
 }
 
 export function PeopleAndRoles() {
@@ -209,6 +219,15 @@ export function PeopleAndRoles() {
                   {p.accepted && !p.onboarded && <Badge variant="warning">Setup unfinished</Badge>}
                   {p.onboarded     && <Badge variant="success">Set up</Badge>}
                 </div>
+                {/* Whether they actually use it. An invite accepted once and
+                    never opened again looked identical to one in daily use,
+                    which is the difference between a portal that is working
+                    and one that quietly is not. */}
+                <p className="type-helper mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                  {p.lastSeenAt
+                    ? `Last opened their portal ${lastSeen(p.lastSeenAt)}`
+                    : 'Has never opened their portal'}
+                </p>
                 {/* Revealed on demand rather than printed beside every name:
                     the link IS the credential, and a screen full of them is a
                     screen you would not want anyone reading over your

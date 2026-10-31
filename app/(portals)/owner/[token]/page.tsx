@@ -327,7 +327,7 @@ function AnimalDrawer({ animalId, onClose }: { animalId: string; onClose: () => 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 0 40px' }}>
           {loading && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ width: 28, height: 28, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+              <div style={{ width: 28, height: 28, border: '2px solid var(--brass)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
             </div>
           )}
 
@@ -471,7 +471,7 @@ function AnimalDrawer({ animalId, onClose }: { animalId: string; onClose: () => 
                   >
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Cost Breakdown</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>{fmtMoney(detail.cost_basis.total_invested)}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--brass)' }}>{fmtMoney(detail.cost_basis.total_invested)}</span>
                       <IconChevronDown open={costOpen} />
                     </div>
                   </button>
@@ -491,7 +491,7 @@ function AnimalDrawer({ animalId, onClose }: { animalId: string; onClose: () => 
                       ))}
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Total Invested</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>{fmtMoney(detail.cost_basis.total_invested)}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--brass)' }}>{fmtMoney(detail.cost_basis.total_invested)}</span>
                       </div>
                     </div>
                   )}
@@ -814,8 +814,8 @@ function AccessSheet({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           disabled={!ready || submitting}
           style={{
             padding: '15px 12px', borderRadius: 12, border: 'none',
-            background: ready ? 'var(--accent)' : 'var(--surface-2)',
-            color: ready ? '#fff' : 'var(--text-muted)',
+            background: ready ? 'var(--brass)' : 'var(--surface-2)',
+            color: ready ? 'var(--on-brass)' : 'var(--text-muted)',
             fontWeight: 700, fontSize: 13, letterSpacing: '.06em',
             cursor: ready ? 'pointer' : 'default', minHeight: 48,
           }}
@@ -850,9 +850,9 @@ function BottomSheet({ title, onClose, children }: { title: string; onClose: () 
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }
 const inputStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-1)', color: 'var(--text)', fontSize: 14 }
 const chipBtn: React.CSSProperties = { padding: '8px 14px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }
-const chipActive: React.CSSProperties = { background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)' }
+const chipActive: React.CSSProperties = { background: 'var(--brass)', color: 'var(--on-brass)', border: '1px solid var(--brass)' }
 const stepperBtn: React.CSSProperties = { width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }
-const submitBtn: React.CSSProperties = { padding: '14px', borderRadius: 10, background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 14, letterSpacing: '0.05em', border: 'none', cursor: 'pointer', width: '100%' }
+const submitBtn: React.CSSProperties = { padding: '14px', borderRadius: 10, background: 'var(--brass)', color: 'var(--on-brass)', fontWeight: 700, fontSize: 14, letterSpacing: '0.05em', border: 'none', cursor: 'pointer', width: '100%' }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
@@ -1013,7 +1013,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
   if (loading) {
     return (
       <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--surface-0)' }}>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--accent)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--brass)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     )
@@ -1024,7 +1024,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
       <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'var(--surface-0)' }}>
         <div style={{ textAlign: 'center', maxWidth: 320 }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 0, lineHeight: 1, marginBottom: 16 }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 700, color: 'var(--accent)' }}>BRAND</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 700, color: 'var(--brass)' }}>BRAND</span>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 400, color: 'var(--text)' }}>BOOK</span>
           </div>
           <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
@@ -1083,11 +1083,11 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
       {/* Sticky top header */}
       <header style={{ position: 'sticky', top: 0, zIndex: 20, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--surface-1)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 0, lineHeight: 1 }}>
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent)' }}>BRAND</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 700, color: 'var(--brass)' }}>BRAND</span>
           <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 400, color: 'var(--text)' }}>BOOK</span>
         </div>
         {/* Avatar */}
-        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>
+        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--brass)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-brass)', fontWeight: 700, fontSize: 14 }}>
           {(owner?.name?.[0] ?? '?').toUpperCase()}
         </div>
       </header>
@@ -1169,7 +1169,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
                     {unpaidInvoices[0]?.due_date ? ` · due ${fmtDate(unpaidInvoices[0].due_date)}` : ''}
                   </span>
                 </span>
-                <span style={{ color: 'var(--accent)' }}>→</span>
+                <span style={{ color: 'var(--brass)' }}>→</span>
               </button>
             )}
 
@@ -1198,7 +1198,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
                   <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>My cattle</p>
-                  <button onClick={() => setTab('animals')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--accent)' }}>
+                  <button onClick={() => setTab('animals')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--brass)' }}>
                     See all {animals.length} →
                   </button>
                 </div>
@@ -1334,8 +1334,8 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
                       <div style={{
                         padding: '10px 14px',
                         borderRadius: isOwner ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        background: isOwner ? 'var(--accent)' : 'var(--surface-2)',
-                        color: isOwner ? '#fff' : 'var(--text)',
+                        background: isOwner ? 'var(--brass)' : 'var(--surface-2)',
+                        color: isOwner ? 'var(--on-brass)' : 'var(--text)',
                         fontSize: 14,
                         lineHeight: 1.5,
                       }}>
@@ -1362,7 +1362,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
                   placeholder="Type a message…"
                   style={{ flex: 1, padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface-1)', color: 'var(--text)', fontSize: 14, resize: 'none' }}
                 />
-                <button type="submit" disabled={sending || !msgBody.trim()} style={{ padding: '10px 18px', borderRadius: 12, background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', opacity: (sending || !msgBody.trim()) ? 0.6 : 1 }}>
+                <button type="submit" disabled={sending || !msgBody.trim()} style={{ padding: '10px 18px', borderRadius: 12, background: 'var(--brass)', color: 'var(--on-brass)', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', opacity: (sending || !msgBody.trim()) ? 0.6 : 1 }}>
                   {sending ? '…' : 'SEND'}
                 </button>
               </form>
@@ -1376,7 +1376,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
 
             {/* Quick actions */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button onClick={() => setBuyOpen(true)} style={{ padding: '16px 12px', borderRadius: 14, background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', border: 'none', cursor: 'pointer', textAlign: 'center' }}>
+              <button onClick={() => setBuyOpen(true)} style={{ padding: '16px 12px', borderRadius: 14, background: 'var(--brass)', color: 'var(--on-brass)', fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', border: 'none', cursor: 'pointer', textAlign: 'center' }}>
                 + BUY REQUEST
               </button>
               <button onClick={() => setSellOpen(true)} style={{ padding: '16px 12px', borderRadius: 14, background: 'var(--surface-2)', color: 'var(--text)', fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', border: '1px solid var(--border)', cursor: 'pointer', textAlign: 'center' }}>
@@ -1413,7 +1413,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
                         href={inv.pdf_url || `/api/portals/owner/invoices/${inv.id}/pdf`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}
+                        style={{ fontSize: 11, color: 'var(--brass)', fontWeight: 600 }}
                       >
                         Download PDF
                       </a>
@@ -1547,7 +1547,7 @@ export default function OwnerPortalPage({ params }: { params: Promise<{ token: s
             style={{
               flex: 1, padding: '8px 4px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               background: 'none', border: 'none', cursor: 'pointer',
-              color: tab === t.value ? 'var(--accent)' : 'var(--text-muted)',
+              color: tab === t.value ? 'var(--brass)' : 'var(--text-muted)',
             }}
           >
             {t.icon}

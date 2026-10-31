@@ -64,7 +64,7 @@ export function PayoutChoice() {
       role="status"
       style={{
         borderRadius: 14,
-        border: `1px solid ${failed ? 'var(--warning-fg)' : 'var(--accent)'}`,
+        border: `1px solid ${failed ? 'var(--warning-fg)' : 'var(--brass)'}`,
         background: 'var(--surface-1)',
         padding: '14px 16px',
         marginBottom: 14,
@@ -72,7 +72,7 @@ export function PayoutChoice() {
     >
       <p style={{
         margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em',
-        textTransform: 'uppercase', color: failed ? 'var(--warning-fg)' : 'var(--accent)',
+        textTransform: 'uppercase', color: failed ? 'var(--warning-fg)' : 'var(--brass)',
       }}>
         {state === 'saving' ? 'Recording…' : failed ? 'That did not save' : 'Noted'}
       </p>

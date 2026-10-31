@@ -119,15 +119,15 @@ function Switch({ title, detail, on, onToggle }: {
         aria-hidden="true"
         style={{
           flexShrink: 0, marginTop: 2, width: 42, height: 24, borderRadius: 999,
-          background: on ? 'var(--accent)' : 'var(--surface-3)',
-          border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+          background: on ? 'var(--brass)' : 'var(--surface-3)',
+          border: `1px solid ${on ? 'var(--brass)' : 'var(--border)'}`,
           position: 'relative', transition: 'background 140ms ease',
         }}
       >
         <span style={{
           position: 'absolute', top: 2, left: on ? 20 : 2,
           width: 18, height: 18, borderRadius: '50%',
-          background: on ? '#fff' : 'var(--text-muted)',
+          background: on ? 'var(--on-brass)' : 'var(--text-muted)',
           transition: 'left 140ms ease',
         }} />
       </span>

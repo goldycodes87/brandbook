@@ -34,6 +34,22 @@ export async function GET() {
   const p = personRow as { preferred_name: string | null; first_name: string | null } | null
   const greetingName = (p?.preferred_name || p?.first_name || '').trim() || null
 
+  // Mark that he was here.
+  //
+  // Every portal screen calls this route on load, so it is the one place that
+  // sees every visit. Not awaited and never allowed to fail the request: a
+  // man opening his portal must not be shown an error because a bookkeeping
+  // write timed out.
+  if (session.personId) {
+    void supabase
+      .from('portal_people')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', session.personId)
+      .then(({ error }) => {
+        if (error) console.error('[portal last_seen]', error.message)
+      })
+  }
+
   const { data } = await supabase
     .from('grazing_owners')
     .select('brand_image_url, brand_photo_url, brand_drawing_url')

@@ -14,7 +14,7 @@ import { PERIOD_CHOICES, type PeriodKey } from '@/lib/purchase-periods'
  */
 
 const chipActive: React.CSSProperties = {
-  background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)',
+  background: 'var(--brass)', color: 'var(--on-brass)', borderColor: 'var(--brass)',
 }
 
 const chip: React.CSSProperties = {

@@ -2432,6 +2432,7 @@ export type Database = {
           first_name: string | null
           id: string
           last_name: string | null
+          last_seen_at: string | null
           license_expires: string | null
           license_number: string | null
           license_state: string | null
@@ -2454,6 +2455,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          last_seen_at?: string | null
           license_expires?: string | null
           license_number?: string | null
           license_state?: string | null
@@ -2476,6 +2478,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          last_seen_at?: string | null
           license_expires?: string | null
           license_number?: string | null
           license_state?: string | null

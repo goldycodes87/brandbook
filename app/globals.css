@@ -36,6 +36,10 @@
      ranch name and nowhere else — it does its work by being rare. */
   --brass:      #b08d57;
   --brass-rule: linear-gradient(90deg, var(--brass), rgba(176,141,87,0.12) 60%, transparent);
+  /* Text and icons sitting ON a brass fill. Brass is a mid-tone: white on it
+     comes out around 2.6:1 and reads as washed out, where this is near 8:1.
+     Anything filled with brass takes this, never #fff. */
+  --on-brass:   #17120d;
 
   /* Top-edge highlight. A flat panel reads as a template; one that catches
      a little light along its top edge reads as an object. */
