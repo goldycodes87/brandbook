@@ -1,0 +1,122 @@
+'use client'
+
+/**
+ * Get a camera photograph into a shape that will actually go through.
+ *
+ * A phone in a pasture produces an 8-9 MB JPEG, and sometimes a HEIC. Both
+ * break the receipt scanner, for different reasons:
+ *
+ *   Size   Claude's per-image limit on the first-party API is 10 MB
+ *          base64-encoded, and base64 inflates by a third. An 8.74 MB
+ *          photograph arrives as 11.65 MB and is refused. A 7 MB one goes
+ *          through. That is why it works some days.
+ *
+ *   HEIC   What an iPhone stores natively. The API accepts jpeg, png, webp
+ *          and gif, and nothing else. Taking the picture inside the app
+ *          usually yields JPEG; picking one from the library may not.
+ *
+ * Both are fixed in the same place: decode it here and re-encode as a JPEG
+ * the right size before anything is sent.
+ *
+ * The long edge is capped at 1568px because that is the resolution Claude
+ * downscales to anyway — sending more pixels costs upload time on a cell
+ * connection and buys nothing. On the ranch's own photographs that is an
+ * 8.74 MB file down to roughly 0.6 MB, which also matters on a bar of signal
+ * at the far end of a pasture.
+ */
+
+export interface PreparedImage {
+  blob: Blob
+  /** Base64 without the data: prefix, ready for the API. */
+  base64: string
+  mediaType: 'image/jpeg'
+  width: number
+  height: number
+  originalBytes: number
+  bytes: number
+}
+
+/** Claude downscales past this anyway. */
+const MAX_EDGE = 1568
+
+/** Comfortably inside the 10 MB base64 ceiling, with room for the overhead. */
+const MAX_BYTES = 4_500_000
+
+async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
+  // createImageBitmap applies EXIF orientation, which an <img> does not do
+  // consistently — without it a sideways receipt reaches Claude sideways.
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await createImageBitmap(file, { imageOrientation: 'from-image' })
+    } catch {
+      // Falls through: some browsers refuse HEIC here but can still render it.
+    }
+  }
+
+  return await new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload  = () => { URL.revokeObjectURL(url); resolve(img) }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That image could not be read on this device.')) }
+    img.src = url
+  })
+}
+
+function toBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload  = () => resolve((r.result as string).split(',')[1] ?? '')
+    r.onerror = () => reject(new Error('That image could not be read on this device.'))
+    r.readAsDataURL(blob)
+  })
+}
+
+export async function prepareImage(file: File): Promise<PreparedImage> {
+  const source = await decode(file)
+  const sw = 'width'  in source ? source.width  : 0
+  const sh = 'height' in source ? source.height : 0
+  if (!sw || !sh) throw new Error('That image has no size this device can read.')
+
+  const scale = Math.min(1, MAX_EDGE / Math.max(sw, sh))
+  const w = Math.max(1, Math.round(sw * scale))
+  const h = Math.max(1, Math.round(sh * scale))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('This device would not give us a canvas to work on.')
+  // White underneath, in case a transparent PNG ever comes through: a receipt
+  // on a transparent ground renders as black-on-black once flattened to JPEG.
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, w, h)
+  ctx.drawImage(source as CanvasImageSource, 0, 0, w, h)
+  if ('close' in source) source.close()
+
+  const encode = (quality: number) =>
+    new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        b => (b ? resolve(b) : reject(new Error('That image could not be converted on this device.'))),
+        'image/jpeg',
+        quality,
+      )
+    })
+
+  // Almost always one pass. The loop is for the odd photograph that stays
+  // large at this resolution rather than for the common case.
+  let blob = await encode(0.82)
+  for (const q of [0.7, 0.55, 0.4]) {
+    if (blob.size <= MAX_BYTES) break
+    blob = await encode(q)
+  }
+
+  return {
+    blob,
+    base64: await toBase64(blob),
+    mediaType: 'image/jpeg',
+    width: w,
+    height: h,
+    originalBytes: file.size,
+    bytes: blob.size,
+  }
+}

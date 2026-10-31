@@ -63,6 +63,37 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'image_base64 and media_type required' }, { status: 400 })
       }
 
+      // Say what is wrong rather than forwarding something that cannot work.
+      //
+      // The API accepts these four and nothing else, and an iPhone will hand
+      // over a HEIC from its library. The app now converts to JPEG before
+      // sending, so reaching this line means something else called the route.
+      const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+      if (!ACCEPTED.includes(media_type)) {
+        return NextResponse.json(
+          { error: `${media_type} is not a format the reader accepts.` },
+          { status: 415 },
+        )
+      }
+
+      // 10 MB base64 is the per-image ceiling on the first-party API. A
+      // camera photograph is 8-9 MB on disk and base64 adds a third, so it
+      // lands near 12 MB and is refused — which is why scanning a receipt
+      // worked on some days and not others, depending on the photograph.
+      // The app downscales before sending now; this is the backstop, and it
+      // says so plainly instead of returning "Parse failed".
+      const MAX_B64 = 10 * 1024 * 1024
+      if (image_base64.length > MAX_B64) {
+        return NextResponse.json(
+          {
+            error:
+              `That photo is ${(image_base64.length / 1048576).toFixed(1)} MB encoded, over the 10 MB limit. ` +
+              `Update the app and take it again — it will be shrunk before sending.`,
+          },
+          { status: 413 },
+        )
+      }
+
       const message = await client.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
@@ -107,7 +138,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'mode must be receipt or text' }, { status: 400 })
     }
   } catch (err) {
-    console.error('[parse-expense] error:', err)
-    return NextResponse.json({ error: 'Parse failed' }, { status: 500 })
+    // "Parse failed" told a rancher standing in a feed store nothing, and
+    // told whoever read the logs little more. The Anthropic SDK's errors
+    // carry a status and a message that name the actual problem — an image
+    // over the limit, a key that has been rotated, a rate limit — so pass
+    // that through rather than flattening every failure into one sentence.
+    const status = (err as { status?: number })?.status
+    const detail = (err as { message?: string })?.message ?? ''
+    console.error('[parse-expense] error:', status ?? '', detail || err)
+
+    if (status === 401 || status === 403) {
+      return NextResponse.json({ error: 'The reader is not authorised — the ranch API key needs attention.' }, { status: 502 })
+    }
+    if (status === 429) {
+      return NextResponse.json({ error: 'The reader is busy. Give it a moment and try again.' }, { status: 429 })
+    }
+    if (status === 400 && /image/i.test(detail)) {
+      return NextResponse.json({ error: 'The reader would not accept that image.' }, { status: 400 })
+    }
+    return NextResponse.json({ error: 'The reader could not be reached.' }, { status: 502 })
   }
 }

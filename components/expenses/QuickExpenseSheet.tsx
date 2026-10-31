@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import { apiPost, apiGet } from '@/lib/fetch'
+import { prepareImage, type PreparedImage } from '@/lib/prepare-image'
 import { postAnimalSplitExpense } from '@/lib/expense-split'
 import { AnimalMultiSelect, type PickerAnimal } from '@/components/expenses/AnimalMultiSelect'
 
@@ -173,45 +174,107 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
 
   // ── Receipt scan ────────────────────────────────────────────────────────────
 
+  /**
+   * Read the receipt, and try twice.
+   *
+   * A phone at the far end of a pasture drops a request now and then, and a
+   * scan that fails for that reason is indistinguishable to the rancher from
+   * one that failed because the photograph was bad. One quiet retry removes
+   * most of them. A 4xx is not retried — a request the server has refused
+   * will be refused again, and trying twice only makes him wait longer for
+   * the same answer.
+   */
+  async function parseReceipt(img: PreparedImage) {
+    let lastError = ''
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let res: Response
+      try {
+        res = await fetch('/api/ai/parse-expense', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'receipt',
+            image_base64: img.base64,
+            media_type: img.mediaType,
+          }),
+        })
+      } catch {
+        lastError = 'The connection dropped while sending that.'
+        continue
+      }
+
+      if (res.ok) return await res.json()
+
+      const body = await res.json().catch(() => ({}))
+      lastError = body.error ?? `The reader answered ${res.status}.`
+      // Its mind is made up.
+      if (res.status >= 400 && res.status < 500) break
+    }
+
+    return { error: lastError }
+  }
+
+  /**
+   * Keep the picture, if storage is willing.
+   *
+   * Best effort by design: the caller catches. A receipt that scanned
+   * correctly must not be thrown away because R2 was briefly unreachable, and
+   * the figures are already on screen for him to check against the paper in
+   * his hand.
+   */
+  async function storeReceipt(img: PreparedImage): Promise<string | null> {
+    const presignRes = await fetch('/api/expenses/receipts/presign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content_type: img.mediaType }),
+    })
+    if (!presignRes.ok) return null
+
+    const presign = await presignRes.json() as { presigned_url?: string; public_url?: string }
+    // This was the fetch(undefined) above: no URL meant a request to the page
+    // itself, and an error that read as a failed scan.
+    if (!presign.presigned_url) return null
+
+    const put = await fetch(presign.presigned_url, {
+      method: 'PUT',
+      body: img.blob,
+      headers: { 'Content-Type': img.mediaType },
+    })
+    return put.ok ? (presign.public_url ?? null) : null
+  }
+
   async function handleScan(file: File) {
     setIsScanning(true); setScanError('')
     try {
-      // Parallel: AI parse + R2 upload
-      const toBase64 = (f: File): Promise<string> =>
-        new Promise((res, rej) => {
-          const r = new FileReader()
-          r.onload = () => res((r.result as string).split(',')[1])
-          r.onerror = rej
-          r.readAsDataURL(f)
-        })
+      // ── 1. Make the photograph sendable ───────────────────────────────────
+      //
+      // Before anything leaves the phone. A camera photograph is 8-9 MB, which
+      // base64 inflates past Claude's 10 MB per-image ceiling, and an iPhone
+      // may hand over a HEIC the API does not accept at all. Both were silent
+      // failures that looked the same to the user: "Couldn't read that."
+      const img = await prepareImage(file)
 
-      const [base64Data, presignRes] = await Promise.all([
-        toBase64(file),
-        fetch('/api/expenses/receipts/presign', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content_type: file.type }),
-        }).then(r => r.json()),
-      ])
+      // ── 2. The parse is the job ───────────────────────────────────────────
+      //
+      // It no longer shares a Promise.all with the upload. They were failing
+      // together: a storage hiccup threw away a scan that had worked, and a
+      // presign that came back without a URL meant fetch(undefined), which
+      // throws somewhere else entirely and reports as "couldn't read that".
+      // The reading is what the rancher is waiting for; the stored copy is
+      // evidence he can live without for a minute.
+      const parseRes = await parseReceipt(img)
 
-      // Upload to R2 + call AI in parallel
-      const [, parseRes] = await Promise.all([
-        fetch(presignRes.presigned_url, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': file.type },
-        }),
-        fetch('/api/ai/parse-expense', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'receipt', image_base64: base64Data, media_type: file.type }),
-        }).then(r => r.json()),
-      ])
-
-      setReceiptUrl(presignRes.public_url ?? null)
+      // ── 3. Keep the picture if we can ─────────────────────────────────────
+      const stored = await storeReceipt(img).catch(() => null)
+      setReceiptUrl(stored)
 
       if (parseRes.error || !parseRes.items?.length) {
-        setScanError('No expenses found. Try a clearer photo or manual entry.')
+        setScanError(
+          parseRes.error
+            ? `${parseRes.error} Try again, or enter it by hand.`
+            : 'No expenses found on that one. Try a clearer photo, or enter it by hand.',
+        )
         setMode('scan')
         return
       }
@@ -227,8 +290,13 @@ export function QuickExpenseSheet({ isOpen, onClose, onSuccess }: Props) {
       // Auto-fill date from receipt if found
       if (parseRes.date) setExpenseDate(parseRes.date)
       setMode('review')
-    } catch {
-      setScanError("Couldn't read that. Try manual entry.")
+    } catch (e) {
+      // Say which thing went wrong. The old handler caught everything and
+      // reported "Couldn't read that" — the same sentence for a photo too
+      // large, a HEIC, a dropped connection and a bad key. There was no way
+      // to tell from the outside, and nothing was logged either.
+      console.error('[receipt scan]', e)
+      setScanError(e instanceof Error && e.message ? e.message : "Couldn't read that. Try entering it by hand.")
       setMode('scan')
     } finally {
       setIsScanning(false)
