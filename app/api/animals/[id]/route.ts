@@ -233,6 +233,7 @@ const PATCH_FIELDS: Record<string, (v: unknown) => unknown> = {
   purchase_price:       orNull,
   purchase_date:        orNull,
   vendor:               orNull,
+  brand_inspection_url: orNull,
   owner_id:             orNull,
   dam_id:               orNull,
   sire_id:              orNull,

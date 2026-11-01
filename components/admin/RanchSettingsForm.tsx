@@ -8,6 +8,7 @@ import { ContextBanner } from '@/components/ui/ContextBanner'
 import { BrandDrawingPad } from '@/components/settings/BrandDrawingPad'
 import { Check } from 'lucide-react'
 import { apiGet, apiPatch } from '@/lib/fetch'
+import { prepareImage, EDGE_FOR_MARK } from '@/lib/prepare-image'
 
 /**
  * The old Settings → Ranch Profile tab, unchanged, split across two rooms.
@@ -88,8 +89,16 @@ export function RanchSettingsForm({ show }: { show: 'profile' | 'defaults' }) {
     if (!file) return
     setUploadingLogo(true)
     try {
+      // Shrunk first: this posts through a function, which caps the body at
+      // 4.5 MB, and a logo off a designer's machine can be larger than that.
+      //
+      // 'preserve' keeps a PNG a PNG. The logo is the ranch's seal on the
+      // statements and the mark on the invoice header, and flattening it to
+      // JPEG would put a white box around it on both.
+      const img = await prepareImage(file, { maxEdge: EDGE_FOR_MARK, format: 'preserve' })
+
       const fd = new FormData()
-      fd.append('image', file)
+      fd.append('image', img.blob, img.mediaType === 'image/png' ? 'logo.png' : 'logo.jpg')
       const res  = await fetch('/api/settings/upload-logo', { method: 'POST', body: fd })
       const json = await res.json()
       if (json.url) setForm(f => ({ ...f, logo_url: json.url }))

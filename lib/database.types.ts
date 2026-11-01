@@ -216,6 +216,7 @@ export type Database = {
           birth_type: string | null
           birth_weight_estimated: boolean | null
           birth_weight_lbs: number | null
+          brand_inspection_url: string | null
           brand_photo: string | null
           breed: string | null
           breed_percentage: number | null
@@ -273,6 +274,7 @@ export type Database = {
           birth_type?: string | null
           birth_weight_estimated?: boolean | null
           birth_weight_lbs?: number | null
+          brand_inspection_url?: string | null
           brand_photo?: string | null
           breed?: string | null
           breed_percentage?: number | null
@@ -330,6 +332,7 @@ export type Database = {
           birth_type?: string | null
           birth_weight_estimated?: boolean | null
           birth_weight_lbs?: number | null
+          brand_inspection_url?: string | null
           brand_photo?: string | null
           breed?: string | null
           breed_percentage?: number | null

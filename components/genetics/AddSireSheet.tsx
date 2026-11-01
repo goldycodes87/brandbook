@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import type { SireLibraryRecord } from './SireCard'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/fetch'
+import { prepareImage, EDGE_FOR_KEEPING } from '@/lib/prepare-image'
 
 const schema = z.object({
   bull_name:           z.string().min(1, 'Name required'),
@@ -104,11 +105,25 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
     if (!file) return
     e.target.value = ''
 
+    // Shrunk here, before either branch, so a bull photographed on a phone
+    // does not post 9 MB through a function with a 4.5 MB body limit — and so
+    // an iPhone HEIC becomes a JPEG the browser can actually show in the
+    // preview below. Same 2048px as the animal photos: looked at by people
+    // rather than read by a model, so it keeps the detail.
+    setUploadingPhoto(true)
+    let img
+    try {
+      img = await prepareImage(file, { maxEdge: EDGE_FOR_KEEPING })
+    } catch (err) {
+      setError((err as Error).message || 'That photo could not be read on this device.')
+      setUploadingPhoto(false)
+      return
+    }
+
     if (isEdit && editSire) {
-      setUploadingPhoto(true)
       try {
         const fd = new FormData()
-        fd.append('photo', file)
+        fd.append('photo', img.blob, 'photo.jpg')
         const res = await fetch(`/api/genetics/sires/${editSire.id}/photo`, { method: 'POST', body: fd })
         const json = await res.json()
         if (res.ok) setPhotoUrl(json.url)
@@ -119,8 +134,9 @@ export function AddSireSheet({ open, onClose, editSire, onSuccess }: AddSireShee
         setUploadingPhoto(false)
       }
     } else {
-      setPendingPhoto(file)
-      setPhotoUrl(URL.createObjectURL(file))
+      setPendingPhoto(new File([img.blob], 'photo.jpg', { type: 'image/jpeg' }))
+      setPhotoUrl(URL.createObjectURL(img.blob))
+      setUploadingPhoto(false)
     }
   }
 

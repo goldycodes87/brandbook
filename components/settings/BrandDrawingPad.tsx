@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { ContextBanner } from '@/components/ui/ContextBanner'
 import type { SegmentItem } from '@/components/ui/SegmentedControl'
 import { apiPost } from '@/lib/fetch'
+import { prepareImage, EDGE_FOR_MARK } from '@/lib/prepare-image'
 
 type Mode    = 'upload' | 'draw'
 type PenSize = 'sm' | 'md' | 'lg'
@@ -87,8 +88,14 @@ export function BrandDrawingPad({ onSave, existingUrl, endpoint = '/api/settings
     if (!file) return
     setUploading(true); setError(''); setSaved(false)
     try {
+      // A brand is a mark, not a photograph: it ends up as the watermark behind
+      // the owner's portal and the seal on his statements. Resized because this
+      // posts through a function with a 4.5 MB body limit, and kept as PNG when
+      // it arrives as one so a transparent brand does not gain a white box.
+      const img = await prepareImage(file, { maxEdge: EDGE_FOR_MARK, format: 'preserve' })
+
       const fd = new FormData()
-      fd.append('image', file)
+      fd.append('image', img.blob, img.mediaType === 'image/png' ? 'brand.png' : 'brand.jpg')
       const res  = await apiPost(endpoint, fd)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Upload failed'); return }

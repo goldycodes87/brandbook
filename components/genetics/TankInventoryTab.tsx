@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { apiGet, apiPost, apiPatch } from '@/lib/fetch'
+import { prepareForReading } from '@/lib/prepare-image'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -76,15 +77,6 @@ function emptyRow(): RowData {
     strawSize: '0.5cc',
     isSexed: false,
   }
-}
-
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload  = () => resolve((reader.result as string).split(',')[1])
-    reader.onerror = () => reject(new Error('File read failed'))
-    reader.readAsDataURL(file)
-  })
 }
 
 // ── StrawRowEditor ────────────────────────────────────────────────────────────
@@ -341,9 +333,17 @@ function AddStrawsSheet({ isOpen, onClose, onSuccess }: {
   const handleScan = async (file: File) => {
     setScanning(true); setScanError('')
     try {
-      const file_base64 = await fileToBase64(file)
-      const media_type  = file.type || 'application/octet-stream'
-      const r           = await apiPost('/api/ai/parse-semen', { file_base64, media_type })
+      // Same ceiling that broke the receipt scanner: Claude's per-image limit
+      // is 10 MB base64, and base64 adds a third, so a photographed invoice off
+      // a phone arrives over the line and is refused. prepareForReading shrinks
+      // an image to the resolution the model works at anyway and normalises an
+      // iPhone HEIC to JPEG; a PDF is handed over untouched, since documents get
+      // 32 MB and the canvas cannot decode one.
+      const prepared    = await prepareForReading(file)
+      const r           = await apiPost('/api/ai/parse-semen', {
+        file_base64: prepared.base64,
+        media_type:  prepared.mediaType,
+      })
       const d           = await r.json()
       if (!r.ok) { setScanError(d.error ?? 'Parse failed'); return }
 

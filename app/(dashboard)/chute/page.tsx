@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Camera, ChevronRight, Undo2, CheckCircle, Plus } from 'lucide-react'
 import { apiGet, apiPost, apiDelete } from '@/lib/fetch'
+import { prepareImage, EDGE_FOR_READING } from '@/lib/prepare-image'
 import { EarTagDot } from '@/components/ui/EarTagDot'
 import { deriveReproStatus, type ReproStatusResult } from '@/lib/repro-status'
 import { runPregCheckFollowup } from '@/lib/preg-check-followup'
@@ -496,30 +497,34 @@ function AnimalScreen({
     }
   }
 
-  const handleScan = (file: File) => {
+  const handleScan = async (file: File) => {
     setScanning(true); setError('')
-    const reader = new FileReader()
-    reader.onload = async () => {
-      try {
-        const dataUrl    = reader.result as string
-        const base64     = dataUrl.split(',')[1]
-        const mimeMatch  = dataUrl.match(/data:([^;]+);/)
-        const media_type = mimeMatch?.[1] ?? 'image/jpeg'
-        const res  = await apiPost('/api/ai/read-tag', { image_base64: base64, media_type })
-        const json = await res.json()
-        if (json.tag_number) {
-          setTagInput(json.tag_number)
-          await lookup(json.tag_number)
-        } else {
-          setError("Couldn't read tag — enter manually")
-        }
-      } catch {
-        setError('Camera error — enter manually')
-      } finally {
-        setScanning(false)
+    try {
+      // The camera's own photograph used to go straight out as base64. That is
+      // the same thing that broke the receipt scanner: an 8-9 MB picture
+      // becomes 11-12 MB encoded, against a 10 MB per-image ceiling, so it
+      // worked on small photographs and failed on large ones. It also sent
+      // HEIC, which the API does not accept at all.
+      //
+      // This one matters most of the four: it is a man at the chute with a cow
+      // in it, reading a tag off a phone one-handed.
+      const img  = await prepareImage(file, { maxEdge: EDGE_FOR_READING })
+      const res  = await apiPost('/api/ai/read-tag', {
+        image_base64: img.base64,
+        media_type:   img.mediaType,
+      })
+      const json = await res.json()
+      if (json.tag_number) {
+        setTagInput(json.tag_number)
+        await lookup(json.tag_number)
+      } else {
+        setError("Couldn't read tag — enter manually")
       }
+    } catch {
+      setError('Camera error — enter manually')
+    } finally {
+      setScanning(false)
     }
-    reader.readAsDataURL(file)
   }
 
   const recentTiles = [...processed].reverse().slice(0, 9)

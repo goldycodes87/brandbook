@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useEffect, useCallback } from 'react'
+import { use, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -79,6 +79,7 @@ interface Animal {
   cull_reason: string | null
   photos: string[] | null
   brand_photo: string | null
+  brand_inspection_url: string | null
   notes: string | null
   registration_numbers: { registry: string; number: string }[] | null
   created_at: string
@@ -1123,6 +1124,146 @@ function SireComparisonTable({ calfRecords }: { calfRecords: AnimalRef[] }) {
   )
 }
 
+/**
+ * The animal's paperwork.
+ *
+ * One document so far: the brand inspection. It is here rather than only on the
+ * new-animal form because for most of this herd there is nothing to find — the
+ * form asked for the certificate from the beginning and never stored it, so
+ * every one uploaded before today was discarded. They have to go back on, and
+ * an animal added months ago has no new-animal form left to go back to.
+ *
+ * The file is uploaded straight to R2 at its original resolution. Nothing here
+ * re-encodes it: a brand inspection is the paper that proves ownership and the
+ * right to move the animal, and it is read by somebody looking for a brand, a
+ * signature and a hand-written tag number.
+ */
+function DocumentsTab({ animal, onRefresh }: { animal: Animal; onRefresh: () => void }) {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError]         = useState('')
+  const fileRef                   = useRef<HTMLInputElement>(null)
+
+  const url   = animal.brand_inspection_url
+  const isPdf = Boolean(url && url.toLowerCase().endsWith('.pdf'))
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setUploading(true)
+    setError('')
+    try {
+      const pres = await apiPost('/api/animals/brand-inspection/presign', {
+        content_type: file.type || 'application/octet-stream',
+      })
+      const p = await pres.json()
+      if (!pres.ok || !p.presigned_url) {
+        setError(p.error ?? 'That document could not be uploaded.')
+        return
+      }
+
+      const put = await fetch(p.presigned_url, {
+        method:  'PUT',
+        body:    file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      })
+      if (!put.ok) {
+        setError('That upload did not finish. Check your signal and try again.')
+        return
+      }
+
+      const saved = await apiPatch(`/api/animals/${animal.id}`, { brand_inspection_url: p.public_url })
+      if (!saved.ok) {
+        setError('The file went up but did not attach. Try again.')
+        return
+      }
+      onRefresh()
+    } catch {
+      setError('That upload did not finish. Check your signal and try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemove = async () => {
+    setUploading(true)
+    setError('')
+    try {
+      await apiPatch(`/api/animals/${animal.id}`, { brand_inspection_url: null })
+      onRefresh()
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="sr-only"
+        onChange={handleUpload}
+        disabled={uploading}
+      />
+
+      <Panel title="BRAND INSPECTION">
+        <PanelSection>
+          {url ? (
+            <div className="flex items-start gap-4">
+              <div
+                className="w-20 h-20 rounded-[var(--radius-md)] overflow-hidden flex items-center justify-center shrink-0"
+                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
+              >
+                {isPdf ? (
+                  <span className="type-helper font-bold" style={{ color: 'var(--text-muted)' }}>PDF</span>
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={url} alt="Brand inspection" className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div className="flex flex-col gap-2 min-w-0">
+                <p className="type-helper" style={{ color: 'var(--text-muted)' }}>
+                  Stored at full resolution.
+                </p>
+                <div className="flex items-center gap-3">
+                  <a href={url} target="_blank" rel="noreferrer" className="type-helper font-semibold" style={{ color: 'var(--brass)' }}>
+                    Open
+                  </a>
+                  <button type="button" className="type-helper" style={{ color: 'var(--text-secondary)' }}
+                    onClick={() => fileRef.current?.click()} disabled={uploading}>
+                    Replace
+                  </button>
+                  <button type="button" className="type-helper" style={{ color: 'var(--danger-fg)' }}
+                    onClick={handleRemove} disabled={uploading}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="type-body" style={{ color: 'var(--text-muted)' }}>
+                No inspection certificate on file.
+              </p>
+              <div>
+                <Button intent="secondary" size="sm" loading={uploading} onClick={() => fileRef.current?.click()}>
+                  {uploading ? 'UPLOADING…' : 'UPLOAD DOCUMENT'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <p className="type-helper mt-3" style={{ color: 'var(--danger-fg)' }}>{error}</p>
+          )}
+        </PanelSection>
+      </Panel>
+    </div>
+  )
+}
+
 function WeightsTab({ animal, onLogWeight, onRefresh }: { animal: Animal; onLogWeight: () => void; onRefresh: () => void }) {
   const [deletingId, setDeletingId]     = useState<string | null>(null)
   const [confirmId, setConfirmId]       = useState<string | null>(null)
@@ -1400,11 +1541,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
       {tab === 'reproduction'  && <ReproTab     animal={animal} onLogEvent={() => setReproOpen(true)} onRefresh={fetchAnimal} onDispose={handleCalfDispose} />}
       {tab === 'weights'       && <WeightsTab   animal={animal} onLogWeight={() => setWeightOpen(true)} onRefresh={fetchAnimal} />}
       {tab === 'history'       && <ChangeLog   animalId={animal.id} />}
-      {tab === 'documents'     && (
-        <div className="py-12 text-center type-body" style={{ color: 'var(--text-muted)' }}>
-          Document storage coming soon.
-        </div>
-      )}
+      {tab === 'documents'     && <DocumentsTab animal={animal} onRefresh={fetchAnimal} />}
 
       {/* Weight slide-up sheet */}
       {weightOpen && (

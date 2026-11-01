@@ -213,7 +213,9 @@ export default function NewAnimalPage() {
   const [purchasePrice, setPurchasePrice] = useState('')
   const [vendor, setVendor] = useState('')
   const [brandInspectionUrl, setBrandInspectionUrl] = useState<string | null>(null)
+  const [brandInspectionIsPdf, setBrandInspectionIsPdf] = useState(false)
   const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [docError, setDocError] = useState('')
 
   // Home-raised details
   const [birthWeightLbs, setBirthWeightLbs] = useState('')
@@ -368,12 +370,54 @@ export default function NewAnimalPage() {
     }
   }
 
+  /**
+   * The brand inspection, stored for real.
+   *
+   * This used to make a blob URL for the thumbnail and stop there. Nothing was
+   * uploaded and no column held it, so every certificate attached here was
+   * thrown away the moment the page closed — silently, with a tick beside it.
+   *
+   * It goes straight to R2 on a presigned PUT, at the camera's own resolution
+   * with no re-encoding. Everything else on this form is shrunk first because
+   * it posts through a function with a 4.5 MB body limit; this one does not
+   * pass through a function at all, which is what lets the original survive.
+   * A brand inspection is read by an inspector looking for a brand, a
+   * signature and a hand-written tag number, so the original is the point.
+   */
   const handleBrandInspectionUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
+
     setUploadingDoc(true)
-    try { setBrandInspectionUrl(URL.createObjectURL(file)) }
-    finally { setUploadingDoc(false) }
+    setDocError('')
+    try {
+      const pres = await apiPost('/api/animals/brand-inspection/presign', {
+        content_type: file.type || 'application/octet-stream',
+      })
+      const p = await pres.json()
+      if (!pres.ok || !p.presigned_url) {
+        setDocError(p.error ?? 'That document could not be uploaded.')
+        return
+      }
+
+      const put = await fetch(p.presigned_url, {
+        method:  'PUT',
+        body:    file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      })
+      if (!put.ok) {
+        setDocError('That upload did not finish. Check your signal and try again.')
+        return
+      }
+
+      setBrandInspectionUrl(p.public_url)
+      setBrandInspectionIsPdf(file.type === 'application/pdf')
+    } catch {
+      setDocError('That upload did not finish. Check your signal and try again.')
+    } finally {
+      setUploadingDoc(false)
+    }
   }
 
   const handleSave = async () => {
@@ -406,6 +450,7 @@ export default function NewAnimalPage() {
         purchase_date:       isPurchased ? (purchaseDate || null) : null,
         purchase_price:      isPurchased ? toNum(purchasePrice) : null,
         vendor:              isPurchased ? (vendor || null) : null,
+        brand_inspection_url: brandInspectionUrl,
         purchased_as_pair:   source === 'pair',
         birth_weight_lbs:    !isPurchased ? toNum(birthWeightLbs) : null,
         birth_weight_estimated: !isPurchased ? birthWeightEstimated : null,
@@ -760,21 +805,39 @@ export default function NewAnimalPage() {
             </div>
 
             {/* Brand inspection */}
-            <Field label="Brand Inspection" helper="Upload photo or scan of inspection paperwork">
+            <Field label="Brand Inspection" helper="Photo or scan of the inspection paperwork. Kept at full resolution.">
               {brandInspectionUrl ? (
                 <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={brandInspectionUrl} alt="Brand inspection" className="w-full h-full object-cover" />
-                  </div>
-                  <button
-                    type="button"
-                    className="type-helper"
-                    style={{ color: 'var(--danger-fg)' }}
-                    onClick={() => setBrandInspectionUrl(null)}
+                  <div
+                    className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden flex items-center justify-center shrink-0"
+                    style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
                   >
-                    Remove
-                  </button>
+                    {brandInspectionIsPdf ? (
+                      <span className="type-helper font-bold" style={{ color: 'var(--text-muted)' }}>PDF</span>
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={brandInspectionUrl} alt="Brand inspection" className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <a
+                      href={brandInspectionUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="type-helper"
+                      style={{ color: 'var(--brass)' }}
+                    >
+                      View document
+                    </a>
+                    <button
+                      type="button"
+                      className="type-helper text-left"
+                      style={{ color: 'var(--danger-fg)' }}
+                      onClick={() => { setBrandInspectionUrl(null); setBrandInspectionIsPdf(false) }}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <label
@@ -785,6 +848,9 @@ export default function NewAnimalPage() {
                   {uploadingDoc ? 'Uploading…' : 'Upload document'}
                   <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleBrandInspectionUpload} disabled={uploadingDoc} />
                 </label>
+              )}
+              {docError && (
+                <p className="type-helper mt-2" style={{ color: 'var(--danger-fg)' }}>{docError}</p>
               )}
             </Field>
           </div>
